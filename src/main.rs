@@ -7,6 +7,8 @@ const MAX_LANE_INDEX: usize = NUM_LANES - 1;
 const LANE_LOCATIONS: [f32; NUM_LANES] = [-2.5, 0.0, 2.5];
 const INPUT_DELAY: f32 = 0.25;
 const SPEED: f32 = 15.0;
+const GRAVITY: f32 = -30.0;
+const JUMP_STRENGTH: f32 = 10.0;
 
 /// identifying player entities.
 #[derive(Component)]
@@ -38,6 +40,18 @@ impl Default for InputDelay {
     }
 }
 
+/// player's vertical movement (jump, gravity) status data
+#[derive(Component)]
+struct VerticalMovement {
+    velocity_y: f32,
+}
+
+impl Default for VerticalMovement {
+    fn default() -> Self {
+        Self { velocity_y: 0.0 }
+    }
+}
+
 fn main() {
     App::new()
         .add_plugins((DefaultPlugins.set(WindowPlugin {
@@ -57,6 +71,7 @@ fn main() {
                 handle_player_input,
                 update_player_position,
                 update_input_delay_time,
+                apply_gravity_and_vertical_movement,
             ),
         )
         .run();
@@ -87,6 +102,7 @@ fn setup(
         Transform::from_xyz(0.0, 0.5, 8.0),
         Lane::default(),
         InputDelay::default(),
+        VerticalMovement::default(),
         Player,
     ));
 
@@ -116,12 +132,19 @@ fn setup(
     ));
 }
 
+type PlayerInputData<'a> = (
+    &'a Transform,
+    &'a mut Lane,
+    &'a mut InputDelay,
+    &'a mut VerticalMovement,
+);
+
 /// A system that moves the player left and right based on keyboard input
 fn handle_player_input(
     keyboard_input: Res<ButtonInput<KeyCode>>,
-    mut query: Query<(&mut Lane, &mut InputDelay), With<Player>>,
+    mut query: Query<PlayerInputData, With<Player>>,
 ) {
-    if let Ok((mut lane, mut input_delay)) = query.single_mut() {
+    if let Ok((transform, mut lane, mut input_delay, mut vert_move)) = query.single_mut() {
         if input_delay.remaining <= 0.0
             && !keyboard_input.all_pressed([KeyCode::KeyA, KeyCode::KeyD])
         {
@@ -135,6 +158,12 @@ fn handle_player_input(
                 lane.current = lane.current.saturating_add(1).min(MAX_LANE_INDEX);
                 input_delay.remaining = INPUT_DELAY;
             }
+        }
+
+        // 플레이어가 땅에 있고(y좌표가 0.51보다 작을 때) 점프 가능
+        let is_grounded = transform.translation.y <= 0.5;
+        if keyboard_input.just_pressed(KeyCode::Space) && is_grounded {
+            vert_move.velocity_y = JUMP_STRENGTH;
         }
     }
 }
@@ -156,5 +185,24 @@ fn update_player_position(
 fn update_input_delay_time(mut query: Query<&mut InputDelay, With<Player>>, time: Res<Time>) {
     if let Ok(mut delay_time) = query.single_mut() {
         delay_time.remaining = (delay_time.remaining - time.delta_secs()).max(0.0);
+    }
+}
+
+/// A system that applies gravity and updates the player's Y coordinate as a result.
+fn apply_gravity_and_vertical_movement(
+    mut query: Query<(&mut Transform, &mut VerticalMovement), With<Player>>,
+    time: Res<Time>,
+) {
+    if let Ok((mut transform, mut vert_move)) = query.single_mut() {
+        // 중력 적용
+        vert_move.velocity_y += GRAVITY * time.delta_secs();
+        // 수직 속도에 따라 Y좌표 변경
+        transform.translation.y += vert_move.velocity_y * time.delta_secs();
+
+        // 땅 아래로 떨어지지 않도록 처리 (플레이어 높이의 절반인 0.5를 기준으로 함)
+        if transform.translation.y < 0.5 {
+            transform.translation.y = 0.5;
+            vert_move.velocity_y = 0.0;
+        }
     }
 }
