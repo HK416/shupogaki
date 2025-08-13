@@ -1,0 +1,16 @@
+[package]
+name = "shupogaki"
+version = "0.1.0"
+edition = "2024"
+authors = ["HK416 <powerspirit127@gmail.com>"]
+description = "A fan-made endless runner game based on Blue Archive."
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/HK416/shupogaki"
+readme = "README.md"
+publish = false
+
+[profile.release]
+panic = "abort"
+
+[dependencies]
+bevy = "0.16"

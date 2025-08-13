@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="UTF-8" />
+        <title>Shupogaki 💢</title>
+        <style>
+        body {
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #7CD0FF; /* 캔버스 바깥 배경색 */
+            overflow: hidden;
+        }
+        .canvas-container {
+            width: 150vmin;
+            height: 150vmin;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        canvas {
+            /* aspect-ratio is now handled by JS */
+            max-width: 100%;
+            max-height: 100%;
+            display: block;
+        }
+        </style>
+    </head>
+    <body>
+        <div class="canvas-container"></div>
+        <script type="module">
+            import init from './shupogaki.js';
+            async function run() {
+                await init();
+                const canvas = document.querySelector('canvas');
+                if (canvas) {
+                    const container = document.querySelector('.canvas-container');
+                    container.appendChild(canvas);
+
+                    function resizeCanvas() {
+                        const containerRect = container.getBoundingClientRect();
+                        const aspectRatio = 16 / 9;
+
+                        let newWidth, newHeight;
+
+                        if (containerRect.width / containerRect.height > aspectRatio) {
+                            newHeight = containerRect.height;
+                            newWidth = newHeight * aspectRatio;
+                        } else {
+                            newWidth = containerRect.width;
+                            newHeight = newWidth / aspectRatio;
+                        }
+
+                        canvas.style.width = newWidth + 'px';
+                        canvas.style.height = newHeight + 'px';
+                    }
+
+                    window.addEventListener('resize', resizeCanvas);
+                    resizeCanvas();
+                }
+            }
+            run();
+        </script>
+    </body>
+</html>
