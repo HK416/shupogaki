@@ -9,8 +9,13 @@ repository = "https://github.com/HK416/shupogaki"
 readme = "README.md"
 publish = false
 
-[profile.release]
+[profile.product]
+inherits = "release"
+opt-level = "z"
+lto = true
+codegen-units = 1
 panic = "abort"
+strip = true
 
 [dependencies]
-bevy = "0.16"
+bevy = { version = "0.16" }
