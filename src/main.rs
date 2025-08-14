@@ -1,22 +1,36 @@
-use std::f32::consts::PI;
-
+// Import necessary Bevy modules.
 use bevy::{prelude::*, render::camera::ScalingMode};
 
+// --- GAME CONSTANTS ---
+
+/// The number of lanes available to the player.
 const NUM_LANES: usize = 3;
+/// The maximum lane index (0-based).
 const MAX_LANE_INDEX: usize = NUM_LANES - 1;
+/// The x-coordinates for each lane.
 const LANE_LOCATIONS: [f32; NUM_LANES] = [-2.5, 0.0, 2.5];
+/// The delay between player inputs in seconds.
 const INPUT_DELAY: f32 = 0.25;
+/// The forward movement speed of the player and the world.
 const SPEED: f32 = 15.0;
+/// The strength of gravity affecting the player.
 const GRAVITY: f32 = -30.0;
+/// The initial upward velocity of the player's jump.
 const JUMP_STRENGTH: f32 = 10.0;
 
-/// A marker component for player entities.
+// --- COMPONENTS ---
+
+/// A marker component for the player entity.
 #[derive(Component)]
 struct Player;
 
-/// A marker component for plane entities.
+/// A marker component for the ground plane entities.
 #[derive(Component)]
 struct Plane;
+
+/// A marker component for obstacle entities.
+#[derive(Component)]
+struct Obstacle;
 
 /// Stores the player's current lane index.
 #[derive(Component)]
@@ -26,13 +40,14 @@ struct Lane {
 
 impl Default for Lane {
     fn default() -> Self {
+        // Start the player in the middle lane.
         Self {
-            current: NUM_LANES / 2, // Start in the middle lane.
+            current: NUM_LANES / 2,
         }
     }
 }
 
-/// Stores the remaining time for input delay.
+/// A component to manage the delay between player inputs.
 #[derive(Component)]
 struct InputDelay {
     remaining: f32,
@@ -42,6 +57,12 @@ impl Default for InputDelay {
     fn default() -> Self {
         Self { remaining: 0.0 }
     }
+}
+
+/// A resource to manage the spawning of obstacles.
+#[derive(Resource)]
+struct ObstacleSpawnTimer {
+    timer: Timer,
 }
 
 /// Stores the player's horizontal movement speed.
@@ -68,8 +89,11 @@ impl Default for VerticalMovement {
     }
 }
 
+// --- MAIN FUNCTION ---
+
 fn main() {
     App::new()
+        // Add the default Bevy plugins, configuring the window.
         .add_plugins((DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
                 title: "Shupogaki 💢".into(),
@@ -80,7 +104,13 @@ fn main() {
             }),
             ..default()
         }),))
+        // Insert the obstacle spawn timer as a resource.
+        .insert_resource(ObstacleSpawnTimer {
+            timer: Timer::from_seconds(2.0, TimerMode::Repeating),
+        })
+        // Add the setup system to run once at startup.
         .add_systems(Startup, setup)
+        // Add the game's update systems to run every frame.
         .add_systems(
             Update,
             (
@@ -89,17 +119,24 @@ fn main() {
                 update_input_delay_time,
                 apply_gravity_and_vertical_movement,
                 update_plane_position,
+                spawn_obstacles,
+                update_obstacle_position,
+                check_for_collisions,
             ),
         )
+        // Run the Bevy application.
         .run();
 }
 
+// --- SETUP SYSTEM ---
+
+/// A system that sets up the initial game world.
 fn setup(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
-    // Plane
+    // Create the ground planes.
     for i in 0..3 {
         commands.spawn((
             Mesh3d(meshes.add(Plane3d::default().mesh().size(10.0, 50.0))),
@@ -112,14 +149,14 @@ fn setup(
         ));
     }
 
-    // Cube Player
+    // Spawn the player cube.
     commands.spawn((
         Mesh3d(meshes.add(Cuboid::new(1.0, 1.0, 1.0))),
         MeshMaterial3d(materials.add(StandardMaterial {
             base_color: Srgba::rgb(0.8, 0.7, 0.6).into(),
             ..Default::default()
         })),
-        Transform::from_xyz(0.0, 0.5, 8.0),
+        Transform::from_xyz(0.0, 0.5, -8.0),
         Lane::default(),
         InputDelay::default(),
         LaneMovement::default(),
@@ -127,16 +164,16 @@ fn setup(
         Player,
     ));
 
-    // Directional Light
+    // Spawn a directional light.
     commands.spawn((
         DirectionalLight {
             illuminance: 1_500.0,
             ..Default::default()
         },
-        Transform::from_rotation(Quat::from_rotation_x(-PI / 4.0)),
+        Transform::from_xyz(8.0, 12.0, 10.0).looking_at(Vec3::ZERO, Vec3::Y),
     ));
 
-    // 3D camera using orthographic projection, looking slightly up.
+    // Spawn the 3D camera.
     commands.spawn((
         Camera3d::default(),
         Projection::from(OrthographicProjection {
@@ -153,6 +190,9 @@ fn setup(
     ));
 }
 
+// --- UPDATE SYSTEMS ---
+
+/// A type alias for the player input query data.
 type PlayerInputData<'a> = (
     &'a Transform,
     &'a mut Lane,
@@ -160,67 +200,69 @@ type PlayerInputData<'a> = (
     &'a mut VerticalMovement,
 );
 
-/// A system that moves the player left and right based on keyboard input
+/// A system that handles player input for movement and jumping.
 fn handle_player_input(
     keyboard_input: Res<ButtonInput<KeyCode>>,
     mut query: Query<PlayerInputData, With<Player>>,
 ) {
     if let Ok((transform, mut lane, mut input_delay, mut vert_move)) = query.single_mut() {
+        // Check if the input delay has passed and keys are not pressed simultaneously.
         if input_delay.remaining <= 0.0
             && !keyboard_input.all_pressed([KeyCode::KeyA, KeyCode::KeyD])
         {
-            // Press 'A' or the left arrow key to move left
+            // Move left.
             if keyboard_input.pressed(KeyCode::KeyA) {
                 lane.current = lane.current.saturating_sub(1);
                 input_delay.remaining = INPUT_DELAY;
             }
-            // Press 'D' or the right arrow key to move right
+            // Move right.
             else if keyboard_input.pressed(KeyCode::KeyD) {
                 lane.current = lane.current.saturating_add(1).min(MAX_LANE_INDEX);
                 input_delay.remaining = INPUT_DELAY;
             }
         }
 
-        // Player can jump if they are on the ground.
+        // Check if the player is on the ground.
         let is_grounded = transform.translation.y <= 0.5;
+        // Jump if the space key is pressed and the player is on the ground.
         if keyboard_input.just_pressed(KeyCode::Space) && is_grounded {
             vert_move.velocity_y = JUMP_STRENGTH;
         }
     }
 }
 
-/// A system that smoothly moves the player's current location to the target lane location.
+/// A system that smoothly updates the player's x-coordinate to match the current lane.
 fn update_player_position(
     mut query: Query<(&mut Transform, &Lane), With<Player>>,
     time: Res<Time>,
 ) {
     if let Ok((mut transform, lane)) = query.single_mut() {
-        // Calculate target position.
+        // Calculate the target x-position based on the current lane.
         let target_x = LANE_LOCATIONS[lane.current];
-        // Move smoothly.
+        // Smoothly interpolate the player's x-position towards the target.
         transform.translation.x += (target_x - transform.translation.x) * SPEED * time.delta_secs();
     }
 }
 
-/// A system that updates the remaining input delay time.
+/// A system that decrements the input delay timer.
 fn update_input_delay_time(mut query: Query<&mut InputDelay, With<Player>>, time: Res<Time>) {
     if let Ok(mut delay_time) = query.single_mut() {
         delay_time.remaining = (delay_time.remaining - time.delta_secs()).max(0.0);
     }
 }
 
-/// A system that applies gravity and updates the player's Y coordinate as a result.
+/// A system that applies gravity to the player and updates their vertical position.
 fn apply_gravity_and_vertical_movement(
     mut query: Query<(&mut Transform, &mut VerticalMovement), With<Player>>,
     time: Res<Time>,
 ) {
     if let Ok((mut transform, mut vert_move)) = query.single_mut() {
-        // Apply gravity.
+        // Apply gravity to the vertical velocity.
         vert_move.velocity_y += GRAVITY * time.delta_secs();
-        // Update vertical position based on velocity.
+        // Update the player's y-position based on the vertical velocity.
         transform.translation.y += vert_move.velocity_y * time.delta_secs();
 
-        // Prevent falling through the ground (player height is 1.0, so ground is at y=0.5).
+        // Prevent the player from falling through the ground.
         if transform.translation.y < 0.5 {
             transform.translation.y = 0.5;
             vert_move.velocity_y = 0.0;
@@ -228,7 +270,7 @@ fn apply_gravity_and_vertical_movement(
     }
 }
 
-/// A system that moves the planes towards the player and recycles them.
+/// A system that moves the ground planes towards the player and recycles them.
 fn update_plane_position(
     player_query: Query<&LaneMovement, With<Player>>,
     mut plane_query: Query<&mut Transform, With<Plane>>,
@@ -236,13 +278,83 @@ fn update_plane_position(
 ) {
     if let Ok(lane_move) = player_query.single() {
         for mut transform in plane_query.iter_mut() {
-            // Move the plane towards the player (negative Z direction in Bevy is forward).
+            // Move the plane towards the player.
             transform.translation.z -= lane_move.speed * time.delta_secs();
 
-            // If the plane has moved past the player and is off-screen, recycle it.
+            // If the plane is off-screen, move it to the back to create an infinite scrolling effect.
             if transform.translation.z < -50.0 {
-                // Move it back by the total length of all planes (3 * 50.0 = 150.0).
-                transform.translation.z += 150.0;
+                transform.translation.z += 150.0; // 3 planes * 50.0 length
+            }
+        }
+    }
+}
+
+/// A system that spawns obstacles periodically.
+fn spawn_obstacles(
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut spawn_timer: ResMut<ObstacleSpawnTimer>,
+    time: Res<Time>,
+) {
+    // Tick the spawn timer.
+    spawn_timer.timer.tick(time.delta());
+
+    // If the timer finished, spawn a new obstacle.
+    if spawn_timer.timer.just_finished() {
+        // Choose a random lane for the obstacle.
+        let lane_index = rand::random_range(0..NUM_LANES);
+        let lane_x = LANE_LOCATIONS[lane_index];
+
+        // Spawn the obstacle entity.
+        commands.spawn((
+            Mesh3d(meshes.add(Cuboid::new(1.0, 1.0, 1.0))),
+            MeshMaterial3d(materials.add(StandardMaterial {
+                base_color: Color::srgb(0.8, 0.2, 0.2),
+                ..default()
+            })),
+            Transform::from_xyz(lane_x, 0.5, 100.0),
+            Obstacle,
+        ));
+    }
+}
+
+/// A system that moves obstacles towards the player and despawns them when they are off-screen.
+fn update_obstacle_position(
+    mut commands: Commands,
+    player_query: Query<&LaneMovement, With<Player>>,
+    mut obstacle_query: Query<(Entity, &mut Transform), With<Obstacle>>,
+    time: Res<Time>,
+) {
+    if let Ok(lane_move) = player_query.single() {
+        for (entity, mut transform) in obstacle_query.iter_mut() {
+            // Move the obstacle towards the player.
+            transform.translation.z -= lane_move.speed * time.delta_secs();
+
+            // If the obstacle is off-screen, despawn it.
+            if transform.translation.z < -50.0 {
+                commands.entity(entity).despawn();
+            }
+        }
+    }
+}
+
+/// A system that checks for collisions between the player and obstacles.
+fn check_for_collisions(
+    player_query: Query<&Transform, (With<Player>, Without<Obstacle>)>,
+    obstacle_query: Query<&Transform, (With<Obstacle>, Without<Player>)>,
+) {
+    if let Ok(player_transform) = player_query.single() {
+        for obstacle_transform in obstacle_query.iter() {
+            // Calculate the distance between the player and the obstacle.
+            let distance = player_transform
+                .translation
+                .distance(obstacle_transform.translation);
+
+            // A simple collision check based on distance.
+            if distance < 1.0 {
+                println!("GAME OVER!");
+                // In a real game, you would transition to a game over state here.
             }
         }
     }
