@@ -10,11 +10,15 @@ const SPEED: f32 = 15.0;
 const GRAVITY: f32 = -30.0;
 const JUMP_STRENGTH: f32 = 10.0;
 
-/// identifying player entities.
+/// A marker component for player entities.
 #[derive(Component)]
 struct Player;
 
-/// lane where the player is located.
+/// A marker component for plane entities.
+#[derive(Component)]
+struct Plane;
+
+/// Stores the player's current lane index.
 #[derive(Component)]
 struct Lane {
     current: usize,
@@ -23,12 +27,12 @@ struct Lane {
 impl Default for Lane {
     fn default() -> Self {
         Self {
-            current: NUM_LANES / 2,
+            current: NUM_LANES / 2, // Start in the middle lane.
         }
     }
 }
 
-/// remaining input delay time.
+/// Stores the remaining time for input delay.
 #[derive(Component)]
 struct InputDelay {
     remaining: f32,
@@ -40,7 +44,19 @@ impl Default for InputDelay {
     }
 }
 
-/// player's vertical movement (jump, gravity) status data
+/// Stores the player's horizontal movement speed.
+#[derive(Component)]
+struct LaneMovement {
+    speed: f32,
+}
+
+impl Default for LaneMovement {
+    fn default() -> Self {
+        Self { speed: SPEED }
+    }
+}
+
+/// Stores the player's vertical velocity for jumping and gravity.
 #[derive(Component)]
 struct VerticalMovement {
     velocity_y: f32,
@@ -72,6 +88,7 @@ fn main() {
                 update_player_position,
                 update_input_delay_time,
                 apply_gravity_and_vertical_movement,
+                update_plane_position,
             ),
         )
         .run();
@@ -83,14 +100,17 @@ fn setup(
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
     // Plane
-    commands.spawn((
-        Mesh3d(meshes.add(Plane3d::default().mesh().size(10.0, 50.0))),
-        MeshMaterial3d(materials.add(StandardMaterial {
-            base_color: Srgba::rgb(0.3, 0.5, 0.3).into(),
-            ..Default::default()
-        })),
-        Transform::from_xyz(0.0, 0.0, 0.0),
-    ));
+    for i in 0..3 {
+        commands.spawn((
+            Mesh3d(meshes.add(Plane3d::default().mesh().size(10.0, 50.0))),
+            MeshMaterial3d(materials.add(StandardMaterial {
+                base_color: Srgba::rgb(0.3, 0.5, 0.3 + 0.1 * i as f32).into(),
+                ..Default::default()
+            })),
+            Transform::from_xyz(0.0, 0.0, 0.0 + 50.0 * i as f32),
+            Plane,
+        ));
+    }
 
     // Cube Player
     commands.spawn((
@@ -102,6 +122,7 @@ fn setup(
         Transform::from_xyz(0.0, 0.5, 8.0),
         Lane::default(),
         InputDelay::default(),
+        LaneMovement::default(),
         VerticalMovement::default(),
         Player,
     ));
@@ -115,7 +136,7 @@ fn setup(
         Transform::from_rotation(Quat::from_rotation_x(-PI / 4.0)),
     ));
 
-    // 3D camera using orthographic projection
+    // 3D camera using orthographic projection, looking slightly up.
     commands.spawn((
         Camera3d::default(),
         Projection::from(OrthographicProjection {
@@ -128,7 +149,7 @@ fn setup(
             far: 100.0,
             ..OrthographicProjection::default_3d()
         }),
-        Transform::from_xyz(12.0, 9.0, 12.0).looking_at(Vec3::ZERO, Vec3::Y),
+        Transform::from_xyz(12.0, 9.0, 12.0).looking_at((0.0, 1.5, 0.0).into(), Vec3::Y),
     ));
 }
 
@@ -160,7 +181,7 @@ fn handle_player_input(
             }
         }
 
-        // 플레이어가 땅에 있고(y좌표가 0.51보다 작을 때) 점프 가능
+        // Player can jump if they are on the ground.
         let is_grounded = transform.translation.y <= 0.5;
         if keyboard_input.just_pressed(KeyCode::Space) && is_grounded {
             vert_move.velocity_y = JUMP_STRENGTH;
@@ -194,15 +215,35 @@ fn apply_gravity_and_vertical_movement(
     time: Res<Time>,
 ) {
     if let Ok((mut transform, mut vert_move)) = query.single_mut() {
-        // 중력 적용
+        // Apply gravity.
         vert_move.velocity_y += GRAVITY * time.delta_secs();
-        // 수직 속도에 따라 Y좌표 변경
+        // Update vertical position based on velocity.
         transform.translation.y += vert_move.velocity_y * time.delta_secs();
 
-        // 땅 아래로 떨어지지 않도록 처리 (플레이어 높이의 절반인 0.5를 기준으로 함)
+        // Prevent falling through the ground (player height is 1.0, so ground is at y=0.5).
         if transform.translation.y < 0.5 {
             transform.translation.y = 0.5;
             vert_move.velocity_y = 0.0;
+        }
+    }
+}
+
+/// A system that moves the planes towards the player and recycles them.
+fn update_plane_position(
+    player_query: Query<&LaneMovement, With<Player>>,
+    mut plane_query: Query<&mut Transform, With<Plane>>,
+    time: Res<Time>,
+) {
+    if let Ok(lane_move) = player_query.single() {
+        for mut transform in plane_query.iter_mut() {
+            // Move the plane towards the player (negative Z direction in Bevy is forward).
+            transform.translation.z -= lane_move.speed * time.delta_secs();
+
+            // If the plane has moved past the player and is off-screen, recycle it.
+            if transform.translation.z < -50.0 {
+                // Move it back by the total length of all planes (3 * 50.0 = 150.0).
+                transform.translation.z += 150.0;
+            }
         }
     }
 }
