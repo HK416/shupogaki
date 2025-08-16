@@ -113,3 +113,8 @@ $RECYCLE.BIN/
 
 # Windows shortcuts
 *.lnk
+
+
+### Assets ###
+# Ignore assets directory to avoid committing large binary files.
+assets/

@@ -1,9 +1,13 @@
+mod asset;
 mod scene;
 
 // Import necessary Bevy modules.
 use bevy::prelude::*;
 
-use crate::scene::{in_game, GameState};
+use crate::{
+    asset::spawner::CustomAssetPlugin,
+    scene::{GameState, in_game},
+};
 
 // --- MAIN FUNCTION ---
 
@@ -20,6 +24,8 @@ fn main() {
             }),
             ..default()
         }),))
+        // Add the custom asset plugin.
+        .add_plugins(CustomAssetPlugin)
         // Initialize the game state.
         .init_state::<GameState>()
         // Add systems that run when entering the InGame state.

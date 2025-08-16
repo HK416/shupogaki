@@ -3,6 +3,8 @@ use std::collections::{HashMap, VecDeque};
 // Import necessary Bevy modules.
 use bevy::{prelude::*, render::camera::ScalingMode};
 
+use crate::asset::spawner::SpawnModel;
+
 // --- GAME CONSTANTS ---
 
 /// The number of lanes available to the player.
@@ -141,6 +143,7 @@ pub struct ObstacleModels {
 /// A system that sets up the initial game world.
 pub fn on_enter(
     mut commands: Commands,
+    asset_server: Res<AssetServer>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
@@ -220,13 +223,9 @@ pub fn on_enter(
 
     commands.insert_resource(obstacle_models);
 
-    // Spawn the player cube.
+    // Spawn the player model from a custom asset.
     commands.spawn((
-        Mesh3d(meshes.add(Cuboid::new(1.0, 1.0, 1.0))),
-        MeshMaterial3d(materials.add(StandardMaterial {
-            base_color: Srgba::rgb(0.8, 0.7, 0.6).into(),
-            ..Default::default()
-        })),
+        SpawnModel(asset_server.load("./CH0242.hierarchy")),
         Transform::from_xyz(0.0, 0.5, -8.0),
         Lane::default(),
         ForwardMovement::default(),
@@ -234,6 +233,21 @@ pub fn on_enter(
         InGameStateEntity,
         Player,
     ));
+
+    // Spawn the player cube.
+    // commands.spawn((
+    //     Mesh3d(meshes.add(Cuboid::new(1.0, 1.0, 1.0))),
+    //     MeshMaterial3d(materials.add(StandardMaterial {
+    //         base_color: Srgba::rgb(0.8, 0.7, 0.6).into(),
+    //         ..Default::default()
+    //     })),
+    //     Transform::from_xyz(0.0, 0.5, -8.0),
+    //     Lane::default(),
+    //     ForwardMovement::default(),
+    //     VerticalMovement::default(),
+    //     InGameStateEntity,
+    //     Player,
+    // ));
 
     // Spawn a directional light.
     commands.spawn((
