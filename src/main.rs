@@ -52,6 +52,7 @@ fn main() {
         .add_systems(
             PostUpdate,
             (
+                in_game::update_toy_trains,
                 in_game::spawn_grounds,
                 in_game::spawn_obstacles,
                 in_game::check_for_collisions,

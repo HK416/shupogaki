@@ -22,8 +22,8 @@ pub struct SerializableMesh {
     pub uvs: Vec<Float2>,
     /// The vertex normals of the mesh.
     pub normals: Vec<Float3>,
-    // /// The vertex tangents of the mesh.
-    // pub tangents: Vec<Float4>,
+    /// The vertex tangents of the mesh.
+    pub tangents: Vec<Float4>,
     /// The bone indices for each vertex.
     pub bone_indices: Vec<UInt4>,
     /// The bone weights for each vertex.
@@ -76,15 +76,15 @@ impl MeshAsset {
             .collect()
     }
 
-    // /// Returns the vertex tangents of the mesh as a `Vec<Vec4>`.
-    // pub fn tangents(&self) -> Vec<Vec4> {
-    //     self.serializable
-    //         .tangents
-    //         .iter()
-    //         .copied()
-    //         .map(|v| v.into())
-    //         .collect()
-    // }
+    /// Returns the vertex tangents of the mesh as a `Vec<Vec4>`.
+    pub fn tangents(&self) -> Vec<Vec4> {
+        self.serializable
+            .tangents
+            .iter()
+            .copied()
+            .map(|v| v.into())
+            .collect()
+    }
 
     /// Returns the vertex UVs of the mesh as a `Vec<Vec2>`.
     pub fn uvs(&self) -> Vec<Vec2> {

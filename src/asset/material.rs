@@ -1,10 +1,13 @@
 use bevy::{
     asset::{Asset, AssetLoader, Handle, LoadContext, io::Reader},
-    image::Image,
     reflect::TypePath,
     tasks::ConditionalSendFuture,
 };
 use serde::Deserialize;
+
+// TexelAsset is a custom asset type for textures that allows for custom processing,
+// such as decryption and decompression.
+use crate::asset::texture::TexelAsset;
 
 /// A serializable representation of a material.
 ///
@@ -26,7 +29,7 @@ pub struct SerializableMaterial {
 #[derive(Asset, TypePath)]
 pub struct MaterialAsset {
     /// The base color texture for this material.
-    pub base_color_texture: Option<Handle<Image>>,
+    pub base_color_texture: Option<Handle<TexelAsset>>,
     /// The metallic value for this material.
     pub metallic: f32,
     /// The roughness value for this material.
@@ -71,11 +74,12 @@ impl AssetLoader for MaterialAssetLoader {
             // Deserialize the bytes into a `SerializableMaterial`.
             let serializable: SerializableMaterial = serde_json::from_slice(&bytes)?;
 
-            // Load the base color texture, if it exists.
+            // The material file specifies texture paths without extensions.
+            // We append the `.tex` extension here to load our custom texture format.
             let base_color_texture = serializable
                 .base_color_texture
                 .as_ref()
-                .map(|path| load_context.load(path));
+                .map(|path| load_context.load(&format!("{}.tex", path)));
 
             // Create the `MaterialAsset`.
             Ok(MaterialAsset {
@@ -84,5 +88,9 @@ impl AssetLoader for MaterialAssetLoader {
                 roughness: serializable.roughness.unwrap_or(0.5),
             })
         })
+    }
+
+    fn extensions(&self) -> &[&str] {
+        &["material"]
     }
 }

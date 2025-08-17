@@ -12,17 +12,19 @@ const NUM_LANES: usize = 3;
 /// The maximum lane index (0-based).
 const MAX_LANE_INDEX: usize = NUM_LANES - 1;
 /// The x-coordinates for each lane.
-const LANE_LOCATIONS: [f32; NUM_LANES] = [-2.5, 0.0, 2.5];
+const LANE_LOCATIONS: [f32; NUM_LANES] = [-3.0, 0.0, 3.0];
 /// The delay between player inputs in seconds.
 const INPUT_DELAY: f32 = 0.25;
 /// The delay between obstacle creation in seconds.
 const SPAWN_DELAY: f32 = 2.0;
 /// The forward movement speed of the player and the world.
-const SPEED: f32 = 15.0;
+const SPEED: f32 = 20.0;
 /// The strength of gravity affecting the player.
 const GRAVITY: f32 = -30.0;
 /// The initial upward velocity of the player's jump.
-const JUMP_STRENGTH: f32 = 10.0;
+const JUMP_STRENGTH: f32 = 12.5;
+// The lane change speed of the player.
+const LANE_CHANGE_SPEED: f32 = 5.0;
 
 // --- COMPONENTS ---
 
@@ -42,6 +44,18 @@ pub struct Obstacle;
 #[derive(Component)]
 pub struct InGameStateEntity;
 
+/// A marker component for first toy train entity.
+#[derive(Component)]
+pub struct ToyTrain0;
+
+/// A marker component for seconds toy train entity.
+#[derive(Component)]
+pub struct ToyTrain1;
+
+/// A marker component for third toy train entity.
+#[derive(Component)]
+pub struct ToyTrain2;
+
 /// Stores the player's current lane index.
 #[derive(Component)]
 pub struct Lane {
@@ -60,24 +74,24 @@ impl Default for Lane {
 /// Stores the player's horizontal movement speed.
 #[derive(Component)]
 pub struct ForwardMovement {
-    speed: f32,
+    velocity: f32,
 }
 
 impl Default for ForwardMovement {
     fn default() -> Self {
-        Self { speed: SPEED }
+        Self { velocity: SPEED }
     }
 }
 
 /// Stores the player's vertical movement speed for jumping and gravity.
 #[derive(Component)]
 pub struct VerticalMovement {
-    speed: f32,
+    velocity: f32,
 }
 
 impl Default for VerticalMovement {
     fn default() -> Self {
-        Self { speed: 0.0 }
+        Self { velocity: 0.0 }
     }
 }
 
@@ -225,8 +239,25 @@ pub fn on_enter(
 
     // Spawn the player model from a custom asset.
     commands.spawn((
-        SpawnModel(asset_server.load("./CH0242.hierarchy")),
-        Transform::from_xyz(0.0, 0.5, -8.0),
+        SpawnModel(asset_server.load("./ToyTrain00.hierarchy")),
+        Transform::default(),
+        InGameStateEntity,
+        ToyTrain0,
+    ));
+    commands.spawn((
+        SpawnModel(asset_server.load("./ToyTrain01.hierarchy")),
+        Transform::default(),
+        InGameStateEntity,
+        ToyTrain1,
+    ));
+    commands.spawn((
+        SpawnModel(asset_server.load("./ToyTrain02.hierarchy")),
+        Transform::default(),
+        InGameStateEntity,
+        ToyTrain2,
+    ));
+    commands.spawn((
+        Transform::from_xyz(0.0, 0.0, -7.5),
         Lane::default(),
         ForwardMovement::default(),
         VerticalMovement::default(),
@@ -252,7 +283,7 @@ pub fn on_enter(
     // Spawn a directional light.
     commands.spawn((
         DirectionalLight {
-            illuminance: 1_500.0,
+            illuminance: 30_000.0,
             shadows_enabled: true,
             ..Default::default()
         },
@@ -319,10 +350,10 @@ pub fn handle_player_input(
         }
 
         // Check if the player is on the ground.
-        let is_grounded = transform.translation.y <= 0.5;
+        let is_grounded = transform.translation.y <= 0.0;
         // Jump if the space key is pressed and the player is on the ground.
         if keyboard_input.just_pressed(KeyCode::Space) && is_grounded {
-            vert_move.speed = JUMP_STRENGTH;
+            vert_move.velocity = JUMP_STRENGTH;
         }
     }
 }
@@ -336,7 +367,7 @@ pub fn update_timer(
     time: Res<Time>,
 ) {
     delay.remaining = (delay.remaining - time.delta_secs()).max(0.0);
-    spawn_timer.remaining = spawn_timer.remaining - time.delta_secs();
+    spawn_timer.remaining -= time.delta_secs();
 }
 
 /// A system that smoothly updates the player's position based on lane and vertical movement.
@@ -348,17 +379,18 @@ pub fn update_player_position(
         // Calculate the target x-position based on the current lane.
         let target_x = LANE_LOCATIONS[lane.index];
         // Smoothly interpolate the player's x-position towards the target.
-        transform.translation.x += (target_x - transform.translation.x) * SPEED * time.delta_secs();
+        transform.translation.x +=
+            (target_x - transform.translation.x) * LANE_CHANGE_SPEED * time.delta_secs();
 
         // Apply gravity to the vertical velocity.
-        vert_move.speed += GRAVITY * time.delta_secs();
+        vert_move.velocity += GRAVITY * time.delta_secs();
         // Update the player's y-position based on the vertical velocity.
-        transform.translation.y += vert_move.speed * time.delta_secs();
+        transform.translation.y += vert_move.velocity * time.delta_secs();
 
         // Prevent the player from falling through the ground.
-        if transform.translation.y <= 0.5 {
-            transform.translation.y = 0.5;
-            vert_move.speed = 0.0;
+        if transform.translation.y <= 0.0 {
+            transform.translation.y = 0.0;
+            vert_move.velocity = 0.0;
         }
     }
 }
@@ -374,11 +406,11 @@ pub fn update_ground_position(
     if let Ok(forward_move) = player_query.single() {
         for (entity, mut transform) in ground_query.iter_mut() {
             // Move the ground towards the player.
-            transform.translation.z -= forward_move.speed * time.delta_secs();
+            transform.translation.z -= forward_move.velocity * time.delta_secs();
 
             // If the ground is off-screen, despawn it and add its transform to the retired queue.
             if transform.translation.z <= -50.0 {
-                retired.transforms.push_back(transform.clone());
+                retired.transforms.push_back(*transform);
                 commands.entity(entity).despawn();
             }
         }
@@ -395,7 +427,7 @@ pub fn update_obstacle_position(
     if let Ok(forward_move) = player_query.single() {
         for (entity, mut transform) in obstacle_query.iter_mut() {
             // Move the obstacle towards the player.
-            transform.translation.z -= forward_move.speed * time.delta_secs();
+            transform.translation.z -= forward_move.velocity * time.delta_secs();
 
             // If the obstacle is off-screen, despawn it.
             if transform.translation.z <= -50.0 {
@@ -406,6 +438,78 @@ pub fn update_obstacle_position(
 }
 
 // --- POSTUPDATE SYSTEMS ---
+
+/// A system that updates the positions and rotations of the toy train cars.
+///
+/// This system creates a chain-like movement where each train car follows the one in front of it.
+/// The first car follows the player's invisible controller entity.
+pub fn update_toy_trains(
+    mut set: ParamSet<(
+        Query<&Transform, With<Player>>,
+        Query<&mut Transform, With<ToyTrain0>>,
+        Query<&mut Transform, With<ToyTrain1>>,
+        Query<&mut Transform, With<ToyTrain2>>,
+    )>,
+) {
+    // Get the player's target position, which is slightly ahead of the player's actual position.
+    let data = set
+        .p0()
+        .single()
+        .map(|transform| transform.translation.with_z(transform.translation.z + 1.5))
+        .ok();
+
+    if let Some(mut position) = data {
+        // Update the first train car.
+        if let Ok(mut transform) = set.p1().single_mut() {
+            // Calculate the rotation to make the car look at the target position.
+            let z_axis = (transform.translation - position).normalize_or(Vec3::NEG_Z);
+            let y_axis = Vec3::Y;
+            let x_axis = y_axis.cross(z_axis);
+            let y_axis = z_axis.cross(x_axis);
+            let rotation = Quat::from_mat3(&Mat3::from_cols(x_axis, y_axis, z_axis));
+
+            // Store the current position to be used as the target for the next car.
+            let temp = transform.translation;
+            // Move the car to the target position.
+            transform.translation.x = position.x;
+            transform.translation.y = position.y;
+            transform.translation.z = -7.5;
+            transform.rotation = rotation;
+            // Update the target position for the next car.
+            position = temp;
+        }
+
+        // Update the second train car.
+        if let Ok(mut transform) = set.p2().single_mut() {
+            let z_axis = (transform.translation - position).normalize_or(Vec3::NEG_Z);
+            let y_axis = Vec3::Y;
+            let x_axis = y_axis.cross(z_axis);
+            let y_axis = z_axis.cross(x_axis);
+            let rotation = Quat::from_mat3(&Mat3::from_cols(x_axis, y_axis, z_axis));
+
+            let temp = transform.translation;
+            transform.translation.x = position.x;
+            transform.translation.y = position.y;
+            transform.translation.z = -9.0;
+            transform.rotation = rotation;
+            position = temp;
+        }
+
+        // Update the third train car.
+        if let Ok(mut transform) = set.p3().single_mut() {
+            let z_axis = (transform.translation - position).normalize_or(Vec3::NEG_Z);
+            let y_axis = Vec3::Y;
+            let x_axis = y_axis.cross(z_axis);
+            let y_axis = z_axis.cross(x_axis);
+            let rotation = Quat::from_mat3(&Mat3::from_cols(x_axis, y_axis, z_axis));
+
+            transform.translation.x = position.x;
+            transform.translation.y = position.y;
+            transform.translation.z = -10.5;
+            transform.rotation = rotation;
+        }
+    }
+}
 
 /// A system that spawns new ground entities to create an infinite scrolling effect.
 pub fn spawn_grounds(
@@ -454,7 +558,7 @@ pub fn spawn_obstacles(
             commands.spawn((
                 Mesh3d(mesh_handle),
                 MeshMaterial3d(material_handle),
-                Transform::from_xyz(lane_x, 0.5, 100.0 - forward_move.speed * time_t),
+                Transform::from_xyz(lane_x, 0.5, 100.0 - forward_move.velocity * time_t),
                 Obstacle,
                 InGameStateEntity,
             ));

@@ -96,6 +96,10 @@ impl AssetLoader for ModelAssetLoader {
             })
         })
     }
+
+    fn extensions(&self) -> &[&str] {
+        &["hierarchy"]
+    }
 }
 
 /// Recursively collects all the meshes and materials used by a model.

@@ -2,6 +2,7 @@ pub mod material;
 pub mod mesh;
 pub mod model;
 pub mod spawner;
+pub mod texture;
 
 use bevy::math::{Mat4, Vec2, Vec3, Vec4};
 use serde::Deserialize;
