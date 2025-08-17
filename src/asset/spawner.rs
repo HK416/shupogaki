@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use bevy::{
     asset::RenderAssetUsages,
-    image::{CompressedImageFormats, ImageFormat, ImageType},
+    image::{CompressedImageFormats, ImageFormat, ImageSampler, ImageType},
     prelude::*,
     render::mesh::{
         Indices, PrimitiveTopology, VertexAttributeValues,
@@ -267,15 +267,21 @@ fn convert_texel(
         Some(image_handle) => image_handle.clone(),
         None => {
             let texel_asset = texel_assets.get(texel_to_convert).unwrap();
-            let image = Image::from_buffer(
+            let result = Image::from_buffer(
                 &texel_asset.data,
-                ImageType::Format(ImageFormat::Ktx2),
-                CompressedImageFormats::all(),
+                ImageType::Format(ImageFormat::Png),
+                CompressedImageFormats::NONE,
                 is_srgb,
-                bevy::image::ImageSampler::Default,
+                ImageSampler::Default,
                 RenderAssetUsages::RENDER_WORLD,
-            )
-            .unwrap();
+            );
+            let image = match result {
+                Ok(image) => image,
+                Err(e) => {
+                    error!("Failed to create texture for the following reason:{}", e);
+                    Image::default()
+                }
+            };
 
             let image_handle = images.add(image);
             cache
