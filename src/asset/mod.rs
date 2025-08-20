@@ -1,10 +1,11 @@
+pub mod animation;
 pub mod material;
 pub mod mesh;
 pub mod model;
 pub mod spawner;
 pub mod texture;
 
-use bevy::math::{Mat4, Vec2, Vec3, Vec4};
+use bevy::math::{Mat4, Quat, Vec2, Vec3, Vec4};
 use serde::Deserialize;
 
 /// A serializable 4-component vector of `u16` values.
@@ -65,6 +66,13 @@ impl From<Float4> for Vec4 {
     /// Converts a `Float4` into a `Vec4`.
     fn from(val: Float4) -> Self {
         Vec4::new(val.x, val.y, val.z, val.w)
+    }
+}
+
+impl From<Float4> for Quat {
+    /// Converts a `Float4` into a `Quat`.
+    fn from(value: Float4) -> Self {
+        Quat::from_vec4(value.into())
     }
 }
 

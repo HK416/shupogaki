@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use bevy::{
+    animation::{AnimationTargetId, animated_field},
     asset::RenderAssetUsages,
     image::{CompressedImageFormats, ImageFormat, ImageSampler, ImageType},
     prelude::*,
@@ -11,6 +12,7 @@ use bevy::{
 };
 
 use crate::asset::{
+    animation::{AnimationAsset, AnimationAssetLoader, SerializableAnimCurve},
     material::{MaterialAsset, MaterialAssetLoader},
     mesh::{MeshAsset, MeshAssetLoader},
     model::{ModelAsset, ModelAssetLoader, SerializableModelNode},
@@ -35,11 +37,13 @@ impl Plugin for CustomAssetPlugin {
             .init_asset::<MeshAsset>()
             .init_asset::<MaterialAsset>()
             .init_asset::<TexelAsset>()
+            .init_asset::<AnimationAsset>()
             .init_resource::<ConvertedAssetCache>()
             .register_asset_loader(ModelAssetLoader)
             .register_asset_loader(MeshAssetLoader)
             .register_asset_loader(MaterialAssetLoader)
             .register_asset_loader(TexelAssetLoader)
+            .register_asset_loader(AnimationAssetLoader)
             .add_systems(Update, spawn_model_system);
     }
 }
@@ -100,7 +104,7 @@ fn spawn_model_system(
         );
 
         let converted_materials = convert_materials(
-            model_asset.materials.values(),
+            model_asset.materials.iter(),
             &material_assets,
             &texel_assets,
             &mut materials,
@@ -145,7 +149,13 @@ where
 {
     let mut converted_meshes = HashMap::default();
     for (uri, handle) in meshes_to_convert {
-        let mesh_asset = mesh_assets.get(handle).unwrap();
+        let mesh_asset = match mesh_assets.get(handle) {
+            Some(asset) => asset,
+            None => {
+                error!("Mesh data not found! (Mesh URI:{})", uri);
+                continue;
+            }
+        };
         let submeshes = mesh_asset
             .serializable
             .submeshes
@@ -159,6 +169,7 @@ where
                     converted_meshes.insert(mesh_uri, mesh_handle.clone());
                 }
                 None => {
+                    info!("Create a new Bevy mesh. (URI:{})", &mesh_uri);
                     let mut mesh = Mesh::new(
                         PrimitiveTopology::TriangleList,
                         RenderAssetUsages::default(),
@@ -191,7 +202,10 @@ where
                     }
 
                     mesh.insert_indices(Indices::U32(indices));
-                    converted_meshes.insert(mesh_uri, meshes.add(mesh));
+
+                    let mesh_handle = meshes.add(mesh);
+                    converted_meshes.insert(mesh_uri.clone(), mesh_handle.clone());
+                    cache.meshes.insert(mesh_uri.clone(), mesh_handle.clone());
                 }
             }
         }
@@ -210,29 +224,43 @@ fn convert_materials<'a, I>(
     cache: &mut ResMut<ConvertedAssetCache>,
 ) -> HashMap<Handle<MaterialAsset>, Handle<StandardMaterial>>
 where
-    I: Iterator<Item = &'a Handle<MaterialAsset>>,
+    I: Iterator<Item = (&'a String, &'a Handle<MaterialAsset>)>,
 {
     let mut converted_materials = HashMap::default();
-    for handle in materials_to_convert {
+    for (uri, handle) in materials_to_convert {
         match cache.materials.get(handle) {
             Some(material_handle) => {
                 converted_materials.insert(handle.clone(), material_handle.clone());
             }
-            None => {
-                let material_asset = material_assets.get(handle).unwrap();
-                let standard_material = StandardMaterial {
-                    // This assumes that the base color texture is in sRGB format.
-                    base_color_texture: material_asset.base_color_texture.as_ref().map(
-                        |texel_to_convert| {
-                            convert_texel(texel_to_convert, texel_assets, images, cache, true)
-                        },
-                    ),
-                    metallic: material_asset.metallic,
-                    perceptual_roughness: material_asset.roughness,
-                    ..Default::default()
-                };
-                converted_materials.insert(handle.clone(), materials.add(standard_material));
-            }
+            None => match material_assets.get(handle) {
+                Some(material_asset) => {
+                    info!(
+                        "Create a new Bevy standard material. (Material URI:{})",
+                        uri
+                    );
+                    let standard_material = StandardMaterial {
+                        // This assumes that the base color texture is in sRGB format.
+                        base_color_texture: material_asset.base_color_texture.as_ref().map(
+                            |texel_to_convert| {
+                                convert_texel(texel_to_convert, texel_assets, images, cache, true)
+                            },
+                        ),
+                        metallic: material_asset.metallic,
+                        perceptual_roughness: material_asset.roughness,
+                        ..Default::default()
+                    };
+                    let standard_material_handle = materials.add(standard_material);
+                    converted_materials.insert(handle.clone(), standard_material_handle.clone());
+                    cache
+                        .materials
+                        .insert(handle.clone(), standard_material_handle.clone());
+                }
+                None => {
+                    error!("Material data not found! (Material URI:{})", uri);
+                    converted_materials
+                        .insert(handle.clone(), materials.add(StandardMaterial::default()));
+                }
+            },
         }
     }
 
@@ -265,31 +293,42 @@ fn convert_texel(
 ) -> Handle<Image> {
     match cache.textures.get(texel_to_convert) {
         Some(image_handle) => image_handle.clone(),
-        None => {
-            let texel_asset = texel_assets.get(texel_to_convert).unwrap();
-            let result = Image::from_buffer(
-                &texel_asset.data,
-                ImageType::Format(ImageFormat::Png),
-                CompressedImageFormats::NONE,
-                is_srgb,
-                ImageSampler::Default,
-                RenderAssetUsages::RENDER_WORLD,
-            );
-            let image = match result {
-                Ok(image) => image,
-                Err(e) => {
-                    error!("Failed to create texture for the following reason:{}", e);
-                    Image::default()
-                }
-            };
+        None => match texel_assets.get(texel_to_convert) {
+            Some(texel_asset) => {
+                info!("Create a new Bevy image.");
+                let result = Image::from_buffer(
+                    &texel_asset.data,
+                    ImageType::Format(ImageFormat::Png),
+                    CompressedImageFormats::NONE,
+                    is_srgb,
+                    ImageSampler::Default,
+                    RenderAssetUsages::RENDER_WORLD,
+                );
+                let image = match result {
+                    Ok(image) => image,
+                    Err(e) => {
+                        error!("Failed to create texture for the following reason:{}", e);
+                        Image::default()
+                    }
+                };
 
-            let image_handle = images.add(image);
-            cache
-                .textures
-                .insert(texel_to_convert.clone(), image_handle.clone());
+                let image_handle = images.add(image);
+                cache
+                    .textures
+                    .insert(texel_to_convert.clone(), image_handle.clone());
 
-            image_handle
-        }
+                image_handle
+            }
+            None => {
+                error!("Texture data not found!");
+                let image_handle = images.add(Image::default());
+                cache
+                    .textures
+                    .insert(texel_to_convert.clone(), image_handle.clone());
+
+                image_handle
+            }
+        },
     }
 }
 
@@ -339,11 +378,12 @@ fn add_render_components_recursive(
                 .serializable
                 .bones
                 .iter()
-                .map(|bone_name| {
-                    nodes
-                        .get(bone_name)
-                        .copied()
-                        .expect("Bone entity not found!")
+                .filter_map(|bone_name| match nodes.get(bone_name) {
+                    Some(entity) => Some(*entity),
+                    None => {
+                        error!("Bone entity not found!");
+                        None
+                    }
                 })
                 .collect();
 
@@ -399,6 +439,116 @@ fn add_render_components_recursive(
             converted_meshes,
             converted_materials,
             inverse_bindposes_assets,
+        );
+    }
+}
+
+/// Creates a Bevy `AnimationClip` from an `AnimationAsset`.
+///
+/// This function iterates through the animation curves of the asset and processes them
+/// into translation, rotation, and scale curves for the `AnimationClip`.
+///
+/// # Arguments
+///
+/// * `asset` - The `AnimationAsset` to convert.
+///
+/// # Returns
+///
+/// A new `AnimationClip` containing the animation data.
+pub fn create_animation_clip(asset: &AnimationAsset) -> AnimationClip {
+    let mut clip = AnimationClip::default();
+
+    let duration_seconds = asset.serializable.duration;
+    clip.set_duration(duration_seconds);
+
+    for curve in &asset.serializable.curves {
+        let bone_name = &curve.bone;
+        process_translation_curve(&mut clip, bone_name, &curve);
+        process_rotation_curve(&mut clip, bone_name, &curve);
+        process_scale_curve(&mut clip, bone_name, &curve);
+    }
+
+    clip
+}
+
+/// Processes the translation curve of an animation and adds it to the `AnimationClip`.
+fn process_translation_curve(
+    clip: &mut AnimationClip,
+    bone_name: &str,
+    curve: &SerializableAnimCurve,
+) {
+    let mut translation_keyframes: Vec<(f32, Vec3)> = Vec::with_capacity(curve.keyframes.len());
+
+    for (i, &timestamp) in curve.timestamps.iter().enumerate() {
+        if let Some(keyframe) = curve.keyframes.get(i) {
+            if let Some(translation) = keyframe.translation {
+                translation_keyframes.push((timestamp, translation.into()));
+            }
+        }
+    }
+
+    if !translation_keyframes.is_empty() {
+        clip.add_curve_to_target(
+            AnimationTargetId::from_name(&Name::new(bone_name.to_string())),
+            AnimatableCurve::new(
+                animated_field!(Transform::translation),
+                UnevenSampleAutoCurve::new(translation_keyframes).expect(
+                    "should be able to build translation curve because we pass in valid samples",
+                ),
+            ),
+        );
+    }
+}
+
+/// Processes the rotation curve of an animation and adds it to the `AnimationClip`.
+fn process_rotation_curve(
+    clip: &mut AnimationClip,
+    bone_name: &str,
+    curve: &SerializableAnimCurve,
+) {
+    let mut rotation_keyframes: Vec<(f32, Quat)> = Vec::with_capacity(curve.keyframes.len());
+
+    for (i, &timestamp) in curve.timestamps.iter().enumerate() {
+        if let Some(keyframe) = curve.keyframes.get(i) {
+            if let Some(rotation) = keyframe.rotation {
+                rotation_keyframes.push((timestamp, rotation.into()));
+            }
+        }
+    }
+
+    if !rotation_keyframes.is_empty() {
+        clip.add_curve_to_target(
+            AnimationTargetId::from_name(&Name::new(bone_name.to_string())),
+            AnimatableCurve::new(
+                animated_field!(Transform::rotation),
+                UnevenSampleAutoCurve::new(rotation_keyframes).expect(
+                    "should be able to build rotation curve because we pass in valid samples",
+                ),
+            ),
+        );
+    }
+}
+
+/// Processes the scale curve of an animation and adds it to the `AnimationClip`.
+fn process_scale_curve(clip: &mut AnimationClip, bone_name: &str, curve: &SerializableAnimCurve) {
+    let mut scale_keyframes: Vec<(f32, Vec3)> = Vec::with_capacity(curve.keyframes.len());
+
+    for (i, &timestamp) in curve.timestamps.iter().enumerate() {
+        if let Some(keyframe) = curve.keyframes.get(i) {
+            if let Some(scale) = keyframe.scale {
+                scale_keyframes.push((timestamp, scale.into()));
+            }
+        }
+    }
+
+    if !scale_keyframes.is_empty() {
+        clip.add_curve_to_target(
+            AnimationTargetId::from_name(&Name::new(bone_name.to_string())),
+            AnimatableCurve::new(
+                animated_field!(Transform::scale),
+                UnevenSampleAutoCurve::new(scale_keyframes)
+                    .expect("should be able to build scale curve because we pass in valid samples"),
+            ),
         );
     }
 }

@@ -79,7 +79,7 @@ impl AssetLoader for MaterialAssetLoader {
             let base_color_texture = serializable
                 .base_color_texture
                 .as_ref()
-                .map(|path| load_context.load(&format!("{}.tex", path)));
+                .map(|path| load_context.load(&format!("textures/{}.tex", path)));
 
             // Create the `MaterialAsset`.
             Ok(MaterialAsset {

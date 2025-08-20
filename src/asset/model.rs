@@ -111,14 +111,14 @@ fn collect_assets_recursive(
 ) {
     // Load the mesh for the current node, if it exists.
     if let Some(mesh_uri) = &node.mesh {
-        let mesh_path = format!("{}.mesh", mesh_uri);
+        let mesh_path = format!("meshes/{}.mesh", mesh_uri);
         let handle: Handle<MeshAsset> = load_context.load(mesh_path);
         meshes.insert(mesh_uri.clone(), handle);
     }
 
     // Load the materials for the current node.
     for material_uri in &node.materials {
-        let material_path = format!("{}.material", material_uri);
+        let material_path = format!("materials/{}.material", material_uri);
         let handle: Handle<MaterialAsset> = load_context.load(material_path);
         materials.insert(material_uri.clone(), handle);
     }
