@@ -1,166 +1,15 @@
-use std::collections::{HashMap, VecDeque};
-
 // Import necessary Bevy modules.
 use bevy::{prelude::*, render::camera::ScalingMode};
 
-use crate::asset::spawner::SpawnModel;
-
-// --- GAME CONSTANTS ---
-
-/// The number of lanes available to the player.
-const NUM_LANES: usize = 3;
-/// The maximum lane index (0-based).
-const MAX_LANE_INDEX: usize = NUM_LANES - 1;
-/// The x-coordinates for each lane.
-const LANE_LOCATIONS: [f32; NUM_LANES] = [-3.0, 0.0, 3.0];
-/// The delay between player inputs in seconds.
-const INPUT_DELAY: f32 = 0.25;
-/// The delay between obstacle creation in seconds.
-const SPAWN_DELAY: f32 = 2.0;
-/// The forward movement speed of the player and the world.
-const SPEED: f32 = 20.0;
-/// The strength of gravity affecting the player.
-const GRAVITY: f32 = -30.0;
-/// The initial upward velocity of the player's jump.
-const JUMP_STRENGTH: f32 = 12.5;
-// The lane change speed of the player.
-const LANE_CHANGE_SPEED: f32 = 5.0;
-
-// --- COMPONENTS ---
-
-/// A marker component for the player entity.
-#[derive(Component)]
-pub struct Player;
-
-/// A marker component for the ground plane entities.
-#[derive(Component)]
-pub struct Ground;
-
-/// A marker component for obstacle entities.
-#[derive(Component)]
-pub struct Obstacle;
-
-/// A marker component for in_game state entities.
-#[derive(Component)]
-pub struct InGameStateEntity;
-
-/// A marker component for first toy train entity.
-#[derive(Component)]
-pub struct ToyTrain0;
-
-/// A marker component for seconds toy train entity.
-#[derive(Component)]
-pub struct ToyTrain1;
-
-/// A marker component for third toy train entity.
-#[derive(Component)]
-pub struct ToyTrain2;
-
-/// Stores the player's current lane index.
-#[derive(Component)]
-pub struct Lane {
-    index: usize,
-}
-
-impl Default for Lane {
-    fn default() -> Self {
-        // Start the player in the middle lane.
-        Self {
-            index: NUM_LANES / 2,
-        }
-    }
-}
-
-/// Stores the player's horizontal movement speed.
-#[derive(Component)]
-pub struct ForwardMovement {
-    velocity: f32,
-}
-
-impl Default for ForwardMovement {
-    fn default() -> Self {
-        Self { velocity: SPEED }
-    }
-}
-
-/// Stores the player's vertical movement speed for jumping and gravity.
-#[derive(Component)]
-pub struct VerticalMovement {
-    velocity: f32,
-}
-
-impl Default for VerticalMovement {
-    fn default() -> Self {
-        Self { velocity: 0.0 }
-    }
-}
-
-// --- RESOURCES ---
-
-/// A resource to manage the delay between player inputs.
-#[derive(Resource)]
-pub struct InputDelay {
-    remaining: f32,
-}
-
-impl Default for InputDelay {
-    fn default() -> Self {
-        Self { remaining: 0.0 }
-    }
-}
-
-/// A resource to manage the spawning of obstacles.
-#[derive(Resource)]
-pub struct ObstacleSpawnTimer {
-    remaining: f32,
-}
-
-impl Default for ObstacleSpawnTimer {
-    fn default() -> Self {
-        Self {
-            remaining: SPAWN_DELAY,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-enum GroundModel {
-    Test0,
-    Test1,
-    Test2,
-}
-
-#[derive(Default, Resource)]
-pub struct GroundModels {
-    meshes: HashMap<GroundModel, Handle<Mesh>>,
-    materials: HashMap<GroundModel, Handle<StandardMaterial>>,
-}
-
-#[derive(Default, Resource)]
-pub struct RetiredGrounds {
-    transforms: VecDeque<Transform>,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-enum ObstacleModel {
-    Test,
-}
-
-#[derive(Default, Resource)]
-pub struct ObstacleModels {
-    meshes: HashMap<ObstacleModel, Handle<Mesh>>,
-    materials: HashMap<ObstacleModel, Handle<StandardMaterial>>,
-}
+use super::*;
 
 // --- SETUP SYSTEM ---
 
 /// A system that sets up the initial game world.
 pub fn on_enter(
     mut commands: Commands,
-    asset_server: Res<AssetServer>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
-    mut graphs: ResMut<Assets<AnimationGraph>>,
 ) {
     // Insert resources
     commands.insert_resource(InputDelay::default());
@@ -238,59 +87,7 @@ pub fn on_enter(
 
     commands.insert_resource(obstacle_models);
 
-    // Spawn the player model from a custom asset.
-    commands.spawn((
-        SpawnModel(asset_server.load("models/ToyTrain00.hierarchy")),
-        Transform::default(),
-        InGameStateEntity,
-        ToyTrain0,
-    ));
-    let clip: Handle<AnimationClip> = asset_server.load("animations/CH0242_InGame.anim");
-    let (graph, animation_index) = AnimationGraph::from_clip(clip);
-    let mut player = AnimationPlayer::default();
-    player.play(animation_index).repeat();
-    let entity = commands
-        .spawn((
-            SpawnModel(asset_server.load("models/CH0242.hierarchy")),
-            Transform::from_xyz(0.0, 0.8775, 0.0),
-            InGameStateEntity,
-            // Add an animation graph to the entity.
-            AnimationGraphHandle(graphs.add(graph)),
-            // Add an animation player to the entity.
-            player,
-        ))
-        .id();
-    commands
-        .spawn((
-            SpawnModel(asset_server.load("models/ToyTrain01.hierarchy")),
-            Transform::default(),
-            InGameStateEntity,
-            ToyTrain1,
-        ))
-        .add_child(entity);
-    let clip: Handle<AnimationClip> = asset_server.load("animations/CH0243_InGame.anim");
-    let (graph, animation_index) = AnimationGraph::from_clip(clip);
-    let mut player = AnimationPlayer::default();
-    player.play(animation_index).repeat();
-    let entity = commands
-        .spawn((
-            SpawnModel(asset_server.load("models/CH0243.hierarchy")),
-            Transform::from_xyz(0.0, 0.375, 0.375),
-            InGameStateEntity,
-            // Add an animation graph to the entity.
-            AnimationGraphHandle(graphs.add(graph)),
-            // Add an animation player to the entity.
-            player,
-        ))
-        .id();
-    commands
-        .spawn((
-            SpawnModel(asset_server.load("models/ToyTrain02.hierarchy")),
-            Transform::default(),
-            InGameStateEntity,
-            ToyTrain2,
-        ))
-        .add_child(entity);
+    // Spawn the player entity.
     commands.spawn((
         Transform::from_xyz(0.0, 0.0, -7.5),
         Lane::default(),
@@ -299,21 +96,6 @@ pub fn on_enter(
         InGameStateEntity,
         Player,
     ));
-
-    // Spawn the player cube.
-    // commands.spawn((
-    //     Mesh3d(meshes.add(Cuboid::new(1.0, 1.0, 1.0))),
-    //     MeshMaterial3d(materials.add(StandardMaterial {
-    //         base_color: Srgba::rgb(0.8, 0.7, 0.6).into(),
-    //         ..Default::default()
-    //     })),
-    //     Transform::from_xyz(0.0, 0.5, -8.0),
-    //     Lane::default(),
-    //     ForwardMovement::default(),
-    //     VerticalMovement::default(),
-    //     InGameStateEntity,
-    //     Player,
-    // ));
 
     // Spawn a directional light.
     commands.spawn((
@@ -342,6 +124,25 @@ pub fn on_enter(
         Transform::from_xyz(12.0, 9.0, 12.0).looking_at((0.0, 1.5, 0.0).into(), Vec3::Y),
         InGameStateEntity,
     ));
+}
+
+/// A system that plays the animation for entities with an `AnimationClipHandle`.
+/// This system is separate from the entity spawning to ensure that the animation graph is correctly setup after the model has been loaded.
+pub fn play_animation(
+    mut commands: Commands,
+    mut graphs: ResMut<Assets<AnimationGraph>>,
+    query: Query<(Entity, &AnimationClipHandle)>,
+) {
+    for (entity, clip) in query.iter() {
+        let (graph, animation_index) = AnimationGraph::from_clip(clip.0.clone());
+        let mut player = AnimationPlayer::default();
+        player.play(animation_index).repeat();
+
+        commands
+            .entity(entity)
+            .insert((AnimationGraphHandle(graphs.add(graph)), player))
+            .remove::<AnimationClipHandle>();
+    }
 }
 
 // --- CLEANUP SYSTEM ---

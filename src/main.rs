@@ -6,7 +6,7 @@ use bevy::prelude::*;
 
 use crate::{
     asset::spawner::CustomAssetPlugin,
-    scene::{GameState, in_game},
+    scene::{GameState, in_game, in_game_load},
 };
 
 // --- MAIN FUNCTION ---
@@ -28,8 +28,31 @@ fn main() {
         .add_plugins(CustomAssetPlugin)
         // Initialize the game state.
         .init_state::<GameState>()
+        // Add systems that run for the InGameLoading state.
+        .add_systems(OnEnter(GameState::InGameLoading), in_game_load::on_enter)
+        .add_systems(OnExit(GameState::InGameLoading), in_game_load::on_exit)
+        .add_systems(
+            Update,
+            (
+                // Check for loading progress.
+                in_game_load::check_loading_progress,
+                // Update the loading bar.
+                in_game_load::update_loading_bar,
+                // Change the scale of the text.
+                in_game_load::change_text_scale,
+            )
+                .run_if(in_state(GameState::InGameLoading)),
+        )
         // Add systems that run when entering the InGame state.
-        .add_systems(OnEnter(GameState::InGame), in_game::on_enter)
+        .add_systems(
+            OnEnter(GameState::InGame),
+            (
+                // Setup the game scene.
+                in_game::on_enter,
+                // Play the animation.
+                in_game::play_animation
+            ),
+        )
         // Add systems that run when exiting the InGame state.
         .add_systems(OnExit(GameState::InGame), in_game::on_exit)
         // Add systems that run in the PreUpdate stage.
