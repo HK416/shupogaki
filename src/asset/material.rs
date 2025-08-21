@@ -1,13 +1,9 @@
 use bevy::{
-    asset::{Asset, AssetLoader, Handle, LoadContext, io::Reader},
-    reflect::TypePath,
+    asset::{AssetLoader, LoadContext, io::Reader},
+    prelude::*,
     tasks::ConditionalSendFuture,
 };
 use serde::Deserialize;
-
-// TexelAsset is a custom asset type for textures that allows for custom processing,
-// such as decryption and decompression.
-use crate::asset::texture::TexelAsset;
 
 /// A serializable representation of a material.
 ///
@@ -16,24 +12,14 @@ use crate::asset::texture::TexelAsset;
 #[derive(Debug, Deserialize, Clone)]
 pub struct SerializableMaterial {
     /// The path to the base color texture for this material.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub base_color_texture: Option<String>,
     /// The metallic value for this material.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub metallic: Option<f32>,
     /// The roughness value for this material.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub roughness: Option<f32>,
-}
-
-/// A material asset.
-///
-/// This struct holds the data for a material that can be used in the Bevy engine.
-#[derive(Asset, TypePath)]
-pub struct MaterialAsset {
-    /// The base color texture for this material.
-    pub base_color_texture: Option<Handle<TexelAsset>>,
-    /// The metallic value for this material.
-    pub metallic: f32,
-    /// The roughness value for this material.
-    pub roughness: f32,
 }
 
 /// An error that can occur when loading a material.
@@ -54,7 +40,7 @@ pub enum MaterialLoaderError {
 pub struct MaterialAssetLoader;
 
 impl AssetLoader for MaterialAssetLoader {
-    type Asset = MaterialAsset;
+    type Asset = StandardMaterial;
     type Settings = ();
     type Error = MaterialLoaderError;
 
@@ -64,6 +50,7 @@ impl AssetLoader for MaterialAssetLoader {
         _settings: &Self::Settings,
         load_context: &mut LoadContext,
     ) -> impl ConditionalSendFuture<Output = Result<Self::Asset, Self::Error>> {
+        debug!("asset load: {}", &load_context.asset_path());
         Box::pin(async move {
             // Read the bytes from the reader.
             let mut bytes = Vec::new();
@@ -74,18 +61,20 @@ impl AssetLoader for MaterialAssetLoader {
             // Deserialize the bytes into a `SerializableMaterial`.
             let serializable: SerializableMaterial = serde_json::from_slice(&bytes)?;
 
+            // Create a `StandardMaterial` from the `SerializableMaterial`.
             // The material file specifies texture paths without extensions.
-            // We append the `.tex` extension here to load our custom texture format.
+            // We append the `.texture` extension here to load our custom texture format.
             let base_color_texture = serializable
                 .base_color_texture
                 .as_ref()
-                .map(|path| load_context.load(&format!("textures/{}.tex", path)));
+                .map(|name| load_context.load(&format!("textures/{}.texture", name)));
 
             // Create the `MaterialAsset`.
-            Ok(MaterialAsset {
+            Ok(StandardMaterial {
                 base_color_texture,
                 metallic: serializable.metallic.unwrap_or(0.0),
-                roughness: serializable.roughness.unwrap_or(0.5),
+                perceptual_roughness: serializable.roughness.unwrap_or(0.5),
+                ..Default::default()
             })
         })
     }

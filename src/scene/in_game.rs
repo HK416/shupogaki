@@ -237,23 +237,27 @@ pub fn on_enter(
 
     commands.insert_resource(obstacle_models);
 
+    // Test code
+    // let t: Handle<AnimationClip> = asset_server.load("animations/CH0242_InGame.anim");
+    // let t: Handle<AnimationClip> = asset_server.load("animations/CH0243_InGame.anim");
+
     // Spawn the player model from a custom asset.
     commands.spawn((
-        SpawnModel(asset_server.load("./models/ToyTrain00.hierarchy")),
+        SpawnModel(asset_server.load("models/ToyTrain00.hierarchy")),
         Transform::default(),
         InGameStateEntity,
         ToyTrain0,
     ));
     let entity = commands
         .spawn((
-            SpawnModel(asset_server.load("./models/CH0242.hierarchy")),
+            SpawnModel(asset_server.load("models/CH0242.hierarchy")),
             Transform::from_xyz(0.0, 0.8775, 0.0),
             InGameStateEntity,
         ))
         .id();
     commands
         .spawn((
-            SpawnModel(asset_server.load("./models/ToyTrain01.hierarchy")),
+            SpawnModel(asset_server.load("models/ToyTrain01.hierarchy")),
             Transform::default(),
             InGameStateEntity,
             ToyTrain1,
@@ -261,14 +265,14 @@ pub fn on_enter(
         .add_child(entity);
     let entity = commands
         .spawn((
-            SpawnModel(asset_server.load("./models/CH0243.hierarchy")),
+            SpawnModel(asset_server.load("models/CH0243.hierarchy")),
             Transform::from_xyz(0.0, 0.375, 0.375),
             InGameStateEntity,
         ))
         .id();
     commands
         .spawn((
-            SpawnModel(asset_server.load("./models/ToyTrain02.hierarchy")),
+            SpawnModel(asset_server.load("models/ToyTrain02.hierarchy")),
             Transform::default(),
             InGameStateEntity,
             ToyTrain2,

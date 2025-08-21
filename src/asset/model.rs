@@ -1,13 +1,13 @@
 use std::collections::HashMap;
 
 use bevy::{
-    asset::{Asset, AssetLoader, Handle, LoadContext, io::Reader},
-    reflect::TypePath,
+    asset::{AssetLoader, LoadContext, io::Reader},
+    prelude::*,
     tasks::ConditionalSendFuture,
 };
 use serde::Deserialize;
 
-use crate::asset::{Float4x4, material::MaterialAsset, mesh::MeshAsset};
+use crate::asset::{Float4x4, mesh::MeshAsset};
 
 /// A serializable representation of a model.
 #[derive(Debug, Deserialize, Clone)]
@@ -39,7 +39,7 @@ pub struct ModelAsset {
     /// A map of mesh names to their handles.
     pub meshes: HashMap<String, Handle<MeshAsset>>,
     /// A map of material names to their handles.
-    pub materials: HashMap<String, Handle<MaterialAsset>>,
+    pub materials: HashMap<String, Handle<StandardMaterial>>,
 }
 
 /// An error that can occur when loading a model.
@@ -68,6 +68,7 @@ impl AssetLoader for ModelAssetLoader {
         _settings: &Self::Settings,
         load_context: &mut LoadContext,
     ) -> impl ConditionalSendFuture<Output = Result<Self::Asset, Self::Error>> {
+        debug!("asset load: {}", load_context.asset_path());
         Box::pin(async move {
             // Read the bytes from the reader.
             let mut bytes = Vec::new();
@@ -103,10 +104,11 @@ impl AssetLoader for ModelAssetLoader {
 }
 
 /// Recursively collects all the meshes and materials used by a model.
+/// This function now loads `StandardMaterial`s directly, instead of custom `MaterialAsset`s.
 fn collect_assets_recursive(
     node: &SerializableModelNode,
     meshes: &mut HashMap<String, Handle<MeshAsset>>,
-    materials: &mut HashMap<String, Handle<MaterialAsset>>,
+    materials: &mut HashMap<String, Handle<StandardMaterial>>,
     load_context: &mut LoadContext,
 ) {
     // Load the mesh for the current node, if it exists.
@@ -119,7 +121,7 @@ fn collect_assets_recursive(
     // Load the materials for the current node.
     for material_uri in &node.materials {
         let material_path = format!("materials/{}.material", material_uri);
-        let handle: Handle<MaterialAsset> = load_context.load(material_path);
+        let handle: Handle<StandardMaterial> = load_context.load(material_path);
         materials.insert(material_uri.clone(), handle);
     }
 

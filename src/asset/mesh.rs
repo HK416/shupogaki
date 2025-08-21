@@ -1,7 +1,7 @@
 use bevy::{
-    asset::{Asset, AssetLoader, LoadContext, io::Reader},
-    math::{Vec2, Vec3, Vec4},
-    reflect::TypePath,
+    asset::{AssetLoader, LoadContext, RenderAssetUsages, io::Reader},
+    prelude::*,
+    render::mesh::{Indices, PrimitiveTopology, VertexAttributeValues},
     tasks::ConditionalSendFuture,
 };
 use serde::Deserialize;
@@ -36,85 +36,47 @@ pub struct SerializableMesh {
     pub bones: Vec<String>,
 }
 
-/// A mesh asset.
-///
-/// This struct holds the data for a mesh that can be used in the Bevy engine.
-#[derive(Asset, TypePath)]
-pub struct MeshAsset {
-    /// The serializable mesh data.
-    pub serializable: SerializableMesh,
+impl SerializableMesh {
+    pub fn positions(&self) -> Vec<[f32; 3]> {
+        self.positions.iter().map(|v| [v.x, v.y, v.z]).collect()
+    }
+
+    pub fn colors(&self) -> Vec<[f32; 4]> {
+        self.colors.iter().map(|v| [v.x, v.y, v.z, v.w]).collect()
+    }
+
+    pub fn uvs(&self) -> Vec<[f32; 2]> {
+        self.uvs.iter().map(|v| [v.x, v.y]).collect()
+    }
+
+    pub fn normals(&self) -> Vec<[f32; 3]> {
+        self.normals.iter().map(|v| [v.x, v.y, v.z]).collect()
+    }
+
+    pub fn tangents(&self) -> Vec<[f32; 4]> {
+        self.tangents.iter().map(|v| [v.x, v.y, v.z, v.w]).collect()
+    }
+
+    pub fn bone_indices(&self) -> Vec<[u16; 4]> {
+        self.bone_indices
+            .iter()
+            .map(|v| [v.x, v.y, v.z, v.w])
+            .collect()
+    }
+
+    pub fn bone_weights(&self) -> Vec<[f32; 4]> {
+        self.bone_weights
+            .iter()
+            .map(|v| [v.x, v.y, v.z, v.w])
+            .collect()
+    }
 }
 
-impl MeshAsset {
-    /// Returns the vertex positions of the mesh as a `Vec<Vec3>`.
-    pub fn positions(&self) -> Vec<Vec3> {
-        self.serializable
-            .positions
-            .iter()
-            .copied()
-            .map(|v| v.into())
-            .collect()
-    }
-
-    /// Returns the vertex colors of the mesh as a `Vec<Vec4>`.
-    pub fn colors(&self) -> Vec<Vec4> {
-        self.serializable
-            .colors
-            .iter()
-            .copied()
-            .map(|v| v.into())
-            .collect()
-    }
-
-    /// Returns the vertex normals of the mesh as a `Vec<Vec3>`.
-    pub fn normals(&self) -> Vec<Vec3> {
-        self.serializable
-            .normals
-            .iter()
-            .copied()
-            .map(|v| v.into())
-            .collect()
-    }
-
-    /// Returns the vertex tangents of the mesh as a `Vec<Vec4>`.
-    pub fn tangents(&self) -> Vec<Vec4> {
-        self.serializable
-            .tangents
-            .iter()
-            .copied()
-            .map(|v| v.into())
-            .collect()
-    }
-
-    /// Returns the vertex UVs of the mesh as a `Vec<Vec2>`.
-    pub fn uvs(&self) -> Vec<Vec2> {
-        self.serializable
-            .uvs
-            .iter()
-            .copied()
-            .map(|v| v.into())
-            .collect()
-    }
-
-    /// Returns the bone indices for each vertex as a `Vec<[u16; 4]>`.
-    pub fn bone_indices(&self) -> Vec<[u16; 4]> {
-        self.serializable
-            .bone_indices
-            .iter()
-            .copied()
-            .map(|v| v.into())
-            .collect()
-    }
-
-    /// Returns the bone weights for each vertex as a `Vec<Vec4>`.
-    pub fn bone_weights(&self) -> Vec<Vec4> {
-        self.serializable
-            .bone_weights
-            .iter()
-            .copied()
-            .map(|v| v.into())
-            .collect()
-    }
+#[derive(Asset, TypePath)]
+pub struct MeshAsset {
+    pub bones: Vec<String>,
+    pub bindposes: Vec<Mat4>,
+    pub submeshes: Vec<Handle<Mesh>>,
 }
 
 /// An error that can occur when loading a mesh.
@@ -141,8 +103,9 @@ impl AssetLoader for MeshAssetLoader {
         &self,
         reader: &mut dyn Reader,
         _settings: &Self::Settings,
-        _load_context: &mut LoadContext,
+        load_context: &mut LoadContext,
     ) -> impl ConditionalSendFuture<Output = Result<Self::Asset, Self::Error>> {
+        debug!("asset load: {}", &load_context.asset_path());
         Box::pin(async move {
             // Read the bytes from the reader.
             let mut bytes = Vec::new();
@@ -153,8 +116,66 @@ impl AssetLoader for MeshAssetLoader {
             // Deserialize the bytes into a `SerializableMesh`.
             let serializable: SerializableMesh = serde_json::from_slice(&bytes)?;
 
-            // Create the `MeshAsset`.
-            Ok(MeshAsset { serializable })
+            // Create a base mesh with all vertex attributes.
+            let mut mesh = Mesh::new(
+                PrimitiveTopology::TriangleList,
+                RenderAssetUsages::RENDER_WORLD,
+            );
+
+            mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, serializable.positions());
+            if !serializable.colors.is_empty() {
+                mesh.insert_attribute(Mesh::ATTRIBUTE_COLOR, serializable.colors());
+            }
+            if !serializable.uvs.is_empty() {
+                mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, serializable.uvs());
+            }
+            if !serializable.normals.is_empty() {
+                mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, serializable.normals());
+            }
+            if !serializable.tangents.is_empty() {
+                mesh.insert_attribute(Mesh::ATTRIBUTE_TANGENT, serializable.tangents());
+            }
+            if !serializable.bone_indices.is_empty() {
+                mesh.insert_attribute(
+                    Mesh::ATTRIBUTE_JOINT_INDEX,
+                    VertexAttributeValues::Uint16x4(serializable.bone_indices()),
+                );
+            }
+            if !serializable.bone_weights.is_empty() {
+                mesh.insert_attribute(Mesh::ATTRIBUTE_JOINT_WEIGHT, serializable.bone_weights());
+            }
+
+            // Create a separate mesh for each submesh, with its own indices.
+            let submeshes: Vec<_> = serializable
+                .submeshes
+                .iter()
+                .enumerate()
+                .map(|(i, indices)| {
+                    let mut submesh = mesh.clone();
+                    submesh.insert_indices(Indices::U32(indices.clone()));
+
+                    // Add the submesh as a labeled asset to the load context.
+                    let label = format!("{}_{i}", &load_context.asset_path());
+                    let mesh_handle: Handle<Mesh> = load_context.add_labeled_asset(label, submesh);
+
+                    mesh_handle
+                })
+                .collect();
+
+            let bones = serializable.bones.clone();
+            let bindposes = serializable
+                .bindposes
+                .iter()
+                .cloned()
+                .map(|m| m.into())
+                .collect();
+
+            // Create the `MeshAsset` with the bone data and submesh handles.
+            Ok(MeshAsset {
+                bones,
+                bindposes,
+                submeshes,
+            })
         })
     }
 

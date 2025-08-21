@@ -1,15 +1,11 @@
+use std::io::Cursor;
+
 use bevy::{
-    asset::{Asset, AssetLoader, LoadContext, io::Reader},
-    reflect::TypePath,
+    asset::{AssetLoader, LoadContext, RenderAssetUsages, io::Reader},
+    prelude::*,
+    render::render_resource::{Extent3d, TextureDimension, TextureFormat},
     tasks::ConditionalSendFuture,
 };
-
-/// A custom asset for textures that can be processed (e.g., decrypted, decompressed)
-/// before being used by the renderer.
-#[derive(Asset, TypePath)]
-pub struct TexelAsset {
-    pub data: Vec<u8>,
-}
 
 /// An error that can occur when loading a texel data.
 #[derive(Debug, thiserror::Error)]
@@ -20,6 +16,8 @@ pub enum TexelLoaderError {
     /// A JSON deserialization error occurred.
     #[error("Failed to decode asset for the following reason:{0}")]
     Json(#[from] serde_json::Error),
+    #[error("Failed to decode asset for the following reason:{0}")]
+    Decode(#[from] image::ImageError),
 }
 
 /// A loader for texel assets.
@@ -27,7 +25,7 @@ pub enum TexelLoaderError {
 pub struct TexelAssetLoader;
 
 impl AssetLoader for TexelAssetLoader {
-    type Asset = TexelAsset;
+    type Asset = Image;
     type Settings = ();
     type Error = TexelLoaderError;
 
@@ -35,8 +33,9 @@ impl AssetLoader for TexelAssetLoader {
         &self,
         reader: &mut dyn Reader,
         _settings: &Self::Settings,
-        _load_context: &mut LoadContext,
+        load_context: &mut LoadContext,
     ) -> impl ConditionalSendFuture<Output = Result<Self::Asset, Self::Error>> {
+        debug!("asset load: {}", &load_context.asset_path());
         Box::pin(async move {
             // Read the bytes from the reader.
             let mut bytes = Vec::new();
@@ -44,12 +43,27 @@ impl AssetLoader for TexelAssetLoader {
 
             // TODO: 데이터 복호화
             // TODO: 데이터 압축 해제
-            // Create the `TexelAsset`
-            Ok(TexelAsset { data: bytes })
+
+            // Decode the image data using the `image` crate and create a Bevy `Image` asset.
+            let mut reader = image::ImageReader::new(Cursor::new(bytes));
+            reader.set_format(image::ImageFormat::Png);
+
+            let image = reader.decode()?;
+            let size = Extent3d {
+                width: image.width(),
+                height: image.height(),
+                depth_or_array_layers: 1,
+            };
+            let dimension = TextureDimension::D2;
+            let data = image.to_rgba8().to_vec();
+            let format = TextureFormat::Rgba8UnormSrgb;
+            let asset_usage = RenderAssetUsages::RENDER_WORLD;
+
+            Ok(Image::new(size, dimension, data, format, asset_usage))
         })
     }
 
     fn extensions(&self) -> &[&str] {
-        &["tex"]
+        &["texture"]
     }
 }
