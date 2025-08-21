@@ -160,6 +160,7 @@ pub fn on_enter(
     asset_server: Res<AssetServer>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    mut graphs: ResMut<Assets<AnimationGraph>>,
 ) {
     // Insert resources
     commands.insert_resource(InputDelay::default());
@@ -237,10 +238,6 @@ pub fn on_enter(
 
     commands.insert_resource(obstacle_models);
 
-    // Test code
-    // let t: Handle<AnimationClip> = asset_server.load("animations/CH0242_InGame.anim");
-    // let t: Handle<AnimationClip> = asset_server.load("animations/CH0243_InGame.anim");
-
     // Spawn the player model from a custom asset.
     commands.spawn((
         SpawnModel(asset_server.load("models/ToyTrain00.hierarchy")),
@@ -248,11 +245,19 @@ pub fn on_enter(
         InGameStateEntity,
         ToyTrain0,
     ));
+    let clip: Handle<AnimationClip> = asset_server.load("animations/CH0242_InGame.anim");
+    let (graph, animation_index) = AnimationGraph::from_clip(clip);
+    let mut player = AnimationPlayer::default();
+    player.play(animation_index).repeat();
     let entity = commands
         .spawn((
             SpawnModel(asset_server.load("models/CH0242.hierarchy")),
             Transform::from_xyz(0.0, 0.8775, 0.0),
             InGameStateEntity,
+            // Add an animation graph to the entity.
+            AnimationGraphHandle(graphs.add(graph)),
+            // Add an animation player to the entity.
+            player,
         ))
         .id();
     commands
@@ -263,11 +268,19 @@ pub fn on_enter(
             ToyTrain1,
         ))
         .add_child(entity);
+    let clip: Handle<AnimationClip> = asset_server.load("animations/CH0243_InGame.anim");
+    let (graph, animation_index) = AnimationGraph::from_clip(clip);
+    let mut player = AnimationPlayer::default();
+    player.play(animation_index).repeat();
     let entity = commands
         .spawn((
             SpawnModel(asset_server.load("models/CH0243.hierarchy")),
             Transform::from_xyz(0.0, 0.375, 0.375),
             InGameStateEntity,
+            // Add an animation graph to the entity.
+            AnimationGraphHandle(graphs.add(graph)),
+            // Add an animation player to the entity.
+            player,
         ))
         .id();
     commands

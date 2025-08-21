@@ -20,6 +20,9 @@ pub struct SerializableMaterial {
     /// The roughness value for this material.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub roughness: Option<f32>,
+    /// Whether this material is unlit.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub unlit: Option<bool>,
 }
 
 /// An error that can occur when loading a material.
@@ -74,6 +77,7 @@ impl AssetLoader for MaterialAssetLoader {
                 base_color_texture,
                 metallic: serializable.metallic.unwrap_or(0.0),
                 perceptual_roughness: serializable.roughness.unwrap_or(0.5),
+                unlit: serializable.unlit.unwrap_or(false),
                 ..Default::default()
             })
         })

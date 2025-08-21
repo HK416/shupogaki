@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use bevy::{
+    animation::{AnimationTarget, AnimationTargetId},
     prelude::*,
     render::mesh::skinning::{SkinnedMesh, SkinnedMeshInverseBindposes},
 };
@@ -36,6 +37,7 @@ pub struct SpawnModel(pub Handle<ModelAsset>);
 /// A system that spawns models.
 ///
 /// This system looks for entities with the `SpawnModel` component and spawns the corresponding model.
+/// Spawns the models that have been requested to be spawned.
 fn spawn_model_system(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
@@ -45,7 +47,7 @@ fn spawn_model_system(
     material_assets: Res<Assets<StandardMaterial>>,
     mut inverse_bindposes_assets: ResMut<Assets<SkinnedMeshInverseBindposes>>,
 ) {
-    for (entity, spawn_request) in &models_to_spawn {
+    for (root_entity, spawn_request) in &models_to_spawn {
         let model_asset = match model_assets.get(&spawn_request.0) {
             Some(asset) => asset,
             None => continue,
@@ -72,8 +74,12 @@ fn spawn_model_system(
 
         // Spawn the model hierarchy.
         let mut nodes = HashMap::default();
-        let root_entity =
-            spawn_node_recursive(&mut commands, &mut nodes, &model_asset.serializable.root);
+        let entity = spawn_node_recursive(
+            root_entity, // The entity that the animation player is attached to.
+            &mut commands,
+            &mut nodes,
+            &model_asset.serializable.root,
+        );
 
         // Add the render components to the model hierarchy.
         add_render_components_recursive(
@@ -88,14 +94,15 @@ fn spawn_model_system(
 
         // Add the model to the entity that requested it.
         commands
-            .entity(entity)
-            .add_child(root_entity)
+            .entity(root_entity)
+            .add_child(entity)
             .remove::<SpawnModel>();
     }
 }
 
 /// Recursively spawns the nodes of a model hierarchy.
 fn spawn_node_recursive(
+    root_entity: Entity, // The entity that the animation player is attached to.
     commands: &mut Commands,
     nodes: &mut HashMap<String, Entity>,
     node: &SerializableModelNode,
@@ -103,11 +110,16 @@ fn spawn_node_recursive(
     let children: Vec<_> = node
         .children
         .iter()
-        .map(|child| spawn_node_recursive(commands, nodes, child))
+        .map(|child| spawn_node_recursive(root_entity, commands, nodes, child))
         .collect();
 
     let mut entity_commands = commands.spawn((
-        Name::new(node.name.clone()),
+        // The animation player is attached to the root entity, so we need to tell it which
+        // entity to play the animation on.
+        AnimationTarget {
+            id: AnimationTargetId::from_name(&Name::new(node.name.clone())),
+            player: root_entity,
+        },
         Transform::from_matrix(node.transform.into()),
     ));
     entity_commands.add_children(&children);
