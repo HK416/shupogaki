@@ -6,6 +6,8 @@ use std::collections::{HashMap, VecDeque};
 // Import necessary Bevy modules.
 use bevy::prelude::*;
 
+use crate::asset::model::ModelAsset;
+
 // --- GAME CONSTANTS ---
 
 /// The number of lanes available to the player.
@@ -13,7 +15,7 @@ const NUM_LANES: usize = 3;
 /// The maximum lane index (0-based).
 const MAX_LANE_INDEX: usize = NUM_LANES - 1;
 /// The x-coordinates for each lane.
-const LANE_LOCATIONS: [f32; NUM_LANES] = [-3.0, 0.0, 3.0];
+const LANE_LOCATIONS: [f32; NUM_LANES] = [-3.0, 0.25, 3.5];
 /// The delay between player inputs in seconds.
 const INPUT_DELAY: f32 = 0.25;
 /// The delay between obstacle creation in seconds.
@@ -144,15 +146,12 @@ impl Default for ObstacleSpawnTimer {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 enum GroundModel {
-    Test0,
-    Test1,
-    Test2,
+    Plane0,
 }
 
 #[derive(Default, Resource)]
-pub struct GroundModels {
-    meshes: HashMap<GroundModel, Handle<Mesh>>,
-    materials: HashMap<GroundModel, Handle<StandardMaterial>>,
+pub struct CachedGrounds {
+    models: HashMap<GroundModel, Handle<ModelAsset>>,
 }
 
 #[derive(Default, Resource)]

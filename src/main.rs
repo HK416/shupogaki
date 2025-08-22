@@ -50,7 +50,7 @@ fn main() {
                 // Setup the game scene.
                 in_game::on_enter,
                 // Play the animation.
-                in_game::play_animation
+                in_game::play_animation,
             ),
         )
         // Add systems that run when exiting the InGame state.

@@ -1,11 +1,15 @@
 // Import necessary Bevy modules.
 use bevy::{prelude::*, render::camera::ScalingMode};
 
+use crate::asset::spawner::SpawnModel;
+
 use super::*;
 
 // --- SETUP SYSTEM ---
 
 /// A system that sets up the initial game world.
+// NOTE: The ground is no longer spawned here, but is pre-spawned in the `in_game_load` scene.
+// TODO: The `meshes` and `materials` parameters are no longer used and can be removed.
 pub fn on_enter(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
@@ -14,61 +18,7 @@ pub fn on_enter(
     // Insert resources
     commands.insert_resource(InputDelay::default());
     commands.insert_resource(ObstacleSpawnTimer::default());
-
-    // Create and insert ground models resource
-    let mesh_handle = meshes.add(Plane3d::default().mesh().size(10.0, 50.0));
-    let material_handle_0 = materials.add(StandardMaterial {
-        base_color: Srgba::rgb(0.3, 0.5, 0.3).into(),
-        ..Default::default()
-    });
-    let material_handle_1 = materials.add(StandardMaterial {
-        base_color: Srgba::rgb(0.3, 0.5, 0.4).into(),
-        ..Default::default()
-    });
-    let material_handle_2 = materials.add(StandardMaterial {
-        base_color: Srgba::rgb(0.3, 0.5, 0.5).into(),
-        ..Default::default()
-    });
-
-    let mut ground_models = GroundModels::default();
-    ground_models
-        .meshes
-        .insert(GroundModel::Test0, mesh_handle.clone());
-    ground_models
-        .materials
-        .insert(GroundModel::Test0, material_handle_0.clone());
-    ground_models
-        .meshes
-        .insert(GroundModel::Test1, mesh_handle.clone());
-    ground_models
-        .materials
-        .insert(GroundModel::Test1, material_handle_1.clone());
-    ground_models
-        .meshes
-        .insert(GroundModel::Test2, mesh_handle.clone());
-    ground_models
-        .materials
-        .insert(GroundModel::Test2, material_handle_2.clone());
-
-    commands.insert_resource(ground_models);
     commands.insert_resource(RetiredGrounds::default());
-
-    // Spawn initial ground entities
-    for i in 0..3 {
-        let material = match i % 3 {
-            0 => material_handle_0.clone(),
-            1 => material_handle_1.clone(),
-            2 => material_handle_2.clone(),
-            _ => unreachable!(),
-        };
-        commands.spawn((
-            Mesh3d(mesh_handle.clone()),
-            MeshMaterial3d(material),
-            Transform::from_xyz(0.0, 0.0, 50.0 * i as f32),
-            Ground,
-            InGameStateEntity,
-        ));
-    }
 
     // Create and insert obstacle models resource
     let mut obstacle_models = ObstacleModels::default();
@@ -157,7 +107,7 @@ pub fn on_exit(mut commands: Commands, query: Query<Entity, With<InGameStateEnti
     // Remove resources specific to the InGame state.
     commands.remove_resource::<ObstacleModels>();
     commands.remove_resource::<RetiredGrounds>();
-    commands.remove_resource::<GroundModels>();
+    commands.remove_resource::<CachedGrounds>();
     commands.remove_resource::<ObstacleSpawnTimer>();
     commands.remove_resource::<InputDelay>();
 }
@@ -348,26 +298,26 @@ pub fn update_toy_trains(
 }
 
 /// A system that spawns new ground entities to create an infinite scrolling effect.
+/// This system reuses ground entities that have moved off-screen.
+/// It now spawns ground models from the `CachedGrounds` resource using a `SpawnModel` command.
 pub fn spawn_grounds(
     mut commands: Commands,
     mut retired: ResMut<RetiredGrounds>,
-    models: Res<GroundModels>,
+    cached_grounds: Res<CachedGrounds>,
 ) {
-    const MODELS: [GroundModel; 3] = [GroundModel::Test0, GroundModel::Test1, GroundModel::Test2];
+    const MODELS: [GroundModel; 1] = [GroundModel::Plane0];
 
     while let Some(mut transform) = retired.transforms.pop_front() {
         // Use thread_rng for better random number generation.
         let model = MODELS[rand::random_range(0..MODELS.len())];
-        let mesh_handle = models.meshes.get(&model).cloned().unwrap();
-        let material_handle = models.materials.get(&model).cloned().unwrap();
+        let model_handle = cached_grounds.models.get(&model).unwrap();
         transform.translation.z += 150.0;
 
         commands.spawn((
-            Mesh3d(mesh_handle),
-            MeshMaterial3d(material_handle),
+            SpawnModel(model_handle.clone()),
             transform,
-            Ground,
             InGameStateEntity,
+            Ground,
         ));
     }
 }

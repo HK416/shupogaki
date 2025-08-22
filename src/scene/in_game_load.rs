@@ -7,7 +7,6 @@ use super::*;
 
 // --- COMPONENTS ---
 
-
 /// A marker component for loading bar entities.
 #[derive(Component)]
 pub struct LoadingBar;
@@ -18,7 +17,6 @@ pub struct LoadingText;
 
 // --- RESOURCES ---
 
-
 /// A resource to store handles of assets that need to be loaded.
 #[derive(Default, Resource)]
 pub struct LoadingAssets {
@@ -27,12 +25,35 @@ pub struct LoadingAssets {
 
 // --- SETUP SYSTEM ---
 
-
 /// A system that sets up the loading screen and starts loading assets.
 pub fn on_enter(mut commands: Commands, asset_server: Res<AssetServer>) {
     let mut loading_assets = LoadingAssets::default();
+    let mut cached_grounds = CachedGrounds::default();
 
-    // Spawn the player model and other game objects with `Visibility::Hidden`.
+    // --- Ground Loading and Pre-spawning ---
+    // Load the ground model asset.
+    let model: Handle<ModelAsset> = asset_server.load("models/Plane_0.hierarchy");
+    // Add the ground model handle to the list of assets to be loaded.
+    loading_assets.handles.push(model.clone().into());
+    // Cache the ground model handle for later use in the game.
+    cached_grounds
+        .models
+        .insert(GroundModel::Plane0, model.clone());
+    // Pre-spawn initial ground entities. These are initially hidden and will be made
+    // visible when the game starts. This avoids a stutter when the game begins.
+    for i in 0..5 {
+        commands.spawn((
+            SpawnModel(model.clone()),
+            Transform::from_xyz(0.0, 0.0, 30.0 * i as f32),
+            InGameStateEntity,
+            Visibility::Hidden,
+            Ground,
+        ));
+    }
+
+    // --- Player and Toy Train Loading ---
+    // Load all models and animations for the player and toy trains.
+    // They are spawned with `Visibility::Hidden` and will be made visible after loading is complete.
     let model: Handle<ModelAsset> = asset_server.load("models/ToyTrain00.hierarchy");
     loading_assets.handles.push(model.clone().into());
     commands.spawn((
@@ -98,8 +119,11 @@ pub fn on_enter(mut commands: Commands, asset_server: Res<AssetServer>) {
     // Create the loading UI.
     create_loading_ui(&mut commands, &asset_server, &mut loading_assets);
 
-    // Insert resources.
+    // --- Resource Insertion ---
+    // Insert the `loading_assets` and `cached_grounds` resources for other systems to use.
     commands.insert_resource(loading_assets);
+    commands.insert_resource(cached_grounds);
+    // Set a black background color for the loading screen.
     commands.insert_resource(ClearColor(Color::BLACK));
 }
 
@@ -171,7 +195,6 @@ fn create_loading_ui(
 
 // --- CLEANUP SYSTEM ---
 
-
 /// A system that cleans up the loading screen and makes the game objects visible.
 pub fn on_exit(
     mut commands: Commands,
@@ -196,7 +219,6 @@ pub fn on_exit(
 }
 
 // --- UPDATE SYSTEM ---
-
 
 /// A system that checks if all assets are loaded and transitions to the `InGame` state.
 pub fn check_loading_progress(
