@@ -1,7 +1,7 @@
 // Import necessary Bevy modules.
 use bevy::{prelude::*, render::camera::ScalingMode};
 
-use crate::asset::spawner::SpawnModel;
+use crate::{asset::spawner::SpawnModel, collider::Collider};
 
 use super::*;
 
@@ -9,43 +9,33 @@ use super::*;
 
 /// A system that sets up the initial game world.
 // NOTE: The ground is no longer spawned here, but is pre-spawned in the `in_game_load` scene.
-// TODO: The `meshes` and `materials` parameters are no longer used and can be removed.
-pub fn on_enter(
-    mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-) {
+pub fn on_enter(mut commands: Commands) {
     // Insert resources
     commands.insert_resource(InputDelay::default());
-    commands.insert_resource(ObstacleSpawnTimer::default());
     commands.insert_resource(RetiredGrounds::default());
-
-    // Create and insert obstacle models resource
-    let mut obstacle_models = ObstacleModels::default();
-    let mesh_handle = meshes.add(Cuboid::new(1.0, 1.0, 1.0));
-    let material_handle = materials.add(StandardMaterial {
-        base_color: Color::srgb(0.8, 0.2, 0.2),
-        ..default()
-    });
-
-    obstacle_models
-        .meshes
-        .insert(ObstacleModel::Test, mesh_handle);
-    obstacle_models
-        .materials
-        .insert(ObstacleModel::Test, material_handle);
-
-    commands.insert_resource(obstacle_models);
+    commands.insert_resource(ObstacleSpawnTimer::default());
 
     // Spawn the player entity.
-    commands.spawn((
-        Transform::from_xyz(0.0, 0.0, -7.5),
-        Lane::default(),
-        ForwardMovement::default(),
-        VerticalMovement::default(),
-        InGameStateEntity,
-        Player,
-    ));
+    commands
+        .spawn((
+            Transform::from_xyz(0.0, 0.0, -7.5),
+            Lane::default(),
+            ForwardMovement::default(),
+            VerticalMovement::default(),
+            InGameStateEntity,
+            Player,
+        ))
+        .with_children(|parent| {
+            parent.spawn((
+                Transform::from_xyz(0.0, 0.5, -1.5),
+                Collider::Aabb {
+                    center: Vec3::new(0.0, 0.0, 0.0),
+                    size: Vec3::new(0.9, 1.0, 3.6),
+                },
+                InGameStateEntity,
+                PlayerCollider,
+            ));
+        });
 
     // Spawn a directional light.
     commands.spawn((
@@ -105,7 +95,7 @@ pub fn on_exit(mut commands: Commands, query: Query<Entity, With<InGameStateEnti
     }
 
     // Remove resources specific to the InGame state.
-    commands.remove_resource::<ObstacleModels>();
+    commands.remove_resource::<CachedObstacles>();
     commands.remove_resource::<RetiredGrounds>();
     commands.remove_resource::<CachedGrounds>();
     commands.remove_resource::<ObstacleSpawnTimer>();
@@ -223,6 +213,19 @@ pub fn update_obstacle_position(
     }
 }
 
+pub fn update_collider(mut query: Query<(&mut Collider, &GlobalTransform)>) {
+    for (mut collider, transform) in query.iter_mut() {
+        match collider.as_mut() {
+            Collider::Aabb { center, .. } => {
+                *center = transform.translation();
+            }
+            Collider::Sphere { center, .. } => {
+                *center = transform.translation();
+            }
+        }
+    }
+}
+
 // --- POSTUPDATE SYSTEMS ---
 
 /// A system that updates the positions and rotations of the toy train cars.
@@ -327,7 +330,7 @@ pub fn spawn_obstacles(
     mut commands: Commands,
     mut spawn_timer: ResMut<ObstacleSpawnTimer>,
     player_query: Query<&ForwardMovement, With<Player>>,
-    models: Res<ObstacleModels>,
+    cached: Res<CachedObstacles>,
 ) {
     if let Ok(forward_move) = player_query.single() {
         while spawn_timer.remaining <= 0.0 {
@@ -337,17 +340,27 @@ pub fn spawn_obstacles(
             let lane_index = rand::random_range(0..NUM_LANES);
             let lane_x = LANE_LOCATIONS[lane_index];
 
-            let mesh_handle = models.meshes.get(&ObstacleModel::Test).cloned().unwrap();
-            let material_handle = models.materials.get(&ObstacleModel::Test).cloned().unwrap();
+            let model_handle = cached.models.get(&ObstacleModel::Rail0).unwrap();
 
             // Spawn the obstacle entity.
-            commands.spawn((
-                Mesh3d(mesh_handle),
-                MeshMaterial3d(material_handle),
-                Transform::from_xyz(lane_x, 0.5, 100.0 - forward_move.velocity * time_t),
-                Obstacle,
-                InGameStateEntity,
-            ));
+            commands
+                .spawn((
+                    SpawnModel(model_handle.clone()),
+                    Transform::from_xyz(lane_x, 0.0, 100.0 - forward_move.velocity * time_t),
+                    InGameStateEntity,
+                    Obstacle,
+                ))
+                .with_children(|parent| {
+                    parent.spawn((
+                        Transform::from_xyz(0.0, 0.5, 0.0),
+                        Collider::Aabb {
+                            center: Vec3::default(),
+                            size: Vec3::splat(1.0),
+                        },
+                        InGameLoadStateEntity,
+                        ObstacleCollider,
+                    ));
+                });
 
             spawn_timer.remaining += SPAWN_DELAY;
         }
@@ -356,18 +369,13 @@ pub fn spawn_obstacles(
 
 /// A system that checks for collisions between the player and obstacles.
 pub fn check_for_collisions(
-    player_query: Query<&Transform, (With<Player>, Without<Obstacle>)>,
-    obstacle_query: Query<&Transform, (With<Obstacle>, Without<Player>)>,
+    player_query: Query<&Collider, (With<PlayerCollider>, Without<ObstacleCollider>)>,
+    obstacle_query: Query<&Collider, (With<ObstacleCollider>, Without<PlayerCollider>)>,
 ) {
-    if let Ok(player_transform) = player_query.single() {
-        for obstacle_transform in obstacle_query.iter() {
-            // Calculate the distance between the player and the obstacle.
-            let distance = player_transform
-                .translation
-                .distance(obstacle_transform.translation);
-
+    if let Ok(player_collider) = player_query.single() {
+        for obstacle_collider in obstacle_query.iter() {
             // A simple collision check based on distance.
-            if distance < 1.0 {
+            if player_collider.intersects(obstacle_collider) {
                 println!("GAME OVER!");
                 // In a real game, you would transition to a game over state here.
             }

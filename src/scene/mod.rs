@@ -16,7 +16,7 @@ const NUM_LANES: usize = 3;
 const MAX_LANE_INDEX: usize = NUM_LANES - 1;
 /// The x-coordinates for each lane.
 const LANE_LOCATIONS: [f32; NUM_LANES] = [-3.0, 0.25, 3.5];
-/// The delay between player inputs in seconds.
+/// The delay between player inputs in seconds, to prevent overly sensitive controls.
 const INPUT_DELAY: f32 = 0.25;
 /// The delay between obstacle creation in seconds.
 const SPAWN_DELAY: f32 = 2.0;
@@ -31,10 +31,13 @@ const LANE_CHANGE_SPEED: f32 = 5.0;
 
 // --- STATES ---
 
+/// Defines the different states of the game, controlling which systems run.
 #[derive(States, Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum GameState {
+    /// The default state, where assets are loaded.
     #[default]
     InGameLoading,
+    /// The state where the main gameplay occurs.
     InGame,
 }
 
@@ -44,6 +47,10 @@ pub enum GameState {
 #[derive(Component)]
 pub struct Player;
 
+/// A marker component for the player's collider entity.
+#[derive(Component)]
+pub struct PlayerCollider;
+
 /// A marker component for the ground plane entities.
 #[derive(Component)]
 pub struct Ground;
@@ -52,23 +59,27 @@ pub struct Ground;
 #[derive(Component)]
 pub struct Obstacle;
 
-/// A marker component for in_game_load state entities.
+/// A marker component for an obstacle's collider entity.
+#[derive(Component)]
+pub struct ObstacleCollider;
+
+/// A marker component for entities that should only exist during the `InGameLoad` state.
 #[derive(Component)]
 pub struct InGameLoadStateEntity;
 
-/// A marker component for in_game state entities.
+/// A marker component for entities that should only exist during the `InGame` state.
 #[derive(Component)]
 pub struct InGameStateEntity;
 
-/// A marker component for first toy train entity.
+/// A marker component for the first toy train entity.
 #[derive(Component)]
 pub struct ToyTrain0;
 
-/// A marker component for seconds toy train entity.
+/// A marker component for the second toy train entity.
 #[derive(Component)]
 pub struct ToyTrain1;
 
-/// A marker component for third toy train entity.
+/// A marker component for the third toy train entity.
 #[derive(Component)]
 pub struct ToyTrain2;
 
@@ -87,7 +98,7 @@ impl Default for Lane {
     }
 }
 
-/// Stores the player's horizontal movement speed.
+/// Stores the entity's forward movement speed.
 #[derive(Component)]
 pub struct ForwardMovement {
     velocity: f32,
@@ -99,7 +110,7 @@ impl Default for ForwardMovement {
     }
 }
 
-/// Stores the player's vertical movement speed for jumping and gravity.
+/// Stores the entity's vertical movement speed for jumping and gravity.
 #[derive(Component)]
 pub struct VerticalMovement {
     velocity: f32,
@@ -144,28 +155,33 @@ impl Default for ObstacleSpawnTimer {
     }
 }
 
+/// Enum to identify different ground models for caching.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 enum GroundModel {
     Plane0,
 }
 
+/// A resource that caches handles to ground models to avoid reloading them.
 #[derive(Default, Resource)]
 pub struct CachedGrounds {
     models: HashMap<GroundModel, Handle<ModelAsset>>,
 }
 
+/// A resource that holds the transforms of ground entities that have moved off-screen
+/// and are ready to be reused.
 #[derive(Default, Resource)]
 pub struct RetiredGrounds {
     transforms: VecDeque<Transform>,
 }
 
+/// Enum to identify different obstacle models for caching.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 enum ObstacleModel {
-    Test,
+    Rail0,
 }
 
+/// A resource that caches handles to obstacle models.
 #[derive(Default, Resource)]
-pub struct ObstacleModels {
-    meshes: HashMap<ObstacleModel, Handle<Mesh>>,
-    materials: HashMap<ObstacleModel, Handle<StandardMaterial>>,
+pub struct CachedObstacles {
+    models: HashMap<ObstacleModel, Handle<ModelAsset>>,
 }

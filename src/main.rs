@@ -1,79 +1,121 @@
 mod asset;
+mod collider;
 mod scene;
 
 // Import necessary Bevy modules.
-use bevy::prelude::*;
+use bevy::{
+    log::{Level, LogPlugin},
+    prelude::*,
+};
 
+// Conditionally import the Collider for debug gizmos.
+#[cfg(not(feature = "no-debuging-gizmo"))]
+use crate::collider::Collider;
+// Import local modules for asset handling and game scenes.
 use crate::{
     asset::spawner::CustomAssetPlugin,
     scene::{GameState, in_game, in_game_load},
 };
 
 // --- MAIN FUNCTION ---
-
+// This is the entry point of the application.
 fn main() {
     App::new()
-        // Add the default Bevy plugins, configuring the window.
-        .add_plugins((DefaultPlugins.set(WindowPlugin {
-            primary_window: Some(Window {
-                title: "Shupogaki 💢".into(),
-                resolution: (1280.0, 720.0).into(),
-                fit_canvas_to_parent: true,
-                prevent_default_event_handling: false,
+        // --- CORE PLUGINS ---
+        // Add the default Bevy plugins, which provide essential functionality.
+        .add_plugins((DefaultPlugins
+            // Configure the primary window.
+            .set(WindowPlugin {
+                primary_window: Some(Window {
+                    title: "Shupogaki 💢".into(),
+                    resolution: (1280.0, 720.0).into(),
+                    // Fit the canvas to the parent element, useful for web builds.
+                    fit_canvas_to_parent: true,
+                    // Prevent the browser from handling default events, like scrolling.
+                    prevent_default_event_handling: false,
+                    ..default()
+                }),
                 ..default()
-            }),
-            ..default()
-        }),))
-        // Add the custom asset plugin.
+            })
+            // Configure the logging plugin.
+            .set(LogPlugin {
+                // Set the log level based on a feature flag.
+                // Use WARN level if 'no-debuging-log' is enabled, otherwise INFO.
+                level: if cfg!(feature = "no-debuging-log") {
+                    Level::WARN
+                } else {
+                    Level::INFO
+                },
+                ..Default::default()
+            }),))
+        // --- CUSTOM PLUGINS ---
+        // Add the custom asset plugin for loading and managing game assets.
         .add_plugins(CustomAssetPlugin)
-        // Initialize the game state.
+        // --- STATE MANAGEMENT ---
+        // Initialize the game state machine. The game starts in the `Menu` state (or the default).
         .init_state::<GameState>()
-        // Add systems that run for the InGameLoading state.
+        // --- IN-GAME LOADING STATE ---
+        // Define systems that run during the `InGameLoading` state.
         .add_systems(OnEnter(GameState::InGameLoading), in_game_load::on_enter)
         .add_systems(OnExit(GameState::InGameLoading), in_game_load::on_exit)
         .add_systems(
             Update,
             (
-                // Check for loading progress.
+                // These systems run every frame while in the `InGameLoading` state.
                 in_game_load::check_loading_progress,
-                // Update the loading bar.
                 in_game_load::update_loading_bar,
-                // Change the scale of the text.
                 in_game_load::change_text_scale,
             )
                 .run_if(in_state(GameState::InGameLoading)),
         )
-        // Add systems that run when entering the InGame state.
+        // --- IN-GAME STATE ---
+        // Define systems that run when entering the `InGame` state.
         .add_systems(
             OnEnter(GameState::InGame),
             (
-                // Setup the game scene.
+                // Setup the main game scene.
                 in_game::on_enter,
-                // Play the animation.
+                // Start playing animations.
                 in_game::play_animation,
             ),
         )
-        // Add systems that run when exiting the InGame state.
+        // Define systems that run when exiting the `InGame` state for cleanup.
         .add_systems(OnExit(GameState::InGame), in_game::on_exit)
-        // Add systems that run in the PreUpdate stage.
+        // --- GAMEPLAY SYSTEMS ---
+        // Schedule systems to run at different stages of the game loop.
         .add_systems(
             PreUpdate,
+            // Handle player input in the `PreUpdate` stage for responsiveness.
             (in_game::handle_player_input).run_if(in_state(GameState::InGame)),
         )
-        // Add systems that run in the Update stage.
         .add_systems(
             Update,
             (
-                in_game::update_timer,
-                in_game::update_player_position,
-                in_game::update_ground_position,
-                in_game::update_obstacle_position,
-            )
-                .run_if(in_state(GameState::InGame)),
+                // Main game logic runs in the `Update` stage.
+                (
+                    (
+                        // These systems update game elements.
+                        in_game::update_timer,
+                        in_game::update_player_position,
+                        in_game::update_ground_position,
+                        in_game::update_obstacle_position,
+                    )
+                        // Ensure these run before the collider update for frame-perfect accuracy.
+                        .before(in_game::update_collider),
+                    // Update colliders based on the new positions.
+                    in_game::update_collider,
+                )
+                    .run_if(in_state(GameState::InGame)),
+                // Conditionally add debug gizmo systems if the feature is enabled.
+                #[cfg(not(feature = "no-debuging-gizmo"))]
+                {
+                    (update_gizmo_config, draw_collider_gizmos)
+                },
+            ),
         )
-        // Add systems that run in the PostUpdate stage.
         .add_systems(
             PostUpdate,
+            // Systems that react to changes from the `Update` stage.
             (
                 in_game::update_toy_trains,
                 in_game::spawn_grounds,
@@ -82,5 +124,56 @@ fn main() {
             )
                 .run_if(in_state(GameState::InGame)),
         )
+        // --- RUN THE APP ---
+        // Start the Bevy application loop.
         .run();
+}
+
+// --- DEBUG GIZMO SYSTEMS ---
+// These systems are only compiled if the "no-debuging-gizmo" feature is NOT enabled.
+
+/// Toggles the visibility of debug gizmos when the F4 key is pressed.
+#[cfg(not(feature = "no-debuging-gizmo"))]
+pub fn update_gizmo_config(
+    mut config_store: ResMut<GizmoConfigStore>,
+    keyboard_input: Res<ButtonInput<KeyCode>>,
+) {
+    // Check if F4 was just pressed.
+    if keyboard_input.just_pressed(KeyCode::F4) {
+        // Iterate through all gizmo configurations and toggle their `enabled` flag.
+        for (_, config, _) in config_store.iter_mut() {
+            config.enabled ^= true;
+        }
+    }
+}
+
+/// Draws visual representations (gizmos) for all `Collider` components in the scene.
+#[cfg(not(feature = "no-debuging-gizmo"))]
+pub fn draw_collider_gizmos(mut gizmos: Gizmos, query: Query<&Collider>) {
+    // Iterate over all entities with a Collider component.
+    for collider in query.iter() {
+        match collider {
+            // If the collider is an AABB, draw a red cuboid.
+            Collider::Aabb {
+                center,
+                size: extents,
+            } => {
+                gizmos.cuboid(
+                    Transform::from_translation(*center).with_scale(*extents),
+                    Color::srgb(1.0, 0.0, 0.0),
+                );
+            }
+            // If the collider is a Sphere, draw a red sphere.
+            Collider::Sphere { center, radius } => {
+                gizmos
+                    .sphere(
+                        Isometry3d::from_translation(*center),
+                        *radius,
+                        Color::srgb(1.0, 0.0, 0.0),
+                    )
+                    // Increase the resolution for a smoother sphere.
+                    .resolution(64);
+            }
+        };
+    }
 }

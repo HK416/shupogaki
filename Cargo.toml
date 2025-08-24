@@ -29,3 +29,9 @@ version = "0.16"
 
 [target.'cfg(all(target_arch = "wasm32", target_os = "unknown"))'.dependencies]
 getrandom = { version = "0.3", features = ["wasm_js"] }
+
+[features]
+default = []
+no-debuging-log = []
+no-debuging-gizmo = []
+product-build = ["no-debuging-log", "no-debuging-gizmo"]

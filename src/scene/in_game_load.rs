@@ -7,17 +7,17 @@ use super::*;
 
 // --- COMPONENTS ---
 
-/// A marker component for loading bar entities.
+/// A marker component for the loading bar UI entity.
 #[derive(Component)]
 pub struct LoadingBar;
 
-/// A marker component for loading text entities.
+/// A marker component for the "Now Loading..." text UI entity.
 #[derive(Component)]
 pub struct LoadingText;
 
 // --- RESOURCES ---
 
-/// A resource to store handles of assets that need to be loaded.
+/// A resource to store handles of assets that need to be loaded before the game can start.
 #[derive(Default, Resource)]
 pub struct LoadingAssets {
     handles: Vec<UntypedHandle>,
@@ -25,10 +25,12 @@ pub struct LoadingAssets {
 
 // --- SETUP SYSTEM ---
 
-/// A system that sets up the loading screen and starts loading assets.
+/// A system that runs once when entering the `InGameLoading` state.
+/// It sets up the loading screen UI and starts loading all necessary game assets.
 pub fn on_enter(mut commands: Commands, asset_server: Res<AssetServer>) {
     let mut loading_assets = LoadingAssets::default();
     let mut cached_grounds = CachedGrounds::default();
+    let mut cached_obstacles = CachedObstacles::default();
 
     // --- Ground Loading and Pre-spawning ---
     // Load the ground model asset.
@@ -50,6 +52,12 @@ pub fn on_enter(mut commands: Commands, asset_server: Res<AssetServer>) {
             Ground,
         ));
     }
+
+    let model: Handle<ModelAsset> = asset_server.load("models/Rail_0.hierarchy");
+    loading_assets.handles.push(model.clone().into());
+    cached_obstacles
+        .models
+        .insert(ObstacleModel::Rail0, model.clone());
 
     // --- Player and Toy Train Loading ---
     // Load all models and animations for the player and toy trains.
@@ -123,6 +131,7 @@ pub fn on_enter(mut commands: Commands, asset_server: Res<AssetServer>) {
     // Insert the `loading_assets` and `cached_grounds` resources for other systems to use.
     commands.insert_resource(loading_assets);
     commands.insert_resource(cached_grounds);
+    commands.insert_resource(cached_obstacles);
     // Set a black background color for the loading screen.
     commands.insert_resource(ClearColor(Color::BLACK));
 }

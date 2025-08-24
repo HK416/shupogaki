@@ -5,30 +5,30 @@ use bevy::{
 };
 use serde::Deserialize;
 
-/// A serializable representation of a material.
+/// A serializable representation of a material, designed for loading from a file.
 ///
-/// This struct is used to load material data from a file (e.g., JSON).
-/// It can then be converted into a `MaterialAsset` for use in the Bevy engine.
+/// This struct holds optional values for material properties, which are then
+/// used to construct a Bevy `StandardMaterial`.
 #[derive(Debug, Deserialize, Clone)]
 pub struct SerializableMaterial {
-    /// The path to the base color texture for this material.
+    /// The name of the base color texture file (without path or extension).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub base_color_texture: Option<String>,
-    /// The metallic value for this material.
+    /// The metallic value (0.0 to 1.0) for this material.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub metallic: Option<f32>,
-    /// The roughness value for this material.
+    /// The perceptual roughness value (0.0 to 1.0) for this material.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub roughness: Option<f32>,
-    /// Whether this material is unlit.
+    /// Whether this material should be rendered as unlit.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub unlit: Option<bool>,
 }
 
-/// An error that can occur when loading a material.
+/// An error that can occur when loading a `.material` asset.
 #[derive(Debug, thiserror::Error)]
 pub enum MaterialLoaderError {
-    /// An I/O error occurred.
+    /// An I/O error occurred while reading the asset file.
     #[error("Failed to load asset for the following reason:{0}")]
     IO(#[from] std::io::Error),
     /// A JSON deserialization error occurred.
@@ -36,9 +36,10 @@ pub enum MaterialLoaderError {
     Json(#[from] serde_json::Error),
 }
 
-/// A loader for material assets.
+/// A loader for `.material` assets.
 ///
-/// This struct implements the `AssetLoader` trait for `MaterialAsset`.
+/// This struct implements the `AssetLoader` trait to load `.material` files,
+/// deserialize them, and convert them into Bevy's `StandardMaterial`.
 #[derive(Default)]
 pub struct MaterialAssetLoader;
 
@@ -53,26 +54,28 @@ impl AssetLoader for MaterialAssetLoader {
         _settings: &Self::Settings,
         load_context: &mut LoadContext,
     ) -> impl ConditionalSendFuture<Output = Result<Self::Asset, Self::Error>> {
-        debug!("asset load: {}", &load_context.asset_path());
+        info!("asset load: {}", &load_context.asset_path());
         Box::pin(async move {
-            // Read the bytes from the reader.
+            // Read the raw bytes from the asset file.
             let mut bytes = Vec::new();
             reader.read_to_end(&mut bytes).await?;
 
-            // TODO: 데이터 복호화
-            // TODO: 데이터 압축 해제
-            // Deserialize the bytes into a `SerializableMaterial`.
+            // TODO: 데이터 복호화 (Data Decryption)
+            // TODO: 데이터 압축 해제 (Data Decompression)
+
+            // Deserialize the bytes from JSON into a `SerializableMaterial`.
             let serializable: SerializableMaterial = serde_json::from_slice(&bytes)?;
 
-            // Create a `StandardMaterial` from the `SerializableMaterial`.
-            // The material file specifies texture paths without extensions.
-            // We append the `.texture` extension here to load our custom texture format.
+            // Load the base color texture as a dependency.
+            // The material file specifies texture names without extensions or full paths.
+            // We construct the full asset path here to load our custom `.texture` format.
             let base_color_texture = serializable
                 .base_color_texture
                 .as_ref()
                 .map(|name| load_context.load(&format!("textures/{}.texture", name)));
 
-            // Create the `MaterialAsset`.
+            // Create the final `StandardMaterial` asset using the loaded data.
+            // Default values are used if properties are not specified in the file.
             Ok(StandardMaterial {
                 base_color_texture,
                 metallic: serializable.metallic.unwrap_or(0.0),

@@ -8,34 +8,35 @@ use serde::Deserialize;
 
 use crate::asset::{Float2, Float3, Float4, Float4x4, UInt4};
 
-/// A serializable representation of a mesh.
+/// A serializable representation of a mesh, designed for loading from a file.
 ///
-/// This struct is used to load mesh data from a file (e.g., JSON).
-/// It can then be converted into a `MeshAsset` for use in the Bevy engine.
+/// This struct contains all the raw vertex data for a mesh, including skinning information.
+/// It is converted into a `MeshAsset` during the loading process.
 #[derive(Debug, Deserialize, Clone)]
 pub struct SerializableMesh {
-    /// The vertex positions of the mesh.
+    /// The vertex positions (x, y, z).
     pub positions: Vec<Float3>,
-    /// The vertex colors of the mesh.
+    /// The vertex colors (r, g, b, a).
     pub colors: Vec<Float4>,
-    /// The vertex UVs of the mesh.
+    /// The vertex UV coordinates (u, v).
     pub uvs: Vec<Float2>,
-    /// The vertex normals of the mesh.
+    /// The vertex normals (x, y, z).
     pub normals: Vec<Float3>,
-    /// The vertex tangents of the mesh.
+    /// The vertex tangents (x, y, z, w).
     pub tangents: Vec<Float4>,
-    /// The bone indices for each vertex.
+    /// The bone indices for each vertex, used for skinning.
     pub bone_indices: Vec<UInt4>,
-    /// The bone weights for each vertex.
+    /// The bone weights for each vertex, used for skinning.
     pub bone_weights: Vec<Float4>,
-    /// The submeshes of the mesh, each represented by a list of indices.
+    /// A list of submeshes, where each submesh is a list of vertex indices.
     pub submeshes: Vec<Vec<u32>>,
-    /// The bind poses for the bones of the mesh.
+    /// The inverse bind pose matrices for each bone in the skeleton.
     pub bindposes: Vec<Float4x4>,
-    /// The names of the bones of the mesh.
+    /// The names of the bones in the skeleton.
     pub bones: Vec<String>,
 }
 
+// Helper methods to convert the serializable vector types into Bevy-compatible slices.
 impl SerializableMesh {
     pub fn positions(&self) -> Vec<[f32; 3]> {
         self.positions.iter().map(|v| [v.x, v.y, v.z]).collect()
@@ -72,17 +73,24 @@ impl SerializableMesh {
     }
 }
 
+/// A custom mesh asset that holds bone information and handles to its submeshes.
+///
+/// A single `.mesh` file can contain multiple submeshes, each with a different material.
+/// This asset structure allows us to manage them together.
 #[derive(Asset, TypePath)]
 pub struct MeshAsset {
+    /// The names of the bones in the mesh's skeleton.
     pub bones: Vec<String>,
+    /// The inverse bind pose matrices for each bone.
     pub bindposes: Vec<Mat4>,
+    /// A list of handles to the individual Bevy `Mesh` assets for each submesh.
     pub submeshes: Vec<Handle<Mesh>>,
 }
 
-/// An error that can occur when loading a mesh.
+/// An error that can occur when loading a `.mesh` asset.
 #[derive(Debug, thiserror::Error)]
 pub enum MeshLoaderError {
-    /// An I/O error occurred.
+    /// An I/O error occurred while reading the asset file.
     #[error("Failed to load asset for the following reason:{0}")]
     IO(#[from] std::io::Error),
     /// A JSON deserialization error occurred.
@@ -90,7 +98,7 @@ pub enum MeshLoaderError {
     Json(#[from] serde_json::Error),
 }
 
-/// A loader for mesh assets.
+/// A loader for `.mesh` assets.
 #[derive(Default)]
 pub struct MeshAssetLoader;
 
@@ -105,18 +113,20 @@ impl AssetLoader for MeshAssetLoader {
         _settings: &Self::Settings,
         load_context: &mut LoadContext,
     ) -> impl ConditionalSendFuture<Output = Result<Self::Asset, Self::Error>> {
-        debug!("asset load: {}", &load_context.asset_path());
+        info!("asset load: {}", &load_context.asset_path());
         Box::pin(async move {
-            // Read the bytes from the reader.
+            // Read the raw bytes from the asset file.
             let mut bytes = Vec::new();
             reader.read_to_end(&mut bytes).await?;
 
-            // TODO: 데이터 복호화
-            // TODO: 데이터 압축 해제
-            // Deserialize the bytes into a `SerializableMesh`.
+            // TODO: 데이터 복호화 (Data Decryption)
+            // TODO: 데이터 압축 해제 (Data Decompression)
+
+            // Deserialize the bytes from JSON into a `SerializableMesh`.
             let serializable: SerializableMesh = serde_json::from_slice(&bytes)?;
 
-            // Create a base mesh with all vertex attributes.
+            // Create a base Bevy `Mesh` and insert all the vertex attributes from the serializable data.
+            // This base mesh contains the vertex data for all submeshes.
             let mut mesh = Mesh::new(
                 PrimitiveTopology::TriangleList,
                 RenderAssetUsages::RENDER_WORLD,
@@ -145,16 +155,19 @@ impl AssetLoader for MeshAssetLoader {
                 mesh.insert_attribute(Mesh::ATTRIBUTE_JOINT_WEIGHT, serializable.bone_weights());
             }
 
-            // Create a separate mesh for each submesh, with its own indices.
+            // For each submesh defined in the serializable data, create a new Bevy `Mesh`.
             let submeshes: Vec<_> = serializable
                 .submeshes
                 .iter()
                 .enumerate()
                 .map(|(i, indices)| {
+                    // Clone the base mesh with all its vertex attributes.
                     let mut submesh = mesh.clone();
+                    // Set the indices for this specific submesh.
                     submesh.insert_indices(Indices::U32(indices.clone()));
 
                     // Add the submesh as a labeled asset to the load context.
+                    // This makes it a dependency of the main `MeshAsset`.
                     let label = format!("{}_{i}", &load_context.asset_path());
                     let mesh_handle: Handle<Mesh> = load_context.add_labeled_asset(label, submesh);
 
@@ -162,6 +175,7 @@ impl AssetLoader for MeshAssetLoader {
                 })
                 .collect();
 
+            // Collect bone names and bind poses.
             let bones = serializable.bones.clone();
             let bindposes = serializable
                 .bindposes
@@ -170,7 +184,7 @@ impl AssetLoader for MeshAssetLoader {
                 .map(|m| m.into())
                 .collect();
 
-            // Create the `MeshAsset` with the bone data and submesh handles.
+            // Create the final `MeshAsset` with the bone data and handles to the submeshes.
             Ok(MeshAsset {
                 bones,
                 bindposes,
