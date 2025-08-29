@@ -61,9 +61,11 @@ fn main() {
         .add_systems(
             Update,
             (
-                // These systems run every frame while in the `InGameLoading` state.
+                // Checks the loading status of assets.
                 in_game_load::check_loading_progress,
+                // Updates the loading bar UI.
                 in_game_load::update_loading_bar,
+                // Animates the "Loading..." text.
                 in_game_load::change_text_scale,
             )
                 .run_if(in_state(GameState::InGameLoading)),
@@ -73,9 +75,9 @@ fn main() {
         .add_systems(
             OnEnter(GameState::InGame),
             (
-                // Setup the main game scene.
+                // Sets up the main game scene.
                 in_game::on_enter,
-                // Start playing animations.
+                // Starts character and other animations.
                 in_game::play_animation,
             ),
         )
@@ -94,10 +96,15 @@ fn main() {
                 // Main game logic runs in the `Update` stage.
                 (
                     (
-                        // These systems update game elements.
+                        // Updates the in-game timer.
                         in_game::update_timer,
+                        // Updates the player's score.
+                        in_game::update_score,
+                        // Updates the player's character position.
                         in_game::update_player_position,
+                        // Scrolls the ground.
                         in_game::update_ground_position,
+                        // Scrolls obstacles.
                         in_game::update_obstacle_position,
                     )
                         // Ensure these run before the collider update for frame-perfect accuracy.
@@ -117,10 +124,16 @@ fn main() {
             PostUpdate,
             // Systems that react to changes from the `Update` stage.
             (
+                // Updates the toy train animation/position.
                 in_game::update_toy_trains,
+                // Spawns new ground segments as the player moves.
                 in_game::spawn_grounds,
+                // Spawns new obstacles.
                 in_game::spawn_obstacles,
+                // Checks for collisions between the player and obstacles.
                 in_game::check_for_collisions,
+                // Updates the score display on the UI.
+                in_game::update_score_ui,
             )
                 .run_if(in_state(GameState::InGame)),
         )

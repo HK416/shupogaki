@@ -23,6 +23,8 @@ pub struct SerializableMaterial {
     /// Whether this material should be rendered as unlit.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub unlit: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub double_sided: Option<bool>,
 }
 
 /// An error that can occur when loading a `.material` asset.
@@ -72,15 +74,22 @@ impl AssetLoader for MaterialAssetLoader {
             let base_color_texture = serializable
                 .base_color_texture
                 .as_ref()
-                .map(|name| load_context.load(&format!("textures/{}.texture", name)));
+                .map(|name| load_context.load(format!("textures/{}.texture", name)));
 
             // Create the final `StandardMaterial` asset using the loaded data.
             // Default values are used if properties are not specified in the file.
             Ok(StandardMaterial {
                 base_color_texture,
-                metallic: serializable.metallic.unwrap_or(0.0),
-                perceptual_roughness: serializable.roughness.unwrap_or(0.5),
+                metallic: serializable
+                    .metallic
+                    .map(|v| v.clamp(0.0, 1.0))
+                    .unwrap_or(0.0),
+                perceptual_roughness: serializable
+                    .roughness
+                    .map(|v| v.clamp(0.089, 1.0))
+                    .unwrap_or(0.5),
                 unlit: serializable.unlit.unwrap_or(false),
+                double_sided: serializable.double_sided.unwrap_or(false),
                 ..Default::default()
             })
         })

@@ -104,9 +104,9 @@ pub fn create_animation_clip(serializable: &SerializableAnimation) -> AnimationC
     // Process each curve (for each bone) in the serializable animation.
     for curve in &serializable.curves {
         let bone_name = &curve.bone;
-        process_translation_curve(&mut clip, bone_name, &curve);
-        process_rotation_curve(&mut clip, bone_name, &curve);
-        process_scale_curve(&mut clip, bone_name, &curve);
+        process_translation_curve(&mut clip, bone_name, curve);
+        process_rotation_curve(&mut clip, bone_name, curve);
+        process_scale_curve(&mut clip, bone_name, curve);
     }
 
     clip
@@ -122,10 +122,10 @@ fn process_translation_curve(
 
     // Collect all translation keyframes from the serializable data.
     for (i, &timestamp) in curve.timestamps.iter().enumerate() {
-        if let Some(keyframe) = curve.keyframes.get(i) {
-            if let Some(translation) = keyframe.translation {
-                translation_keyframes.push((timestamp, translation.into()));
-            }
+        if let Some(keyframe) = curve.keyframes.get(i)
+            && let Some(translation) = keyframe.translation
+        {
+            translation_keyframes.push((timestamp, translation.into()));
         }
     }
 
@@ -153,10 +153,10 @@ fn process_rotation_curve(
 
     // Collect all rotation keyframes from the serializable data.
     for (i, &timestamp) in curve.timestamps.iter().enumerate() {
-        if let Some(keyframe) = curve.keyframes.get(i) {
-            if let Some(rotation) = keyframe.rotation {
-                rotation_keyframes.push((timestamp, rotation.into()));
-            }
+        if let Some(keyframe) = curve.keyframes.get(i)
+            && let Some(rotation) = keyframe.rotation
+        {
+            rotation_keyframes.push((timestamp, rotation.into()));
         }
     }
 
@@ -180,10 +180,10 @@ fn process_scale_curve(clip: &mut AnimationClip, bone_name: &str, curve: &Serial
 
     // Collect all scale keyframes from the serializable data.
     for (i, &timestamp) in curve.timestamps.iter().enumerate() {
-        if let Some(keyframe) = curve.keyframes.get(i) {
-            if let Some(scale) = keyframe.scale {
-                scale_keyframes.push((timestamp, scale.into()));
-            }
+        if let Some(keyframe) = curve.keyframes.get(i)
+            && let Some(scale) = keyframe.scale
+        {
+            scale_keyframes.push((timestamp, scale.into()));
         }
     }
 

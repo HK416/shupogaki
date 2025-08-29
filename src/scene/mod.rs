@@ -28,6 +28,7 @@ const GRAVITY: f32 = -30.0;
 const JUMP_STRENGTH: f32 = 12.5;
 // The lane change speed of the player.
 const LANE_CHANGE_SPEED: f32 = 5.0;
+const SCORE_CYCLE: u32 = 100;
 
 // --- STATES ---
 
@@ -83,6 +84,24 @@ pub struct ToyTrain1;
 #[derive(Component)]
 pub struct ToyTrain2;
 
+#[derive(Component)]
+pub struct Score0;
+
+#[derive(Component)]
+pub struct Score1;
+
+#[derive(Component)]
+pub struct Score2;
+
+#[derive(Component)]
+pub struct Score3;
+
+#[derive(Component)]
+pub struct Score4;
+
+#[derive(Component)]
+pub struct Score5;
+
 /// Stores the player's current lane index.
 #[derive(Component)]
 pub struct Lane {
@@ -129,6 +148,15 @@ pub struct AnimationClipHandle(pub Handle<AnimationClip>);
 
 // --- RESOURCES ---
 
+/// A resource to track the player's score.
+#[derive(Default, Resource)]
+pub struct PlayScore {
+    /// A timer that accumulates milliseconds.
+    timer: u32,
+    /// The total accumulated score.
+    accum: u32,
+}
+
 /// A resource to manage the delay between player inputs.
 #[derive(Resource)]
 pub struct InputDelay {
@@ -155,9 +183,11 @@ impl Default for ObstacleSpawnTimer {
     }
 }
 
-/// Enum to identify different ground models for caching.
+/// An enum to identify different ground models.
+/// This is used as a key in the `CachedGrounds` resource HashMap to retrieve the correct model handle.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 enum GroundModel {
+    /// The standard ground plane model.
     Plane0,
 }
 
@@ -174,9 +204,11 @@ pub struct RetiredGrounds {
     transforms: VecDeque<Transform>,
 }
 
-/// Enum to identify different obstacle models for caching.
+/// An enum to identify different obstacle models.
+/// This is used as a key in the `CachedObstacles` resource HashMap.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 enum ObstacleModel {
+    /// The standard rail obstacle model.
     Rail0,
 }
 

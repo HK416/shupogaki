@@ -11,7 +11,9 @@ use crate::asset::{
     material::MaterialAssetLoader,
     mesh::{MeshAsset, MeshAssetLoader},
     model::{ModelAsset, ModelAssetLoader, SerializableModelNode},
+    sprite::SpriteAssetLoader,
     texture::TexelAssetLoader,
+    texture_atlas::TextureAtlasAssetLoader,
 };
 
 /// A plugin that adds the custom asset loaders and the model spawning system.
@@ -24,7 +26,9 @@ impl Plugin for CustomAssetPlugin {
             .register_asset_loader(ModelAssetLoader)
             .register_asset_loader(MeshAssetLoader)
             .register_asset_loader(MaterialAssetLoader)
+            .register_asset_loader(TextureAtlasAssetLoader)
             .register_asset_loader(TexelAssetLoader)
+            .register_asset_loader(SpriteAssetLoader)
             .register_asset_loader(AnimationAssetLoader)
             .add_systems(Update, spawn_model_system);
     }
@@ -44,7 +48,6 @@ fn spawn_model_system(
     models_to_spawn: Query<(Entity, &SpawnModel)>,
     model_assets: Res<Assets<ModelAsset>>,
     mesh_assets: Res<Assets<MeshAsset>>,
-    material_assets: Res<Assets<StandardMaterial>>,
     mut inverse_bindposes_assets: ResMut<Assets<SkinnedMeshInverseBindposes>>,
 ) {
     for (root_entity, spawn_request) in &models_to_spawn {
@@ -86,9 +89,8 @@ fn spawn_model_system(
             &mut commands,
             &model_asset.serializable.root,
             &nodes,
-            &model_asset,
+            model_asset,
             &mesh_assets,
-            &material_assets,
             &mut inverse_bindposes_assets,
         );
 
@@ -136,7 +138,6 @@ fn add_render_components_recursive(
     nodes: &HashMap<String, Entity>,
     model_asset: &ModelAsset,
     mesh_assets: &Res<Assets<MeshAsset>>,
-    material_assets: &Res<Assets<StandardMaterial>>,
     inverse_bindposes_assets: &mut ResMut<Assets<SkinnedMeshInverseBindposes>>,
 ) {
     if let Some(mesh_uri) = &node.mesh {
@@ -199,7 +200,6 @@ fn add_render_components_recursive(
             nodes,
             model_asset,
             mesh_assets,
-            material_assets,
             inverse_bindposes_assets,
         );
     }

@@ -3,10 +3,24 @@ pub mod material;
 pub mod mesh;
 pub mod model;
 pub mod spawner;
+pub mod sprite;
 pub mod texture;
+pub mod texture_atlas;
 
-use bevy::math::{Mat4, Quat, Vec2, Vec3, Vec4};
+use bevy::prelude::*;
 use serde::Deserialize;
+
+#[derive(Debug, Deserialize, Clone, Copy)]
+pub struct UInt2 {
+    pub x: u32,
+    pub y: u32,
+}
+
+impl From<UInt2> for UVec2 {
+    fn from(val: UInt2) -> Self {
+        UVec2::new(val.x, val.y)
+    }
+}
 
 /// A serializable 4-component vector of `u16` values.
 #[derive(Debug, Deserialize, Clone, Copy)]
@@ -21,6 +35,21 @@ impl From<UInt4> for [u16; 4] {
     /// Converts a `UInt4` into a `[u16; 4]`.
     fn from(val: UInt4) -> Self {
         [val.x, val.y, val.z, val.w]
+    }
+}
+
+#[derive(Debug, Deserialize, Clone, Copy)]
+pub struct Atlas {
+    pub min: UInt2,
+    pub max: UInt2,
+}
+
+impl From<Atlas> for URect {
+    fn from(val: Atlas) -> Self {
+        URect {
+            min: val.min.into(),
+            max: val.max.into(),
+        }
     }
 }
 

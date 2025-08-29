@@ -8,24 +8,28 @@ use super::*;
 // --- SETUP SYSTEM ---
 
 /// A system that sets up the initial game world.
-// NOTE: The ground is no longer spawned here, but is pre-spawned in the `in_game_load` scene.
 pub fn on_enter(mut commands: Commands) {
-    // Insert resources
-    commands.insert_resource(InputDelay::default());
-    commands.insert_resource(RetiredGrounds::default());
-    commands.insert_resource(ObstacleSpawnTimer::default());
+    // --- Resource Initialization ---
+    // Insert resources required for the game state.
+    commands.insert_resource(PlayScore::default()); // Tracks the player's score.
+    commands.insert_resource(InputDelay::default()); // Prevents rapid lane changes.
+    commands.insert_resource(RetiredGrounds::default()); // A queue for recycling ground entities.
+    commands.insert_resource(ObstacleSpawnTimer::default()); // Timer for spawning new obstacles.
 
-    // Spawn the player entity.
+    // --- Player Spawn ---
+    // Spawn the main player controller entity. This entity itself is invisible
+    // but holds the core movement logic and components.
     commands
         .spawn((
             Transform::from_xyz(0.0, 0.0, -7.5),
-            Lane::default(),
-            ForwardMovement::default(),
-            VerticalMovement::default(),
-            InGameStateEntity,
-            Player,
+            Lane::default(),             // The player's current lane.
+            ForwardMovement::default(),  // Controls forward speed.
+            VerticalMovement::default(), // Controls jumping and gravity.
+            InGameStateEntity,           // Marker for game-specific entities.
+            Player,                      // Marker for the player entity.
         ))
         .with_children(|parent| {
+            // Spawn the player's collider as a child.
             parent.spawn((
                 Transform::from_xyz(0.0, 0.5, -1.5),
                 Collider::Aabb {
@@ -33,34 +37,38 @@ pub fn on_enter(mut commands: Commands) {
                     size: Vec3::new(0.9, 1.0, 3.6),
                 },
                 InGameStateEntity,
-                PlayerCollider,
+                PlayerCollider, // Marker for the player's collider.
             ));
         });
 
-    // Spawn a directional light.
+    // --- Lighting ---
+    // Spawn a directional light to illuminate the scene.
     commands.spawn((
         DirectionalLight {
-            illuminance: 30_000.0,
-            shadows_enabled: true,
+            illuminance: 30_000.0, // A bright, sun-like light.
+            shadows_enabled: true, // Enable shadows for realism.
             ..Default::default()
         },
         Transform::from_xyz(8.0, 12.0, 10.0).looking_at(Vec3::ZERO, Vec3::Y),
         InGameStateEntity,
     ));
 
-    // Spawn the 3D camera.
+    // --- Camera Spawn ---
+    // Spawn the 3D camera with an orthographic projection for a stylized look.
     commands.spawn((
         Camera3d::default(),
         Projection::from(OrthographicProjection {
             near: 0.1,
             far: 100.0,
+            // Use a fixed scaling mode to ensure the view is consistent across different window sizes.
             scaling_mode: ScalingMode::Fixed {
                 width: 16.0,
                 height: 9.0,
             },
-            scale: 1.25,
+            scale: 1.25, // Zoom out slightly.
             ..OrthographicProjection::default_3d()
         }),
+        // Position the camera and make it look at a point slightly above the origin.
         Transform::from_xyz(12.0, 9.0, 12.0).looking_at((0.0, 1.5, 0.0).into(), Vec3::Y),
         InGameStateEntity,
     ));
@@ -100,6 +108,7 @@ pub fn on_exit(mut commands: Commands, query: Query<Entity, With<InGameStateEnti
     commands.remove_resource::<CachedGrounds>();
     commands.remove_resource::<ObstacleSpawnTimer>();
     commands.remove_resource::<InputDelay>();
+    commands.remove_resource::<PlayScore>();
 }
 
 // --- PREUPDATE SYSTEMS ---
@@ -144,6 +153,15 @@ pub fn update_timer(
 ) {
     delay.remaining = (delay.remaining - time.delta_secs()).max(0.0);
     spawn_timer.remaining -= time.delta_secs();
+}
+
+/// A system that updates the player's score based on elapsed time.
+pub fn update_score(mut score: ResMut<PlayScore>, time: Res<Time>) {
+    score.timer += (time.delta_secs() * 1000.0).floor() as u32;
+    if score.timer >= SCORE_CYCLE {
+        score.accum = score.accum.saturating_add(score.timer / SCORE_CYCLE);
+        score.timer %= SCORE_CYCLE;
+    }
 }
 
 /// A system that smoothly updates the player's position based on lane and vertical movement.
@@ -213,6 +231,8 @@ pub fn update_obstacle_position(
     }
 }
 
+/// A system that updates the position of all colliders to match their entity's `GlobalTransform`.
+/// This ensures that the collider's position is always in sync with the entity's world position.
 pub fn update_collider(mut query: Query<(&mut Collider, &GlobalTransform)>) {
     for (mut collider, transform) in query.iter_mut() {
         match collider.as_mut() {
@@ -229,9 +249,8 @@ pub fn update_collider(mut query: Query<(&mut Collider, &GlobalTransform)>) {
 // --- POSTUPDATE SYSTEMS ---
 
 /// A system that updates the positions and rotations of the toy train cars.
-///
 /// This system creates a chain-like movement where each train car follows the one in front of it.
-/// The first car follows the player's invisible controller entity.
+#[allow(clippy::type_complexity)]
 pub fn update_toy_trains(
     mut set: ParamSet<(
         Query<&Transform, With<Player>>,
@@ -240,7 +259,7 @@ pub fn update_toy_trains(
         Query<&mut Transform, With<ToyTrain2>>,
     )>,
 ) {
-    // Get the player's target position, which is slightly ahead of the player's actual position.
+    // Get the player's controller position. This will be the target for the first train car.
     let data = set
         .p0()
         .single()
@@ -248,23 +267,24 @@ pub fn update_toy_trains(
         .ok();
 
     if let Some(mut position) = data {
-        // Update the first train car.
+        // --- Update the first train car (ToyTrain0) ---
         if let Ok(mut transform) = set.p1().single_mut() {
-            // Calculate the rotation to make the car look at the target position.
+            // Calculate the rotation to make the car look at its target (`position`).
             let z_axis = (transform.translation - position).normalize_or(Vec3::NEG_Z);
             let y_axis = Vec3::Y;
             let x_axis = y_axis.cross(z_axis);
             let y_axis = z_axis.cross(x_axis);
+            // ... (rotation calculation) ...
             let rotation = Quat::from_mat3(&Mat3::from_cols(x_axis, y_axis, z_axis));
 
-            // Store the current position to be used as the target for the next car.
+            // Store the current position of this car. It will become the target for the *next* car.
             let temp = transform.translation;
-            // Move the car to the target position.
+            // Update the car's position to follow the target.
             transform.translation.x = position.x;
             transform.translation.y = position.y;
-            transform.translation.z = -7.5;
+            transform.translation.z = -7.5; // Keep a fixed Z-offset from the player.
             transform.rotation = rotation;
-            // Update the target position for the next car.
+            // The target for the next car is now the old position of this car.
             position = temp;
         }
 
@@ -374,11 +394,75 @@ pub fn check_for_collisions(
 ) {
     if let Ok(player_collider) = player_query.single() {
         for obstacle_collider in obstacle_query.iter() {
-            // A simple collision check based on distance.
             if player_collider.intersects(obstacle_collider) {
+                // This is a placeholder for game over logic.
+                // In a real game, you would transition to a game over state,
+                // show a UI, or trigger some other event.
                 println!("GAME OVER!");
-                // In a real game, you would transition to a game over state here.
             }
         }
+    }
+}
+
+/// A system that updates the score UI by setting the texture atlas index for each digit.
+#[allow(clippy::type_complexity)]
+pub fn update_score_ui(
+    score: Res<PlayScore>,
+    // Use a ParamSet to query for each digit's UI node separately and mutably.
+    mut set: ParamSet<(
+        Query<&mut ImageNode, With<Score0>>, // 1s place
+        Query<&mut ImageNode, With<Score1>>, // 10s place
+        Query<&mut ImageNode, With<Score2>>, // 100s place
+        Query<&mut ImageNode, With<Score3>>, // 1,000s place
+        Query<&mut ImageNode, With<Score4>>, // 10,000s place
+        Query<&mut ImageNode, With<Score5>>, // 100,000s place
+    )>,
+) {
+    // Update the 1s place digit.
+    if let Ok(mut node) = set.p0().single_mut()
+        && let Some(atlas) = &mut node.texture_atlas
+    {
+        // The index in the texture atlas corresponds to the digit (0-9).
+        atlas.index = (score.accum % 10) as usize;
+    }
+
+    // Update the 10s place digit.
+    if let Ok(mut node) = set.p1().single_mut()
+        && let Some(atlas) = &mut node.texture_atlas
+    {
+        // The index in the texture atlas corresponds to the digit (0-9).
+        atlas.index = ((score.accum / 10) % 10) as usize;
+    }
+
+    // Update the 100s place digit.
+    if let Ok(mut node) = set.p2().single_mut()
+        && let Some(atlas) = &mut node.texture_atlas
+    {
+        // The index in the texture atlas corresponds to the digit (0-9).
+        atlas.index = ((score.accum / 100) % 10) as usize;
+    }
+
+    // Update the 1,000s place digit.
+    if let Ok(mut node) = set.p3().single_mut()
+        && let Some(atlas) = &mut node.texture_atlas
+    {
+        // The index in the texture atlas corresponds to the digit (0-9).
+        atlas.index = ((score.accum / 1_000) % 10) as usize;
+    }
+
+    // Update the 10,000s place digit.
+    if let Ok(mut node) = set.p4().single_mut()
+        && let Some(atlas) = &mut node.texture_atlas
+    {
+        // The index in the texture atlas corresponds to the digit (0-9).
+        atlas.index = ((score.accum / 10_000) % 10) as usize;
+    }
+
+    // Update the 100,000s place digit.
+    if let Ok(mut node) = set.p5().single_mut()
+        && let Some(atlas) = &mut node.texture_atlas
+    {
+        // The index in the texture atlas corresponds to the digit (0-9).
+        atlas.index = ((score.accum / 100_000) % 10) as usize;
     }
 }

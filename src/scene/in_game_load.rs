@@ -62,6 +62,8 @@ pub fn on_enter(mut commands: Commands, asset_server: Res<AssetServer>) {
     // --- Player and Toy Train Loading ---
     // Load all models and animations for the player and toy trains.
     // They are spawned with `Visibility::Hidden` and will be made visible after loading is complete.
+
+    // Load the first toy train model.
     let model: Handle<ModelAsset> = asset_server.load("models/ToyTrain00.hierarchy");
     loading_assets.handles.push(model.clone().into());
     commands.spawn((
@@ -72,10 +74,13 @@ pub fn on_enter(mut commands: Commands, asset_server: Res<AssetServer>) {
         ToyTrain0,
     ));
 
+    // Load player character (Hikari) animation and model.
     let clip: Handle<AnimationClip> = asset_server.load("animations/CH0242_InGame.anim");
     loading_assets.handles.push(clip.clone().into());
-    let model: Handle<ModelAsset> = asset_server.load("models/CH0242.hierarchy");
+    let model: Handle<ModelAsset> = asset_server.load("models/Hikari.hierarchy");
     loading_assets.handles.push(model.clone().into());
+
+    // Spawn the character entity, which will be a child of the toy train
     let entity = commands
         .spawn((
             SpawnModel(model),
@@ -86,6 +91,7 @@ pub fn on_enter(mut commands: Commands, asset_server: Res<AssetServer>) {
         ))
         .id();
 
+    // Load the second toy train model and attach the character to it.
     let model: Handle<ModelAsset> = asset_server.load("models/ToyTrain01.hierarchy");
     loading_assets.handles.push(model.clone().into());
     commands
@@ -96,12 +102,15 @@ pub fn on_enter(mut commands: Commands, asset_server: Res<AssetServer>) {
             Visibility::Hidden,
             ToyTrain1,
         ))
-        .add_child(entity);
+        .add_child(entity); // Hikari is a child of this train.
 
+    // Load player character (Nozomi) animation and model.
     let clip: Handle<AnimationClip> = asset_server.load("animations/CH0243_InGame.anim");
     loading_assets.handles.push(clip.clone().into());
-    let model: Handle<ModelAsset> = asset_server.load("models/CH0243.hierarchy");
+    let model: Handle<ModelAsset> = asset_server.load("models/Nozomi.hierarchy");
     loading_assets.handles.push(model.clone().into());
+
+    // Spawn the character entity, which will be a child of the toy train
     let entity = commands
         .spawn((
             SpawnModel(model),
@@ -112,6 +121,7 @@ pub fn on_enter(mut commands: Commands, asset_server: Res<AssetServer>) {
         ))
         .id();
 
+    // Load the third toy train model and attach the character to it.
     let model: Handle<ModelAsset> = asset_server.load("models/ToyTrain02.hierarchy");
     loading_assets.handles.push(model.clone().into());
     commands
@@ -122,10 +132,11 @@ pub fn on_enter(mut commands: Commands, asset_server: Res<AssetServer>) {
             Visibility::Hidden,
             ToyTrain2,
         ))
-        .add_child(entity);
+        .add_child(entity); // Nozomi is a child of this train.
 
     // Create the loading UI.
     create_loading_ui(&mut commands, &asset_server, &mut loading_assets);
+    create_in_game_ui(&mut commands, &asset_server, &mut loading_assets);
 
     // --- Resource Insertion ---
     // Insert the `loading_assets` and `cached_grounds` resources for other systems to use.
@@ -136,19 +147,157 @@ pub fn on_enter(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands.insert_resource(ClearColor(Color::BLACK));
 }
 
-/// A function that creates the loading UI.
+/// Creates the in-game UI elements, specifically the score display.
+/// The score is composed of multiple digit images, which are pre-loaded here.
+/// The UI is initially hidden and will be made visible when the game starts.
+fn create_in_game_ui(
+    commands: &mut Commands,
+    asset_server: &Res<AssetServer>,
+    loading_assets: &mut LoadingAssets,
+) {
+    // Load the sprite sheet and texture atlas for the number font.
+    let texture_handle: Handle<Image> = asset_server.load("fonts/ImgFont_Number.sprite");
+    loading_assets.handles.push(texture_handle.clone().into());
+
+    let texture_atlas_handle: Handle<TextureAtlasLayout> =
+        asset_server.load("fonts/ImgFont_Number.atlas");
+    loading_assets
+        .handles
+        .push(texture_atlas_handle.clone().into());
+
+    // Create the root UI node for the score display.
+    commands
+        .spawn((
+            // This node will contain the individual digit images.
+            Node {
+                // Position the score in the top-left corner.
+                top: Val::VMin(3.0),
+                left: Val::VMin(3.0),
+                width: Val::Percent(30.0),
+                height: Val::Percent(8.0),
+                // Arrange digits in a row.
+                flex_direction: FlexDirection::Row,
+                justify_content: JustifyContent::Start,
+                align_items: AlignItems::FlexStart,
+                ..Default::default()
+            },
+            // The score UI is part of the in-game scene.
+            Visibility::Hidden,
+            // Start with the UI hidden.
+            InGameStateEntity,
+        ))
+        .with_children(|parent| {
+            // Spawn an image node for each digit of the score (6 digits total).
+            // Each digit is marked with a component like `Score5`, `Score4`, etc.,
+            // to be able to update them individually later.
+            parent.spawn((
+                ImageNode::from_atlas_image(
+                    texture_handle.clone(),
+                    TextureAtlas::from(texture_atlas_handle.clone()),
+                ),
+                Node {
+                    width: Val::Auto,
+                    height: Val::Percent(100.0),
+                    ..Default::default()
+                },
+                Visibility::Hidden,
+                InGameStateEntity,
+                Score5, // Marker for the 100,000s place digit.
+            ));
+
+            parent.spawn((
+                ImageNode::from_atlas_image(
+                    texture_handle.clone(),
+                    TextureAtlas::from(texture_atlas_handle.clone()),
+                ),
+                Node {
+                    width: Val::Auto,
+                    height: Val::Percent(100.0),
+                    ..Default::default()
+                },
+                Visibility::Hidden,
+                InGameStateEntity,
+                Score4, // Marker for the 10,000s place digit.
+            ));
+
+            parent.spawn((
+                ImageNode::from_atlas_image(
+                    texture_handle.clone(),
+                    TextureAtlas::from(texture_atlas_handle.clone()),
+                ),
+                Node {
+                    width: Val::Auto,
+                    height: Val::Percent(100.0),
+                    ..Default::default()
+                },
+                Visibility::Hidden,
+                InGameStateEntity,
+                Score3, // Marker for the 1,000s place digit.
+            ));
+
+            parent.spawn((
+                ImageNode::from_atlas_image(
+                    texture_handle.clone(),
+                    TextureAtlas::from(texture_atlas_handle.clone()),
+                ),
+                Node {
+                    width: Val::Auto,
+                    height: Val::Percent(100.0),
+                    ..Default::default()
+                },
+                Visibility::Hidden,
+                InGameStateEntity,
+                Score2, // Marker for the 100s place digit.
+            ));
+
+            parent.spawn((
+                ImageNode::from_atlas_image(
+                    texture_handle.clone(),
+                    TextureAtlas::from(texture_atlas_handle.clone()),
+                ),
+                Node {
+                    width: Val::Auto,
+                    height: Val::Percent(100.0),
+                    ..Default::default()
+                },
+                Visibility::Hidden,
+                InGameStateEntity,
+                Score1, // Marker for the 10s place digit.
+            ));
+
+            parent.spawn((
+                ImageNode::from_atlas_image(
+                    texture_handle.clone(),
+                    TextureAtlas::from(texture_atlas_handle.clone()),
+                ),
+                Node {
+                    width: Val::Auto,
+                    height: Val::Percent(100.0),
+                    ..Default::default()
+                },
+                Visibility::Hidden,
+                InGameStateEntity,
+                Score0, // Marker for the 1s place digit.
+            ));
+        });
+}
+
+/// Sets up the UI elements for the loading screen, including a 2D camera,
+/// a progress bar, and "Now Loading..." text.
 fn create_loading_ui(
     commands: &mut Commands,
     asset_server: &Res<AssetServer>,
     loading_assets: &mut LoadingAssets,
 ) {
-    // UI camera.
+    // Spawn a 2D camera for the loading screen UI.
+    // This camera is marked with `InGameLoadStateEntity` to be cleaned up on exit.
     commands.spawn((Camera2d, InGameLoadStateEntity));
 
-    // Loading Bar.
+    // Create the loading bar's outer border.
     commands
         .spawn((
             Node {
+                // Position the bar in the bottom-right corner.
                 position_type: PositionType::Absolute,
                 width: Val::Vw(18.0),
                 height: Val::Vh(5.0),
@@ -157,25 +306,27 @@ fn create_loading_ui(
                 border: UiRect::all(Val::Percent(0.3)),
                 ..Default::default()
             },
-            BackgroundColor(Color::srgb(0.3, 0.3, 0.3)),
-            BorderColor(Color::srgb(0.85, 0.85, 0.85)),
+            BackgroundColor(Color::srgb(0.3, 0.3, 0.3)), // Dark grey background
+            BorderColor(Color::srgb(0.85, 0.85, 0.85)),  // Light grey border
             InGameLoadStateEntity,
         ))
         .with_children(|parent| {
-            // Prograss Bar.
+            // Create the inner, green progress bar that will grow.
             parent.spawn((
                 Node {
-                    width: Val::Percent(0.0),
+                    width: Val::Percent(0.0), // Starts with 0% width.
                     height: Val::Percent(100.0),
                     ..Default::default()
                 },
-                BackgroundColor(Color::srgb(0.2, 0.8, 0.2)),
-                LoadingBar,
+                BackgroundColor(Color::srgb(0.2, 0.8, 0.2)), // Green color
+                LoadingBar, // Marker component to find and update this node.
             ));
         });
 
-    // Loading text.
+    // Create the "Now Loading..." text.
+    // Load the font for the text.
     let font: Handle<Font> = asset_server.load("fonts/NotoSans_Bold.ttf");
+    // Add the font to the list of assets to track for loading.
     loading_assets.handles.push(font.clone().into());
     commands.spawn((
         Text::new("Now Loading..."),
@@ -198,28 +349,31 @@ fn create_loading_ui(
             ..Default::default()
         },
         InGameLoadStateEntity,
-        LoadingText,
+        LoadingText, // Marker component to find and update this text.
     ));
 }
 
 // --- CLEANUP SYSTEM ---
 
 /// A system that cleans up the loading screen and makes the game objects visible.
+/// This runs once when transitioning from `InGameLoading` to the `InGame` state.
 pub fn on_exit(
     mut commands: Commands,
+    // Query for all entities that are part of the loading screen.
     load_entities: Query<Entity, With<InGameLoadStateEntity>>,
+    // Query for all entities that are part of the main game.
     mut in_game_entities: Query<&mut Visibility, With<InGameStateEntity>>,
 ) {
-    // Remove resources.
-    commands.remove_resource::<ClearColor>();
-    commands.remove_resource::<LoadingAssets>();
+    // Remove resources that were specific to the loading state.
+    commands.remove_resource::<ClearColor>(); // Revert to the default background color.
+    commands.remove_resource::<LoadingAssets>(); // No longer need to track loading assets.
 
-    // Despawn all entities associated with the loading screen.
+    // Despawn all entities associated with the loading screen (UI camera, text, loading bar).
     for entity in load_entities.iter() {
         commands.entity(entity).despawn();
     }
 
-    // Make all game objects visible.
+    // Make all the pre-spawned game objects (player, ground, etc.) visible.
     for mut visibility in in_game_entities.iter_mut() {
         *visibility = Visibility::Visible;
     }
