@@ -26,9 +26,18 @@ const SPEED: f32 = 20.0;
 const GRAVITY: f32 = -30.0;
 /// The initial upward velocity of the player's jump.
 const JUMP_STRENGTH: f32 = 12.5;
-// The lane change speed of the player.
+/// The lane change speed of the player.
 const LANE_CHANGE_SPEED: f32 = 5.0;
+/// The score cycle that determines how frequently the score increases.
 const SCORE_CYCLE: u32 = 100;
+/// The color of the fuel gauge's decorative border.
+const FUEL_COLOR: Color = Color::srgb(48.0 / 255.0, 55.0 / 255.0, 70.0 / 255.0);
+/// The color of the fuel gauge's indicator bar.
+const FUEL_GAUGE_COLOR: Color = Color::srgb(0.2, 0.8, 0.2);
+/// The color of the loading bar.
+const LOADING_BAR_COLOR: Color = Color::srgb(0.2, 0.8, 0.2);
+/// The rate at which fuel is consumed per second.
+const FUEL_USAGE: f32 = 100.0 / 16.0;
 
 // --- STATES ---
 
@@ -84,23 +93,41 @@ pub struct ToyTrain1;
 #[derive(Component)]
 pub struct ToyTrain2;
 
+/// A marker component for the score text UI element.
 #[derive(Component)]
-pub struct Score0;
+pub struct Score;
 
+/// A marker component for the fuel gauge's decorative background.
 #[derive(Component)]
-pub struct Score1;
+pub struct FuelDeco;
 
+/// A marker component for the fuel gauge's value bar.
 #[derive(Component)]
-pub struct Score2;
+pub struct FuelGauge;
 
+/// A marker component for the 1s place digit of the score display.
 #[derive(Component)]
-pub struct Score3;
+pub struct ScoreSpace1s;
 
+/// A marker component for the 10s place digit of the score display.
 #[derive(Component)]
-pub struct Score4;
+pub struct ScoreSpace10s;
 
+/// A marker component for the 100s place digit of the score display.
 #[derive(Component)]
-pub struct Score5;
+pub struct ScoreSpace100s;
+
+/// A marker component for the 1,000s place digit of the score display.
+#[derive(Component)]
+pub struct ScoreSpace1000s;
+
+/// A marker component for the 10,000s place digit of the score display.
+#[derive(Component)]
+pub struct ScoreSpace10000s;
+
+/// A marker component for the 100,000s place digit of the score display.
+#[derive(Component)]
+pub struct ScoreSpace100000s;
 
 /// Stores the player's current lane index.
 #[derive(Component)]
@@ -163,7 +190,53 @@ pub struct InputDelay {
     remaining: f32,
 }
 
+impl InputDelay {
+    /// Reduces the remaining delay time.
+    pub fn on_advanced(&mut self, duration: f32) {
+        self.remaining = (self.remaining - duration).max(0.0)
+    }
+
+    /// Checks if the input delay has expired.
+    pub fn is_expired(&self) -> bool {
+        self.remaining <= 0.0
+    }
+
+    /// Resets the input delay to its initial value.
+    pub fn reset(&mut self) {
+        self.remaining = INPUT_DELAY;
+    }
+}
+
 impl Default for InputDelay {
+    fn default() -> Self {
+        Self { remaining: 0.0 }
+    }
+}
+
+/// A resource to manage the player's invincibility timer after a collision.
+#[derive(Resource)]
+pub struct InvincibleTimer {
+    remaining: f32,
+}
+
+impl InvincibleTimer {
+    /// Resets the invincibility timer to its full duration (3 seconds).
+    pub fn reset(&mut self) {
+        self.remaining = 3.0;
+    }
+
+    /// Reduces the remaining invincibility time.
+    pub fn on_advanced(&mut self, duration: f32) {
+        self.remaining = (self.remaining - duration).max(0.0);
+    }
+
+    /// Checks if the invincibility has expired.
+    pub fn is_expired(&self) -> bool {
+        self.remaining <= 0.0
+    }
+}
+
+impl Default for InvincibleTimer {
     fn default() -> Self {
         Self { remaining: 0.0 }
     }
@@ -173,6 +246,18 @@ impl Default for InputDelay {
 #[derive(Resource)]
 pub struct ObstacleSpawnTimer {
     remaining: f32,
+}
+
+impl ObstacleSpawnTimer {
+    /// Reduces the remaining time until the next spawn.
+    pub fn on_advanced(&mut self, duration: f32) {
+        self.remaining -= duration;
+    }
+
+    /// Checks if it's time to spawn a new obstacle.
+    pub fn is_expired(&self) -> bool {
+        self.remaining <= 0.0
+    }
 }
 
 impl Default for ObstacleSpawnTimer {
@@ -216,4 +301,34 @@ enum ObstacleModel {
 #[derive(Default, Resource)]
 pub struct CachedObstacles {
     models: HashMap<ObstacleModel, Handle<ModelAsset>>,
+}
+
+/// A resource to manage the player's fuel level.
+#[derive(Resource)]
+pub struct TrainFuel {
+    remaining: f32,
+}
+
+impl TrainFuel {
+    /// Adds a specified amount to the fuel, capping at 100.0.
+    pub fn add(&mut self, amount: f32) {
+        self.remaining = (self.remaining + amount).min(100.0);
+    }
+
+    /// Subtracts a specified amount from the fuel, ensuring it doesn't go below 0.0.
+    pub fn saturating_sub(&mut self, amount: f32) {
+        self.remaining = (self.remaining - amount).max(0.0);
+    }
+
+    /// Checks if the fuel is empty.
+    pub fn is_empty(&self) -> bool {
+        self.remaining <= 0.0
+    }
+}
+
+impl Default for TrainFuel {
+    /// Initializes fuel to the maximum value of 100.0.
+    fn default() -> Self {
+        Self { remaining: 100.0 }
+    }
 }

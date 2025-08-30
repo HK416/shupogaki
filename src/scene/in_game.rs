@@ -1,3 +1,5 @@
+use std::f32::consts::PI;
+
 // Import necessary Bevy modules.
 use bevy::{prelude::*, render::camera::ScalingMode};
 
@@ -11,8 +13,10 @@ use super::*;
 pub fn on_enter(mut commands: Commands) {
     // --- Resource Initialization ---
     // Insert resources required for the game state.
+    commands.insert_resource(TrainFuel::default()); // Manages the player's fuel.
     commands.insert_resource(PlayScore::default()); // Tracks the player's score.
     commands.insert_resource(InputDelay::default()); // Prevents rapid lane changes.
+    commands.insert_resource(InvincibleTimer::default()); // Timer for temporary invincibility after a collision.
     commands.insert_resource(RetiredGrounds::default()); // A queue for recycling ground entities.
     commands.insert_resource(ObstacleSpawnTimer::default()); // Timer for spawning new obstacles.
 
@@ -107,8 +111,10 @@ pub fn on_exit(mut commands: Commands, query: Query<Entity, With<InGameStateEnti
     commands.remove_resource::<RetiredGrounds>();
     commands.remove_resource::<CachedGrounds>();
     commands.remove_resource::<ObstacleSpawnTimer>();
+    commands.remove_resource::<InvincibleTimer>();
     commands.remove_resource::<InputDelay>();
     commands.remove_resource::<PlayScore>();
+    commands.remove_resource::<TrainFuel>();
 }
 
 // --- PREUPDATE SYSTEMS ---
@@ -121,16 +127,16 @@ pub fn handle_player_input(
 ) {
     if let Ok((transform, mut lane, mut vert_move)) = query.single_mut() {
         // Check if the input delay has passed and keys are not pressed simultaneously.
-        if delay.remaining <= 0.0 && !keyboard_input.all_pressed([KeyCode::KeyA, KeyCode::KeyD]) {
+        if delay.is_expired() && !keyboard_input.all_pressed([KeyCode::KeyA, KeyCode::KeyD]) {
             // Move left.
             if keyboard_input.pressed(KeyCode::KeyA) {
                 lane.index = lane.index.saturating_sub(1);
-                delay.remaining = INPUT_DELAY;
+                delay.reset();
             }
             // Move right.
             else if keyboard_input.pressed(KeyCode::KeyD) {
                 lane.index = lane.index.saturating_add(1).min(MAX_LANE_INDEX);
-                delay.remaining = INPUT_DELAY;
+                delay.reset();
             }
         }
 
@@ -149,10 +155,12 @@ pub fn handle_player_input(
 pub fn update_timer(
     mut delay: ResMut<InputDelay>,
     mut spawn_timer: ResMut<ObstacleSpawnTimer>,
+    mut invincible_timer: ResMut<InvincibleTimer>,
     time: Res<Time>,
 ) {
-    delay.remaining = (delay.remaining - time.delta_secs()).max(0.0);
-    spawn_timer.remaining -= time.delta_secs();
+    delay.on_advanced(time.delta_secs());
+    spawn_timer.on_advanced(time.delta_secs());
+    invincible_timer.on_advanced(time.delta_secs());
 }
 
 /// A system that updates the player's score based on elapsed time.
@@ -164,6 +172,18 @@ pub fn update_score(mut score: ResMut<PlayScore>, time: Res<Time>) {
     }
 }
 
+/// A system that consumes fuel over time and triggers a game over when it runs out.
+pub fn update_fuel(mut fuel: ResMut<TrainFuel>, time: Res<Time>) {
+    // Decrease the fuel based on the time elapsed and the defined usage rate.
+    fuel.saturating_sub(time.delta_secs() * FUEL_USAGE);
+
+    // If fuel is empty, the game should end.
+    if fuel.is_empty() {
+        // TODO: Implement the actual game over logic (e.g., transitioning to a game over screen).
+        todo!("Game Over!");
+    }
+}
+
 /// A system that smoothly updates the player's position based on lane and vertical movement.
 pub fn update_player_position(
     mut query: Query<(&mut Transform, &Lane, &mut VerticalMovement), With<Player>>,
@@ -172,7 +192,8 @@ pub fn update_player_position(
     if let Ok((mut transform, lane, mut vert_move)) = query.single_mut() {
         // Calculate the target x-position based on the current lane.
         let target_x = LANE_LOCATIONS[lane.index];
-        // Smoothly interpolate the player's x-position towards the target.
+        // Smoothly interpolate the player's x-position towards the target lane's x-coordinate.
+        // This creates a fluid lane-changing motion instead of an instant snap.
         transform.translation.x +=
             (target_x - transform.translation.x) * LANE_CHANGE_SPEED * time.delta_secs();
 
@@ -269,22 +290,24 @@ pub fn update_toy_trains(
     if let Some(mut position) = data {
         // --- Update the first train car (ToyTrain0) ---
         if let Ok(mut transform) = set.p1().single_mut() {
-            // Calculate the rotation to make the car look at its target (`position`).
+            // Calculate the rotation required for the car to "look at" its target (`position`).
+            // This creates the snake-like turning effect.
             let z_axis = (transform.translation - position).normalize_or(Vec3::NEG_Z);
             let y_axis = Vec3::Y;
             let x_axis = y_axis.cross(z_axis);
             let y_axis = z_axis.cross(x_axis);
-            // ... (rotation calculation) ...
             let rotation = Quat::from_mat3(&Mat3::from_cols(x_axis, y_axis, z_axis));
 
-            // Store the current position of this car. It will become the target for the *next* car.
+            // Store the current position of this car. It will become the target for the *next* car in the chain.
             let temp = transform.translation;
-            // Update the car's position to follow the target.
+
+            // Update this car's position to follow its target.
             transform.translation.x = position.x;
             transform.translation.y = position.y;
             transform.translation.z = -7.5; // Keep a fixed Z-offset from the player.
             transform.rotation = rotation;
-            // The target for the next car is now the old position of this car.
+
+            // The target for the next car is now the old position of this car. This is the key to the chain movement.
             position = temp;
         }
 
@@ -353,7 +376,9 @@ pub fn spawn_obstacles(
     cached: Res<CachedObstacles>,
 ) {
     if let Ok(forward_move) = player_query.single() {
-        while spawn_timer.remaining <= 0.0 {
+        while spawn_timer.is_expired() {
+            // Calculate the time elapsed since the spawn was supposed to happen.
+            // This is used to adjust the spawn position for smooth, consistent spacing.
             let time_t = -spawn_timer.remaining;
 
             // Choose a random lane for the obstacle.
@@ -363,6 +388,9 @@ pub fn spawn_obstacles(
             let model_handle = cached.models.get(&ObstacleModel::Rail0).unwrap();
 
             // Spawn the obstacle entity.
+            // The Z position is adjusted by `forward_move.velocity * time_t` to compensate for any delay
+            // in the timer, ensuring obstacles appear at a consistent distance from the player
+            // regardless of frame rate fluctuations.
             commands
                 .spawn((
                     SpawnModel(model_handle.clone()),
@@ -389,16 +417,20 @@ pub fn spawn_obstacles(
 
 /// A system that checks for collisions between the player and obstacles.
 pub fn check_for_collisions(
+    mut fuel: ResMut<TrainFuel>,
+    mut invincible_timer: ResMut<InvincibleTimer>,
     player_query: Query<&Collider, (With<PlayerCollider>, Without<ObstacleCollider>)>,
     obstacle_query: Query<&Collider, (With<ObstacleCollider>, Without<PlayerCollider>)>,
 ) {
-    if let Ok(player_collider) = player_query.single() {
+    if invincible_timer.is_expired()
+        && let Ok(player_collider) = player_query.single()
+    {
         for obstacle_collider in obstacle_query.iter() {
             if player_collider.intersects(obstacle_collider) {
-                // This is a placeholder for game over logic.
-                // In a real game, you would transition to a game over state,
-                // show a UI, or trigger some other event.
-                println!("GAME OVER!");
+                info!("Collision detected!");
+                fuel.saturating_sub(10.0);
+                invincible_timer.reset();
+                break;
             }
         }
     }
@@ -408,14 +440,15 @@ pub fn check_for_collisions(
 #[allow(clippy::type_complexity)]
 pub fn update_score_ui(
     score: Res<PlayScore>,
-    // Use a ParamSet to query for each digit's UI node separately and mutably.
+    // Use a ParamSet to query for each digit's UI node separately,
+    // as we need mutable access to multiple components that would otherwise conflict.
     mut set: ParamSet<(
-        Query<&mut ImageNode, With<Score0>>, // 1s place
-        Query<&mut ImageNode, With<Score1>>, // 10s place
-        Query<&mut ImageNode, With<Score2>>, // 100s place
-        Query<&mut ImageNode, With<Score3>>, // 1,000s place
-        Query<&mut ImageNode, With<Score4>>, // 10,000s place
-        Query<&mut ImageNode, With<Score5>>, // 100,000s place
+        Query<&mut ImageNode, With<ScoreSpace1s>>,      // 1s place
+        Query<&mut ImageNode, With<ScoreSpace10s>>,     // 10s place
+        Query<&mut ImageNode, With<ScoreSpace100s>>,    // 100s place
+        Query<&mut ImageNode, With<ScoreSpace1000s>>,   // 1,000s place
+        Query<&mut ImageNode, With<ScoreSpace10000s>>,  // 10,000s place
+        Query<&mut ImageNode, With<ScoreSpace100000s>>, // 100,000s place
     )>,
 ) {
     // Update the 1s place digit.
@@ -464,5 +497,27 @@ pub fn update_score_ui(
     {
         // The index in the texture atlas corresponds to the digit (0-9).
         atlas.index = ((score.accum / 100_000) % 10) as usize;
+    }
+}
+
+/// A system that animates the decorative fuel icon, making it bob up and down.
+/// This adds a subtle visual flair to the UI.
+pub fn update_fuel_deco(mut query: Query<&mut Node, With<FuelDeco>>, time: Res<Time>) {
+    if let Ok(mut node) = query.single_mut() {
+        // Use a sine wave based on the elapsed game time to create a smooth, periodic vertical motion.
+        let t = time.elapsed_secs() * PI;
+
+        // Apply the sine wave to the icon's `bottom` position.
+        // The icon moves between 10% (12.5 - 2.5) and 15% (12.5 + 2.5) from the bottom of its container.
+        node.bottom = Val::Percent(12.5 + 2.5 * t.sin());
+    }
+}
+
+/// A system that updates the fuel gauge's width to visually represent the remaining fuel percentage.
+pub fn update_fuel_gauge(mut query: Query<&mut Node, With<FuelGauge>>, fuel: Res<TrainFuel>) {
+    if let Ok(mut node) = query.single_mut() {
+        // Directly map the remaining fuel (which is a percentage from 0.0 to 100.0)
+        // to the width of the UI node, also as a percentage.
+        node.width = Val::Percent(fuel.remaining);
     }
 }

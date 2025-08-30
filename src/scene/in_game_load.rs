@@ -28,6 +28,7 @@ pub struct LoadingAssets {
 /// A system that runs once when entering the `InGameLoading` state.
 /// It sets up the loading screen UI and starts loading all necessary game assets.
 pub fn on_enter(mut commands: Commands, asset_server: Res<AssetServer>) {
+    // Initialize resources to store asset handles and cached models.
     let mut loading_assets = LoadingAssets::default();
     let mut cached_grounds = CachedGrounds::default();
     let mut cached_obstacles = CachedObstacles::default();
@@ -53,8 +54,12 @@ pub fn on_enter(mut commands: Commands, asset_server: Res<AssetServer>) {
         ));
     }
 
+    // --- Obstacle Loading ---
+    // Load the rail obstacle model.
     let model: Handle<ModelAsset> = asset_server.load("models/Rail_0.hierarchy");
+    // Add its handle to the loading queue.
     loading_assets.handles.push(model.clone().into());
+    // Cache the handle for later use in spawning obstacles during the game.
     cached_obstacles
         .models
         .insert(ObstacleModel::Rail0, model.clone());
@@ -165,31 +170,24 @@ fn create_in_game_ui(
         .handles
         .push(texture_atlas_handle.clone().into());
 
-    // Create the root UI node for the score display.
     commands
         .spawn((
-            // This node will contain the individual digit images.
             Node {
-                // Position the score in the top-left corner.
-                top: Val::VMin(3.0),
-                left: Val::VMin(3.0),
-                width: Val::Percent(30.0),
-                height: Val::Percent(8.0),
-                // Arrange digits in a row.
+                position_type: PositionType::Absolute,
+                top: Val::Vh(1.5),
+                left: Val::Vw(1.5),
+                width: Val::Vw(25.0),
+                height: Val::Vw(5.0),
                 flex_direction: FlexDirection::Row,
                 justify_content: JustifyContent::Start,
-                align_items: AlignItems::FlexStart,
+                align_items: AlignItems::Start,
                 ..Default::default()
             },
-            // The score UI is part of the in-game scene.
-            Visibility::Hidden,
-            // Start with the UI hidden.
             InGameStateEntity,
+            Visibility::Hidden,
+            Score,
         ))
         .with_children(|parent| {
-            // Spawn an image node for each digit of the score (6 digits total).
-            // Each digit is marked with a component like `Score5`, `Score4`, etc.,
-            // to be able to update them individually later.
             parent.spawn((
                 ImageNode::from_atlas_image(
                     texture_handle.clone(),
@@ -197,12 +195,11 @@ fn create_in_game_ui(
                 ),
                 Node {
                     width: Val::Auto,
-                    height: Val::Percent(100.0),
+                    height: Val::Percent(80.0),
                     ..Default::default()
                 },
-                Visibility::Hidden,
-                InGameStateEntity,
-                Score5, // Marker for the 100,000s place digit.
+                Visibility::Inherited,
+                ScoreSpace100000s, // Marker for the 100,000s place digit.
             ));
 
             parent.spawn((
@@ -212,12 +209,11 @@ fn create_in_game_ui(
                 ),
                 Node {
                     width: Val::Auto,
-                    height: Val::Percent(100.0),
+                    height: Val::Percent(80.0),
                     ..Default::default()
                 },
-                Visibility::Hidden,
-                InGameStateEntity,
-                Score4, // Marker for the 10,000s place digit.
+                Visibility::Inherited,
+                ScoreSpace10000s, // Marker for the 10,000s place digit.
             ));
 
             parent.spawn((
@@ -227,12 +223,11 @@ fn create_in_game_ui(
                 ),
                 Node {
                     width: Val::Auto,
-                    height: Val::Percent(100.0),
+                    height: Val::Percent(80.0),
                     ..Default::default()
                 },
-                Visibility::Hidden,
-                InGameStateEntity,
-                Score3, // Marker for the 1,000s place digit.
+                Visibility::Inherited,
+                ScoreSpace1000s, // Marker for the 1,000s place digit.
             ));
 
             parent.spawn((
@@ -242,12 +237,11 @@ fn create_in_game_ui(
                 ),
                 Node {
                     width: Val::Auto,
-                    height: Val::Percent(100.0),
+                    height: Val::Percent(80.0),
                     ..Default::default()
                 },
-                Visibility::Hidden,
-                InGameStateEntity,
-                Score2, // Marker for the 100s place digit.
+                Visibility::Inherited,
+                ScoreSpace100s, // Marker for the 100s place digit.
             ));
 
             parent.spawn((
@@ -257,12 +251,11 @@ fn create_in_game_ui(
                 ),
                 Node {
                     width: Val::Auto,
-                    height: Val::Percent(100.0),
+                    height: Val::Percent(80.0),
                     ..Default::default()
                 },
-                Visibility::Hidden,
-                InGameStateEntity,
-                Score1, // Marker for the 10s place digit.
+                Visibility::Inherited,
+                ScoreSpace10s, // Marker for the 10s place digit.
             ));
 
             parent.spawn((
@@ -272,12 +265,81 @@ fn create_in_game_ui(
                 ),
                 Node {
                     width: Val::Auto,
-                    height: Val::Percent(100.0),
+                    height: Val::Percent(80.0),
                     ..Default::default()
                 },
-                Visibility::Hidden,
-                InGameStateEntity,
-                Score0, // Marker for the 1s place digit.
+                Visibility::Inherited,
+                ScoreSpace1s, // Marker for the 1s place digit.
+            ));
+        });
+
+    let texture_handle: Handle<Image> = asset_server.load("textures/Train_Icon.sprite");
+    loading_assets.handles.push(texture_handle.clone().into());
+
+    // Create the root node for the fuel gauge in the bottom-right corner.
+    commands
+        .spawn((
+            Node {
+                position_type: PositionType::Absolute,
+                bottom: Val::Vh(1.5),
+                right: Val::Vw(3.0),
+                width: Val::Vw(25.0),
+                height: Val::Vw(5.0),
+                align_content: AlignContent::Center,
+                align_items: AlignItems::Center,
+                ..Default::default()
+            },
+            InGameStateEntity,
+            ViewVisibility::HIDDEN, // Use ViewVisibility to control the entire hierarchy's visibility.
+        ))
+        .with_children(|parent| {
+            // Create the background/border of the fuel gauge.
+            parent
+                .spawn((
+                    Node {
+                        position_type: PositionType::Absolute,
+                        width: Val::Percent(100.0),
+                        height: Val::Percent(15.0),
+                        bottom: Val::Px(0.0),
+                        border: UiRect::all(Val::Percent(1.0)),
+                        ..Default::default()
+                    },
+                    BackgroundColor(FUEL_COLOR),
+                    BorderColor(FUEL_COLOR),
+                    BorderRadius::all(Val::Percent(50.0)),
+                    Visibility::Inherited,
+                    ZIndex(2), // Ensure the border is drawn above the gauge bar.
+                ))
+                .with_children(|parent| {
+                    // Create the actual fuel gauge bar that will change width.
+                    parent.spawn((
+                        Node {
+                            position_type: PositionType::Absolute,
+                            width: Val::Percent(100.0), // Starts full
+                            height: Val::Percent(100.0),
+                            ..Default::default()
+                        },
+                        BackgroundColor(FUEL_GAUGE_COLOR),
+                        BorderRadius::all(Val::Percent(50.0)),
+                        Visibility::Inherited,
+                        ZIndex(1), // Drawn below the border.
+                        FuelGauge, // Marker to identify this entity for updates.
+                    ));
+                });
+
+            // Create the decorative train icon next to the fuel gauge.
+            parent.spawn((
+                ImageNode::new(texture_handle.clone()).with_color(FUEL_COLOR),
+                Node {
+                    position_type: PositionType::Absolute,
+                    height: Val::Percent(80.0),
+                    bottom: Val::Percent(12.5),
+                    left: Val::Px(0.0),
+                    ..Default::default()
+                },
+                Visibility::Inherited,
+                ZIndex(2), // Ensure it's drawn on top.
+                FuelDeco,  // Marker component.
             ));
         });
 }
@@ -293,64 +355,67 @@ fn create_loading_ui(
     // This camera is marked with `InGameLoadStateEntity` to be cleaned up on exit.
     commands.spawn((Camera2d, InGameLoadStateEntity));
 
-    // Create the loading bar's outer border.
-    commands
-        .spawn((
-            Node {
-                // Position the bar in the bottom-right corner.
-                position_type: PositionType::Absolute,
-                width: Val::Vw(18.0),
-                height: Val::Vh(5.0),
-                bottom: Val::Vh(3.0),
-                right: Val::Vw(3.0),
-                border: UiRect::all(Val::Percent(0.3)),
-                ..Default::default()
-            },
-            BackgroundColor(Color::srgb(0.3, 0.3, 0.3)), // Dark grey background
-            BorderColor(Color::srgb(0.85, 0.85, 0.85)),  // Light grey border
-            InGameLoadStateEntity,
-        ))
-        .with_children(|parent| {
-            // Create the inner, green progress bar that will grow.
-            parent.spawn((
-                Node {
-                    width: Val::Percent(0.0), // Starts with 0% width.
-                    height: Val::Percent(100.0),
-                    ..Default::default()
-                },
-                BackgroundColor(Color::srgb(0.2, 0.8, 0.2)), // Green color
-                LoadingBar, // Marker component to find and update this node.
-            ));
-        });
-
     // Create the "Now Loading..." text.
     // Load the font for the text.
     let font: Handle<Font> = asset_server.load("fonts/NotoSans_Bold.ttf");
     // Add the font to the list of assets to track for loading.
     loading_assets.handles.push(font.clone().into());
-    commands.spawn((
-        Text::new("Now Loading..."),
-        TextFont {
-            font,
-            font_size: 18.0,
-            ..Default::default()
-        },
-        TextColor(Color::WHITE),
-        TextLayout::new_with_justify(JustifyText::Center),
-        Node {
-            position_type: PositionType::Absolute,
-            width: Val::Vw(18.0),
-            height: Val::Vh(4.0),
-            bottom: Val::Vh(8.0),
-            right: Val::Vw(3.0),
-            align_items: AlignItems::Center,
-            justify_content: JustifyContent::Center,
-            flex_direction: FlexDirection::Column,
-            ..Default::default()
-        },
-        InGameLoadStateEntity,
-        LoadingText, // Marker component to find and update this text.
-    ));
+
+    commands
+        .spawn((
+            Node {
+                position_type: PositionType::Absolute,
+                width: Val::VMin(20.0),
+                height: Val::VMin(1.0),
+                bottom: Val::Vh(3.0),
+                right: Val::Vw(3.0),
+                justify_content: JustifyContent::Center,
+                align_items: AlignItems::Center,
+                ..Default::default()
+            },
+            InGameLoadStateEntity,
+        ))
+        .with_children(|parent| {
+            parent.spawn((
+                Text::new("Now Loading..."),
+                TextFont::from_font(font).with_font_size(18.0),
+                TextColor::WHITE,
+                Node {
+                    position_type: PositionType::Absolute,
+                    bottom: Val::Percent(150.0),
+                    ..Default::default()
+                },
+                ZIndex(2),
+                LoadingText, // Marker component to find and update this text.
+            ));
+
+            // Create the container for the loading bar.
+            // `Overflow::hidden` clips the inner bar as it grows.
+            parent
+                .spawn((
+                    Node {
+                        position_type: PositionType::Absolute,
+                        width: Val::Percent(100.0),
+                        height: Val::Percent(80.0),
+                        overflow: Overflow::hidden(),
+                        ..Default::default()
+                    },
+                    ZIndex(1),
+                ))
+                .with_children(|parent| {
+                    // Spawn the loading bar itself, which will grow in width from 0% to 100%.
+                    parent.spawn((
+                        Node {
+                            width: Val::Percent(0.0), // Starts at 0% width.
+                            height: Val::Percent(100.0),
+                            ..Default::default()
+                        },
+                        BorderRadius::all(Val::Percent(50.0)),
+                        BackgroundColor(LOADING_BAR_COLOR),
+                        LoadingBar, // Marker component to find and update this loading bar.
+                    ));
+                });
+        });
 }
 
 // --- CLEANUP SYSTEM ---
@@ -384,6 +449,7 @@ pub fn on_exit(
 // --- UPDATE SYSTEM ---
 
 /// A system that checks if all assets are loaded and transitions to the `InGame` state.
+/// This runs continuously during the `InGameLoading` state.
 pub fn check_loading_progress(
     asset_server: Res<AssetServer>,
     loading_assets: Res<LoadingAssets>,
@@ -401,7 +467,8 @@ pub fn check_loading_progress(
     }
 }
 
-/// A system that adjusts the font size of the loading text when the window is resized.
+/// A system that adjusts the font size of the loading text when the window is resized
+/// to maintain a consistent relative size.
 pub fn change_text_scale(
     mut resize_reader: EventReader<WindowResized>,
     mut query: Query<&mut TextFont, With<LoadingText>>,
@@ -410,12 +477,12 @@ pub fn change_text_scale(
         let vmin = e.width.min(e.height);
         for mut text_font in query.iter_mut() {
             text_font.font_size = 18.0 * vmin / 720.0;
-            info!("{:?}", text_font.font_size);
+            info!("Resize Font size:{:?}", text_font.font_size);
         }
     }
 }
 
-/// A system that updates the loading bar based on the number of loaded assets.
+/// A system that updates the loading bar's width based on the number of loaded assets.
 pub fn update_loading_bar(
     asset_server: Res<AssetServer>,
     loading_assets: Res<LoadingAssets>,

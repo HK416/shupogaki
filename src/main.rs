@@ -52,7 +52,8 @@ fn main() {
         // Add the custom asset plugin for loading and managing game assets.
         .add_plugins(CustomAssetPlugin)
         // --- STATE MANAGEMENT ---
-        // Initialize the game state machine. The game starts in the `Menu` state (or the default).
+        // Initialize the game's state machine. This controls the overall application flow,
+        // determining which systems run based on the current state (e.g., InGameLoading vs. InGame).
         .init_state::<GameState>()
         // --- IN-GAME LOADING STATE ---
         // Define systems that run during the `InGameLoading` state.
@@ -68,6 +69,8 @@ fn main() {
                 // Animates the "Loading..." text.
                 in_game_load::change_text_scale,
             )
+                // This is a "Run Condition". These systems will only execute
+                // if the game state is currently `InGameLoading`.
                 .run_if(in_state(GameState::InGameLoading)),
         )
         // --- IN-GAME STATE ---
@@ -96,24 +99,25 @@ fn main() {
                 // Main game logic runs in the `Update` stage.
                 (
                     (
-                        // Updates the in-game timer.
+                        // Update game logic like timers, score, and entity positions.
                         in_game::update_timer,
-                        // Updates the player's score.
                         in_game::update_score,
-                        // Updates the player's character position.
+                        in_game::update_fuel,
                         in_game::update_player_position,
-                        // Scrolls the ground.
                         in_game::update_ground_position,
-                        // Scrolls obstacles.
                         in_game::update_obstacle_position,
                     )
-                        // Ensure these run before the collider update for frame-perfect accuracy.
+                        // This is an "Ordering Constraint". It ensures that all game logic that
+                        // moves entities runs *before* the collider positions are updated in the same frame.
+                        // This is crucial for accurate, frame-perfect collision detection.
                         .before(in_game::update_collider),
-                    // Update colliders based on the new positions.
+                    // After all entities have their new positions, update the colliders to match.
                     in_game::update_collider,
                 )
                     .run_if(in_state(GameState::InGame)),
-                // Conditionally add debug gizmo systems if the feature is enabled.
+                // This is a "conditional compilation" attribute. The code below will only be included
+                // in the build if the "no-debuging-gizmo" feature flag is NOT enabled.
+                // This is useful for excluding debug-only code from release builds.
                 #[cfg(not(feature = "no-debuging-gizmo"))]
                 {
                     (update_gizmo_config, draw_collider_gizmos)
@@ -134,6 +138,8 @@ fn main() {
                 in_game::check_for_collisions,
                 // Updates the score display on the UI.
                 in_game::update_score_ui,
+                in_game::update_fuel_deco,
+                in_game::update_fuel_gauge,
             )
                 .run_if(in_state(GameState::InGame)),
         )
@@ -146,6 +152,7 @@ fn main() {
 // These systems are only compiled if the "no-debuging-gizmo" feature is NOT enabled.
 
 /// Toggles the visibility of debug gizmos when the F4 key is pressed.
+// This system is only compiled if the "no-debuging-gizmo" feature is NOT enabled.
 #[cfg(not(feature = "no-debuging-gizmo"))]
 pub fn update_gizmo_config(
     mut config_store: ResMut<GizmoConfigStore>,
@@ -155,12 +162,14 @@ pub fn update_gizmo_config(
     if keyboard_input.just_pressed(KeyCode::F4) {
         // Iterate through all gizmo configurations and toggle their `enabled` flag.
         for (_, config, _) in config_store.iter_mut() {
+            // `^=` is the XOR assignment operator, a concise way to toggle a boolean.
             config.enabled ^= true;
         }
     }
 }
 
 /// Draws visual representations (gizmos) for all `Collider` components in the scene.
+// This system is only compiled if the "no-debuging-gizmo" feature is NOT enabled.
 #[cfg(not(feature = "no-debuging-gizmo"))]
 pub fn draw_collider_gizmos(mut gizmos: Gizmos, query: Query<&Collider>) {
     // Iterate over all entities with a Collider component.
