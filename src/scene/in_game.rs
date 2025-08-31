@@ -12,36 +12,27 @@ pub fn on_enter(mut commands: Commands) {
     // --- Resource Initialization ---
     // Insert resources required for the game state.
     commands.insert_resource(TrainFuel::default()); // Manages the player's fuel.
-    commands.insert_resource(PlayScore::default()); // Tracks the player's score.
     commands.insert_resource(InputDelay::default()); // Prevents rapid lane changes.
-    commands.insert_resource(InvincibleTimer::default()); // Timer for temporary invincibility after a collision.
+    commands.insert_resource(PlayScore::default()); // Tracks the player's score.
+    commands.insert_resource(PlayerState::default());
     commands.insert_resource(RetiredGrounds::default()); // A queue for recycling ground entities.
-    commands.insert_resource(ObstacleSpawnTimer::default()); // Timer for spawning new obstacles.
+    commands.insert_resource(ObjectSpawner::default());
 
     // --- Player Spawn ---
     // Spawn the main player controller entity. This entity itself is invisible
     // but holds the core movement logic and components.
-    commands
-        .spawn((
-            Transform::from_xyz(0.0, 0.0, -7.5),
-            Lane::default(),             // The player's current lane.
-            ForwardMovement::default(),  // Controls forward speed.
-            VerticalMovement::default(), // Controls jumping and gravity.
-            InGameStateEntity,           // Marker for game-specific entities.
-            Player,                      // Marker for the player entity.
-        ))
-        .with_children(|parent| {
-            // Spawn the player's collider as a child.
-            parent.spawn((
-                Transform::from_xyz(0.0, 0.5, -1.5),
-                Collider::Aabb {
-                    center: Vec3::new(0.0, 0.0, 0.0),
-                    size: Vec3::new(0.9, 1.0, 3.6),
-                },
-                InGameStateEntity,
-                PlayerCollider, // Marker for the player's collider.
-            ));
-        });
+    commands.spawn((
+        Transform::from_xyz(0.0, 0.0, -7.5),
+        Lane::default(),             // The player's current lane.
+        ForwardMovement::default(),  // Controls forward speed.
+        VerticalMovement::default(), // Controls jumping and gravity.
+        Collider::Aabb {
+            offset: Vec3::new(0.0, 0.5, -1.5),
+            size: Vec3::new(0.9, 1.0, 3.6),
+        },
+        InGameStateEntity, // Marker for game-specific entities.
+        Player,            // Marker for the player entity.
+    ));
 
     // --- Lighting ---
     // Spawn a directional light to illuminate the scene.
@@ -105,13 +96,13 @@ pub fn on_exit(mut commands: Commands, query: Query<Entity, With<InGameStateEnti
     }
 
     // Remove resources specific to the InGame state.
-    commands.remove_resource::<CachedObstacles>();
+    commands.remove_resource::<CachedObjects>();
     commands.remove_resource::<RetiredGrounds>();
     commands.remove_resource::<CachedGrounds>();
-    commands.remove_resource::<ObstacleSpawnTimer>();
-    commands.remove_resource::<InvincibleTimer>();
-    commands.remove_resource::<InputDelay>();
+    commands.remove_resource::<ObjectSpawner>();
+    commands.remove_resource::<PlayerState>();
     commands.remove_resource::<PlayScore>();
+    commands.remove_resource::<InputDelay>();
     commands.remove_resource::<TrainFuel>();
 }
 
@@ -149,16 +140,20 @@ pub fn handle_player_input(
 
 // --- UPDATE SYSTEMS ---
 
-/// A system that decrements timers for input delay and obstacle spawning.
-pub fn update_timer(
-    mut delay: ResMut<InputDelay>,
-    mut spawn_timer: ResMut<ObstacleSpawnTimer>,
-    mut invincible_timer: ResMut<InvincibleTimer>,
-    time: Res<Time>,
-) {
+pub fn update_input_delay(mut delay: ResMut<InputDelay>, time: Res<Time>) {
     delay.on_advanced(time.delta_secs());
-    spawn_timer.on_advanced(time.delta_secs());
-    invincible_timer.on_advanced(time.delta_secs());
+}
+
+pub fn update_player_state(mut state: ResMut<PlayerState>, time: Res<Time>) {
+    match &mut *state {
+        PlayerState::Attacked { remaining } => {
+            *remaining -= time.delta_secs();
+            if *remaining <= 0.0 {
+                *state = PlayerState::Idle;
+            }
+        }
+        _ => { /* empty */ }
+    }
 }
 
 /// A system that updates the player's score based on elapsed time.
@@ -230,11 +225,10 @@ pub fn update_ground_position(
     }
 }
 
-/// A system that moves obstacles towards the player and despawns them when they are off-screen.
-pub fn update_obstacle_position(
+pub fn update_object_position(
     mut commands: Commands,
     player_query: Query<&ForwardMovement, With<Player>>,
-    mut obstacle_query: Query<(Entity, &mut Transform), With<Obstacle>>,
+    mut obstacle_query: Query<(Entity, &mut Transform), With<SpawnObject>>,
     time: Res<Time>,
 ) {
     if let Ok(forward_move) = player_query.single() {
@@ -243,23 +237,8 @@ pub fn update_obstacle_position(
             transform.translation.z -= forward_move.velocity * time.delta_secs();
 
             // If the obstacle is off-screen, despawn it.
-            if transform.translation.z <= -50.0 {
+            if transform.translation.z <= DESPAWN_LOCATION {
                 commands.entity(entity).despawn();
-            }
-        }
-    }
-}
-
-/// A system that updates the position of all colliders to match their entity's `GlobalTransform`.
-/// This ensures that the collider's position is always in sync with the entity's world position.
-pub fn update_collider(mut query: Query<(&mut Collider, &GlobalTransform)>) {
-    for (mut collider, transform) in query.iter_mut() {
-        match collider.as_mut() {
-            Collider::Aabb { center, .. } => {
-                *center = transform.translation();
-            }
-            Collider::Sphere { center, .. } => {
-                *center = transform.translation();
             }
         }
     }
@@ -366,49 +345,29 @@ pub fn spawn_grounds(
     }
 }
 
-/// A system that spawns obstacles periodically.
-pub fn spawn_obstacles(
+pub fn spawn_objects(
     mut commands: Commands,
-    mut spawn_timer: ResMut<ObstacleSpawnTimer>,
+    mut spawner: ResMut<ObjectSpawner>,
     player_query: Query<&ForwardMovement, With<Player>>,
-    cached: Res<CachedObstacles>,
+    cached: Res<CachedObjects>,
+    time: Res<Time>,
 ) {
     if let Ok(forward_move) = player_query.single() {
-        while spawn_timer.is_expired() {
-            // Calculate the time elapsed since the spawn was supposed to happen.
-            // This is used to adjust the spawn position for smooth, consistent spacing.
-            let time_t = -spawn_timer.remaining;
-
-            // Choose a random lane for the obstacle.
+        while let Some((obj, delta)) = spawner.on_advanced(forward_move, time.delta_secs()) {
             let lane_index = rand::random_range(0..NUM_LANES);
             let lane_x = LANE_LOCATIONS[lane_index];
 
-            let model_handle = cached.models.get(&ObstacleModel::Rail0).unwrap();
+            let model_handle = cached.models.get(&obj).unwrap();
+            let offset = OBJECT_OFFSETS.get(&obj).cloned().unwrap();
+            let size = OBJECT_EXTENTS.get(&obj).cloned().unwrap();
 
-            // Spawn the obstacle entity.
-            // The Z position is adjusted by `forward_move.velocity * time_t` to compensate for any delay
-            // in the timer, ensuring obstacles appear at a consistent distance from the player
-            // regardless of frame rate fluctuations.
-            commands
-                .spawn((
-                    SpawnModel(model_handle.clone()),
-                    Transform::from_xyz(lane_x, 0.0, 100.0 - forward_move.velocity * time_t),
-                    InGameStateEntity,
-                    Obstacle,
-                ))
-                .with_children(|parent| {
-                    parent.spawn((
-                        Transform::from_xyz(0.0, 0.5, 0.0),
-                        Collider::Aabb {
-                            center: Vec3::default(),
-                            size: Vec3::splat(1.0),
-                        },
-                        InGameLoadStateEntity,
-                        ObstacleCollider,
-                    ));
-                });
-
-            spawn_timer.remaining += SPAWN_DELAY;
+            commands.spawn((
+                SpawnModel(model_handle.clone()),
+                Transform::from_xyz(lane_x, 0.0, SPAWN_LOCATION + delta),
+                Collider::Aabb { offset, size },
+                InGameStateEntity,
+                obj,
+            ));
         }
     }
 }
@@ -416,20 +375,25 @@ pub fn spawn_obstacles(
 /// A system that checks for collisions between the player and obstacles.
 pub fn check_for_collisions(
     mut fuel: ResMut<TrainFuel>,
-    mut invincible_timer: ResMut<InvincibleTimer>,
-    player_query: Query<&Collider, (With<PlayerCollider>, Without<ObstacleCollider>)>,
-    obstacle_query: Query<&Collider, (With<ObstacleCollider>, Without<PlayerCollider>)>,
+    mut state: ResMut<PlayerState>,
+    player_query: Query<(&Collider, &Transform), With<Player>>,
+    object_query: Query<(&SpawnObject, &Collider, &Transform)>,
 ) {
-    if invincible_timer.is_expired()
-        && let Ok(player_collider) = player_query.single()
-    {
-        for obstacle_collider in obstacle_query.iter() {
-            if player_collider.intersects(obstacle_collider) {
-                info!("Collision detected!");
-                fuel.saturating_sub(10.0);
-                invincible_timer.reset();
-                break;
+    for (obj, o_collider, o_trans) in object_query.iter() {
+        if let Ok((p_collider, p_trans)) = player_query.single()
+            && p_collider.intersects(p_trans, o_collider, o_trans)
+        {
+            info!("Collision detected!");
+            match (*state, *obj) {
+                (PlayerState::Idle, SpawnObject::Obstacle) => {
+                    fuel.saturating_sub(10.0);
+                    *state = PlayerState::Attacked {
+                        remaining: ATTACKED_DURATION,
+                    };
+                }
+                _ => { /* empty */ }
             }
+            break;
         }
     }
 }
@@ -520,10 +484,10 @@ pub fn update_fuel_gauge(mut query: Query<&mut Node, With<FuelGauge>>, fuel: Res
     }
 }
 
-/// A system that applies a visual effect to the toy trains when the player is invincible.
-/// It iterates through each train car and calls a recursive helper function to apply the effect to all its child meshes.
+/// A system that applies a visual effect to the player's train cars based on the `PlayerState`.
+/// It initiates a recursive traversal of the entity hierarchy for each train car.
 #[allow(clippy::type_complexity)]
-pub fn update_invincible_effect(
+pub fn update_player_effect(
     mut set: ParamSet<(
         Query<Entity, With<ToyTrain0>>,
         Query<Entity, With<ToyTrain1>>,
@@ -532,69 +496,72 @@ pub fn update_invincible_effect(
     children_query: Query<&Children>,
     material_query: Query<&MeshMaterial3d<StandardMaterial>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
-    invincible_timer: Res<InvincibleTimer>,
+    state: Res<PlayerState>,
 ) {
     if let Ok(entity) = set.p0().single() {
-        update_invincible_effect_recursive(
+        update_player_effect_recursive(
             entity,
             &children_query,
             &material_query,
             &mut materials,
-            &invincible_timer,
+            &state,
         );
     }
 
     if let Ok(entity) = set.p1().single() {
-        update_invincible_effect_recursive(
+        update_player_effect_recursive(
             entity,
             &children_query,
             &material_query,
             &mut materials,
-            &invincible_timer,
+            &state,
         );
     }
 
     if let Ok(entity) = set.p2().single() {
-        update_invincible_effect_recursive(
+        update_player_effect_recursive(
             entity,
             &children_query,
             &material_query,
             &mut materials,
-            &invincible_timer,
+            &state,
         );
     }
 }
 
-/// A recursive helper function that traverses the entity hierarchy and applies the invincibility effect.
-/// It changes the `base_color` of any `StandardMaterial` found on the entity or its children,
-/// creating a flashing white effect based on the remaining invincibility time.
-fn update_invincible_effect_recursive(
+/// Recursively traverses the entity hierarchy, finding all materials and applying a visual effect.
+///
+/// This is used to make the player's train flash when they are in the `Attacked` state,
+/// by modifying the `base_color` of their materials.
+fn update_player_effect_recursive(
     entity: Entity,
     children_query: &Query<&Children>,
     material_query: &Query<&MeshMaterial3d<StandardMaterial>>,
     materials: &mut ResMut<Assets<StandardMaterial>>,
-    invincible_timer: &Res<InvincibleTimer>,
+    state: &PlayerState,
 ) {
-    // Check if the current entity has a material and apply the effect.
+    // Check if the current entity has a material component.
     if let Ok(handle) = material_query.get(entity)
         && let Some(material) = materials.get_mut(handle.id())
     {
-        // Use a cosine wave to smoothly oscillate the color between black and white.
-        let t = invincible_timer.remaining * INVINCIBLE_EFFECT_CYCLE;
-        let fill = 0.5 * t.cos() + 0.5;
-        material.base_color = Color::srgb(fill, fill, fill);
+        // Apply an effect based on the current player state.
+        match state {
+            PlayerState::Idle => {
+                material.base_color = Color::WHITE;
+            }
+            PlayerState::Attacked { remaining } => {
+                // Create a cosine wave that oscillates between 0.0 and 1.0 to make the color pulse.
+                let t = *remaining * ATTACKED_EFFECT_CYCLE;
+                let fill = 0.5 * t.cos() + 0.5;
+                material.base_color = Color::srgb(fill, fill, fill);
+            }
+        }
     }
 
-    // Recursively call this function for all children of the current entity.
+    // Recurse into the children of the current entity to apply the effect to the entire model.
     if let Ok(children) = children_query.get(entity) {
         for child in children.iter() {
-            update_invincible_effect_recursive(
-                child,
-                children_query,
-                material_query,
-                materials,
-                invincible_timer,
-            );
+            update_player_effect_recursive(child, children_query, material_query, materials, state);
         }
     }
 }

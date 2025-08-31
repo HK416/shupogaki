@@ -1,3 +1,7 @@
+//! The main entry point for the Shupogaki game application.
+//!
+//! This file is responsible for setting up the Bevy application, configuring plugins,
+//! defining game states, and scheduling all the systems that make up the game's logic.
 mod asset;
 mod collider;
 mod scene;
@@ -22,7 +26,7 @@ use crate::{
 fn main() {
     App::new()
         // --- CORE PLUGINS ---
-        // Add the default Bevy plugins, which provide essential functionality.
+        // Adds the default Bevy plugins, which provide essential cross-platform functionality.
         .add_plugins((DefaultPlugins
             // Configure the primary window.
             .set(WindowPlugin {
@@ -49,14 +53,14 @@ fn main() {
                 ..Default::default()
             }),))
         // --- CUSTOM PLUGINS ---
-        // Add the custom asset plugin for loading and managing game assets.
+        // Adds the custom asset plugin for loading and managing game assets.
         .add_plugins(CustomAssetPlugin)
         // --- STATE MANAGEMENT ---
-        // Initialize the game's state machine. This controls the overall application flow,
+        // Initializes the game's state machine. This controls the overall application flow,
         // determining which systems run based on the current state (e.g., InGameLoading vs. InGame).
         .init_state::<GameState>()
         // --- IN-GAME LOADING STATE ---
-        // Define systems that run during the `InGameLoading` state.
+        // Defines systems to run for the `InGameLoading` state.
         .add_systems(OnEnter(GameState::InGameLoading), in_game_load::on_enter)
         .add_systems(OnExit(GameState::InGameLoading), in_game_load::on_exit)
         .add_systems(
@@ -74,7 +78,7 @@ fn main() {
                 .run_if(in_state(GameState::InGameLoading)),
         )
         // --- IN-GAME STATE ---
-        // Define systems that run when entering the `InGame` state.
+        // Defines systems that run when entering the `InGame` state.
         .add_systems(
             OnEnter(GameState::InGame),
             (
@@ -84,7 +88,7 @@ fn main() {
                 in_game::play_animation,
             ),
         )
-        // Define systems that run when exiting the `InGame` state for cleanup.
+        // Defines systems that run when exiting the `InGame` state for cleanup.
         .add_systems(OnExit(GameState::InGame), in_game::on_exit)
         // --- GAMEPLAY SYSTEMS ---
         // Schedule systems to run at different stages of the game loop.
@@ -98,21 +102,14 @@ fn main() {
             (
                 // Main game logic runs in the `Update` stage.
                 (
-                    (
-                        // Update game logic like timers, score, and entity positions.
-                        in_game::update_timer,
-                        in_game::update_score,
-                        in_game::update_fuel,
-                        in_game::update_player_position,
-                        in_game::update_ground_position,
-                        in_game::update_obstacle_position,
-                    )
-                        // This is an "Ordering Constraint". It ensures that all game logic that
-                        // moves entities runs *before* the collider positions are updated in the same frame.
-                        // This is crucial for accurate, frame-perfect collision detection.
-                        .before(in_game::update_collider),
-                    // After all entities have their new positions, update the colliders to match.
-                    in_game::update_collider,
+                    // Update game logic like timers, score, and entity positions.
+                    in_game::update_input_delay,
+                    in_game::update_player_state,
+                    in_game::update_score,
+                    in_game::update_fuel,
+                    in_game::update_player_position,
+                    in_game::update_ground_position,
+                    in_game::update_object_position,
                 )
                     .run_if(in_state(GameState::InGame)),
                 // This is a "conditional compilation" attribute. The code below will only be included
@@ -128,19 +125,14 @@ fn main() {
             PostUpdate,
             // Systems that react to changes from the `Update` stage.
             (
-                // Updates the toy train animation/position.
                 in_game::update_toy_trains,
-                // Spawns new ground segments as the player moves.
                 in_game::spawn_grounds,
-                // Spawns new obstacles.
-                in_game::spawn_obstacles,
-                // Checks for collisions between the player and obstacles.
+                in_game::spawn_objects,
                 in_game::check_for_collisions,
-                // Updates the score display on the UI.
                 in_game::update_score_ui,
                 in_game::update_fuel_deco,
                 in_game::update_fuel_gauge,
-                in_game::update_invincible_effect,
+                in_game::update_player_effect,
             )
                 .run_if(in_state(GameState::InGame)),
         )
@@ -172,31 +164,25 @@ pub fn update_gizmo_config(
 /// Draws visual representations (gizmos) for all `Collider` components in the scene.
 // This system is only compiled if the "no-debuging-gizmo" feature is NOT enabled.
 #[cfg(not(feature = "no-debuging-gizmo"))]
-pub fn draw_collider_gizmos(mut gizmos: Gizmos, query: Query<&Collider>) {
+pub fn draw_collider_gizmos(mut gizmos: Gizmos, query: Query<(&Collider, &Transform)>) {
+    const GIZMO_COLOR: Color = Color::srgb(1.0, 1.0, 0.0);
+
     // Iterate over all entities with a Collider component.
-    for collider in query.iter() {
+    for (collider, transform) in query.iter() {
+        gizmos.axes(*transform, 2.0);
+
         match collider {
-            // If the collider is an AABB, draw a red cuboid.
-            Collider::Aabb {
-                center,
-                size: extents,
-            } => {
+            Collider::Aabb { offset, size } => {
+                let center = transform.translation + *offset;
                 gizmos.cuboid(
-                    Transform::from_translation(*center).with_scale(*extents),
-                    Color::srgb(1.0, 0.0, 0.0),
+                    Transform::from_translation(center).with_scale(*size),
+                    GIZMO_COLOR,
                 );
             }
-            // If the collider is a Sphere, draw a red sphere.
-            Collider::Sphere { center, radius } => {
-                gizmos
-                    .sphere(
-                        Isometry3d::from_translation(*center),
-                        *radius,
-                        Color::srgb(1.0, 0.0, 0.0),
-                    )
-                    // Increase the resolution for a smoother sphere.
-                    .resolution(64);
+            Collider::Sphere { offset, radius } => {
+                let center = transform.translation + *offset;
+                gizmos.sphere(Isometry3d::from_translation(center), *radius, GIZMO_COLOR);
             }
-        };
+        }
     }
 }

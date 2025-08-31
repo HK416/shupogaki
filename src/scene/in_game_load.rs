@@ -28,22 +28,23 @@ pub struct LoadingAssets {
 /// A system that runs once when entering the `InGameLoading` state.
 /// It sets up the loading screen UI and starts loading all necessary game assets.
 pub fn on_enter(mut commands: Commands, asset_server: Res<AssetServer>) {
-    // Initialize resources to store asset handles and cached models.
+    // Create resources to track loading progress and cache asset handles for later use.
     let mut loading_assets = LoadingAssets::default();
     let mut cached_grounds = CachedGrounds::default();
-    let mut cached_obstacles = CachedObstacles::default();
+    let mut cached_objects = CachedObjects::default();
 
     // --- Ground Loading and Pre-spawning ---
-    // Load the ground model asset.
+    // Begin loading the primary ground model.
     let model: Handle<ModelAsset> = asset_server.load("models/Plane_0.hierarchy");
-    // Add the ground model handle to the list of assets to be loaded.
+    // Add its handle to the `LoadingAssets` resource to track its loading status.
     loading_assets.handles.push(model.clone().into());
-    // Cache the ground model handle for later use in the game.
+    // Cache the handle in the `CachedGrounds` resource for efficient reuse during gameplay.
     cached_grounds
         .models
         .insert(GroundModel::Plane0, model.clone());
-    // Pre-spawn initial ground entities. These are initially hidden and will be made
-    // visible when the game starts. This avoids a stutter when the game begins.
+    // Pre-spawn the initial ground segments. They are created with `Visibility::Hidden` and will be made
+    // visible when the game starts. This technique, often called "object pooling" or "pre-warming",
+    // helps prevent a performance stutter that could occur if these entities were all spawned at once at the beginning of the game.
     for i in 0..5 {
         commands.spawn((
             SpawnModel(model.clone()),
@@ -55,19 +56,19 @@ pub fn on_enter(mut commands: Commands, asset_server: Res<AssetServer>) {
     }
 
     // --- Obstacle Loading ---
-    // Load the rail obstacle model.
+    // Load the model for the rail obstacle.
     let model: Handle<ModelAsset> = asset_server.load("models/Rail_0.hierarchy");
-    // Add its handle to the loading queue.
+    // Add its handle to the loading tracker.
     loading_assets.handles.push(model.clone().into());
-    // Cache the handle for later use in spawning obstacles during the game.
-    cached_obstacles
+    // Cache the handle for reuse when spawning new obstacles during gameplay.
+    cached_objects
         .models
-        .insert(ObstacleModel::Rail0, model.clone());
+        .insert(SpawnObject::Obstacle, model.clone());
 
     // --- Player and Toy Train Loading ---
     // Load all models and animations for the player and toy trains.
     // They are spawned with `Visibility::Hidden` and will be made visible after loading is complete.
-
+    // This follows the same pre-spawning pattern as the ground to ensure a smooth game start.
     // Load the first toy train model.
     let model: Handle<ModelAsset> = asset_server.load("models/ToyTrain00.hierarchy");
     loading_assets.handles.push(model.clone().into());
@@ -85,7 +86,7 @@ pub fn on_enter(mut commands: Commands, asset_server: Res<AssetServer>) {
     let model: Handle<ModelAsset> = asset_server.load("models/Hikari.hierarchy");
     loading_assets.handles.push(model.clone().into());
 
-    // Spawn the character entity, which will be a child of the toy train
+    // Spawn the character entity. It will be parented to one of the toy train cars.
     let entity = commands
         .spawn((
             SpawnModel(model),
@@ -107,7 +108,7 @@ pub fn on_enter(mut commands: Commands, asset_server: Res<AssetServer>) {
             Visibility::Hidden,
             ToyTrain1,
         ))
-        .add_child(entity); // Hikari is a child of this train.
+        .add_child(entity); // Parent the Hikari model to this train car.
 
     // Load player character (Nozomi) animation and model.
     let clip: Handle<AnimationClip> = asset_server.load("animations/CH0243_InGame.anim");
@@ -115,7 +116,7 @@ pub fn on_enter(mut commands: Commands, asset_server: Res<AssetServer>) {
     let model: Handle<ModelAsset> = asset_server.load("models/Nozomi.hierarchy");
     loading_assets.handles.push(model.clone().into());
 
-    // Spawn the character entity, which will be a child of the toy train
+    // Spawn the character entity, which will be parented to another toy train car.
     let entity = commands
         .spawn((
             SpawnModel(model),
@@ -137,18 +138,20 @@ pub fn on_enter(mut commands: Commands, asset_server: Res<AssetServer>) {
             Visibility::Hidden,
             ToyTrain2,
         ))
-        .add_child(entity); // Nozomi is a child of this train.
+        .add_child(entity); // Parent the Nozomi model to this train car.
 
-    // Create the loading UI.
+    // --- UI Loading ---
+    // Set up the UI for both the loading screen and the main game.
+    // These are also loaded upfront to prevent hitches.
     create_loading_ui(&mut commands, &asset_server, &mut loading_assets);
     create_in_game_ui(&mut commands, &asset_server, &mut loading_assets);
 
     // --- Resource Insertion ---
-    // Insert the `loading_assets` and `cached_grounds` resources for other systems to use.
+    // Make the asset tracking and caching resources available to other systems.
     commands.insert_resource(loading_assets);
     commands.insert_resource(cached_grounds);
-    commands.insert_resource(cached_obstacles);
-    // Set a black background color for the loading screen.
+    commands.insert_resource(cached_objects);
+    // Set a simple black background for the loading screen.
     commands.insert_resource(ClearColor(Color::BLACK));
 }
 

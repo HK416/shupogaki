@@ -8,6 +8,8 @@ use std::{
 
 // Import necessary Bevy modules.
 use bevy::prelude::*;
+use lazy_static::lazy_static;
+use rand::distr::{Distribution, weighted::WeightedIndex};
 
 use crate::asset::model::ModelAsset;
 
@@ -19,10 +21,10 @@ const NUM_LANES: usize = 3;
 const MAX_LANE_INDEX: usize = NUM_LANES - 1;
 /// The x-coordinates for each lane.
 const LANE_LOCATIONS: [f32; NUM_LANES] = [-3.0, 0.25, 3.5];
+
 /// The delay between player inputs in seconds, to prevent overly sensitive controls.
 const INPUT_DELAY: f32 = 0.25;
-/// The delay between obstacle creation in seconds.
-const SPAWN_DELAY: f32 = 2.0;
+
 /// The forward movement speed of the player and the world.
 const SPEED: f32 = 20.0;
 /// The strength of gravity affecting the player.
@@ -31,22 +33,51 @@ const GRAVITY: f32 = -30.0;
 const JUMP_STRENGTH: f32 = 12.5;
 /// The lane change speed of the player.
 const LANE_CHANGE_SPEED: f32 = 5.0;
+
 /// The score cycle that determines how frequently the score increases.
 const SCORE_CYCLE: u32 = 100;
+/// The cycle speed of the fuel decoration's bobbing animation.
+const FUEL_DECO_CYCLE: f32 = PI * 1.0;
+/// The cycle speed of the flashing effect when the player is attacked.
+const ATTACKED_EFFECT_CYCLE: f32 = PI * 8.0;
+
 /// The color of the fuel gauge's decorative border.
 const FUEL_COLOR: Color = Color::srgb(48.0 / 255.0, 55.0 / 255.0, 70.0 / 255.0);
 /// The color of the fuel gauge's indicator bar.
 const FUEL_GAUGE_COLOR: Color = Color::srgb(0.2, 0.8, 0.2);
 /// The color of the loading bar.
 const LOADING_BAR_COLOR: Color = Color::srgb(0.2, 0.8, 0.2);
+
 /// The rate at which fuel is consumed per second.
 const FUEL_USAGE: f32 = 100.0 / 16.0;
-/// The cycle speed of the fuel decoration's bobbing animation.
-const FUEL_DECO_CYCLE: f32 = PI * 1.0;
-/// The duration of the player's invincibility after a collision, in seconds.
-const INVINCIBLE_DURATION: f32 = 3.0;
-/// The cycle speed of the invincibility visual effect.
-const INVINCIBLE_EFFECT_CYCLE: f32 = PI * 8.0;
+
+/// The duration in seconds that the player remains in the "attacked" state.
+const ATTACKED_DURATION: f32 = 3.0;
+
+// --- Obstacle Spawning Constants ---
+/// The total number of different obstacle types available to spawn.
+const NUM_SPAWN_OBJECTS: usize = 1;
+/// An array defining the types of objects that can be spawned.
+const SPAWN_OBJECTS: [SpawnObject; NUM_SPAWN_OBJECTS] = [SpawnObject::Obstacle];
+/// The corresponding weights for each object in `SPAWN_OBJECTS`, used for weighted random selection.
+const SPAWN_WEIGHTS: [u32; NUM_SPAWN_OBJECTS] = [5];
+/// The Z-coordinate where new objects are spawned, far in front of the player.
+const SPAWN_LOCATION: f32 = 100.0;
+/// The Z-coordinate at which objects are despawned, far behind the player.
+const DESPAWN_LOCATION: f32 = -100.0;
+/// The distance the player travels before a new obstacle is spawned.
+const SPAWN_INTERVAL: f32 = 25.0;
+
+lazy_static! {
+    static ref OBJECT_OFFSETS: HashMap<SpawnObject, Vec3> =
+        [(SpawnObject::Obstacle, Vec3::new(0.0, 0.5, 0.0)),]
+            .into_iter()
+            .collect();
+    static ref OBJECT_EXTENTS: HashMap<SpawnObject, Vec3> =
+        [(SpawnObject::Obstacle, Vec3::splat(1.0)),]
+            .into_iter()
+            .collect();
+}
 
 // --- STATES ---
 
@@ -66,21 +97,17 @@ pub enum GameState {
 #[derive(Component)]
 pub struct Player;
 
-/// A marker component for the player's collider entity.
-#[derive(Component)]
-pub struct PlayerCollider;
-
 /// A marker component for the ground plane entities.
 #[derive(Component)]
 pub struct Ground;
 
-/// A marker component for obstacle entities.
-#[derive(Component)]
-pub struct Obstacle;
-
-/// A marker component for an obstacle's collider entity.
-#[derive(Component)]
-pub struct ObstacleCollider;
+/// An enum representing the different types of objects that can be spawned in the game.
+/// This is used as a component to identify and differentiate game objects.
+#[derive(Debug, Default, Clone, Copy, Component, PartialEq, Eq, Hash)]
+pub enum SpawnObject {
+    #[default]
+    Obstacle,
+}
 
 /// A marker component for entities that should only exist during the `InGameLoad` state.
 #[derive(Component)]
@@ -222,59 +249,63 @@ impl Default for InputDelay {
     }
 }
 
-/// A resource to manage the player's invincibility timer after a collision.
+/// Defines the player's current state, which can affect gameplay and visual effects.
+#[derive(Clone, Copy, Default, Resource)]
+pub enum PlayerState {
+    /// The default, normal state.
+    #[default]
+    Idle,
+    /// The state after being hit by an obstacle. Includes a timer for how long the state lasts.
+    Attacked { remaining: f32 },
+}
+
+/// A resource that manages the spawning of objects over a distance.
 #[derive(Resource)]
-pub struct InvincibleTimer {
-    remaining: f32,
+pub struct ObjectSpawner {
+    /// The distance traveled since the last object was spawned.
+    distance: f32,
+    /// The next object that is scheduled to be spawned.
+    next_obj: SpawnObject,
 }
 
-impl InvincibleTimer {
-    /// Resets the invincibility timer to its full duration.
-    pub fn reset(&mut self) {
-        self.remaining = INVINCIBLE_DURATION;
-    }
+impl ObjectSpawner {
+    pub fn on_advanced(
+        &mut self,
+        forward_move: &ForwardMovement,
+        delta_time: f32,
+    ) -> Option<(SpawnObject, f32)> {
+        self.distance += forward_move.velocity.abs() * delta_time;
+        if self.distance >= SPAWN_INTERVAL {
+            let distr = WeightedIndex::new(SPAWN_WEIGHTS).unwrap();
+            let selected_index = distr.sample(&mut rand::rng());
+            let selected_item = SPAWN_OBJECTS[selected_index];
 
-    /// Reduces the remaining invincibility time.
-    pub fn on_advanced(&mut self, duration: f32) {
-        self.remaining = (self.remaining - duration).max(0.0);
-    }
+            let obj = self.next_obj;
+            let delta = SPAWN_INTERVAL - self.distance;
 
-    /// Checks if the invincibility has expired.
-    pub fn is_expired(&self) -> bool {
-        self.remaining <= 0.0
-    }
-}
+            self.distance -= SPAWN_INTERVAL;
+            self.next_obj = selected_item;
 
-impl Default for InvincibleTimer {
-    fn default() -> Self {
-        Self { remaining: 0.0 }
-    }
-}
-
-/// A resource to manage the spawning of obstacles.
-#[derive(Resource)]
-pub struct ObstacleSpawnTimer {
-    remaining: f32,
-}
-
-impl ObstacleSpawnTimer {
-    /// Reduces the remaining time until the next spawn.
-    pub fn on_advanced(&mut self, duration: f32) {
-        self.remaining -= duration;
-    }
-
-    /// Checks if it's time to spawn a new obstacle.
-    pub fn is_expired(&self) -> bool {
-        self.remaining <= 0.0
-    }
-}
-
-impl Default for ObstacleSpawnTimer {
-    fn default() -> Self {
-        Self {
-            remaining: SPAWN_DELAY,
+            Some((obj, delta))
+        } else {
+            None
         }
     }
+}
+
+impl Default for ObjectSpawner {
+    fn default() -> Self {
+        Self {
+            distance: 0.0,
+            next_obj: SpawnObject::default(),
+        }
+    }
+}
+
+/// A resource that caches handles to all spawnable object models.
+#[derive(Default, Resource)]
+pub struct CachedObjects {
+    models: HashMap<SpawnObject, Handle<ModelAsset>>,
 }
 
 /// An enum to identify different ground models.
@@ -296,20 +327,6 @@ pub struct CachedGrounds {
 #[derive(Default, Resource)]
 pub struct RetiredGrounds {
     transforms: VecDeque<Transform>,
-}
-
-/// An enum to identify different obstacle models.
-/// This is used as a key in the `CachedObstacles` resource HashMap.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-enum ObstacleModel {
-    /// The standard rail obstacle model.
-    Rail0,
-}
-
-/// A resource that caches handles to obstacle models.
-#[derive(Default, Resource)]
-pub struct CachedObstacles {
-    models: HashMap<ObstacleModel, Handle<ModelAsset>>,
 }
 
 /// A resource to manage the player's fuel level.
