@@ -1,5 +1,3 @@
-use std::f32::consts::PI;
-
 // Import necessary Bevy modules.
 use bevy::{prelude::*, render::camera::ScalingMode};
 
@@ -505,7 +503,7 @@ pub fn update_score_ui(
 pub fn update_fuel_deco(mut query: Query<&mut Node, With<FuelDeco>>, time: Res<Time>) {
     if let Ok(mut node) = query.single_mut() {
         // Use a sine wave based on the elapsed game time to create a smooth, periodic vertical motion.
-        let t = time.elapsed_secs() * PI;
+        let t = time.elapsed_secs() * FUEL_DECO_CYCLE;
 
         // Apply the sine wave to the icon's `bottom` position.
         // The icon moves between 10% (12.5 - 2.5) and 15% (12.5 + 2.5) from the bottom of its container.
@@ -519,5 +517,84 @@ pub fn update_fuel_gauge(mut query: Query<&mut Node, With<FuelGauge>>, fuel: Res
         // Directly map the remaining fuel (which is a percentage from 0.0 to 100.0)
         // to the width of the UI node, also as a percentage.
         node.width = Val::Percent(fuel.remaining);
+    }
+}
+
+/// A system that applies a visual effect to the toy trains when the player is invincible.
+/// It iterates through each train car and calls a recursive helper function to apply the effect to all its child meshes.
+#[allow(clippy::type_complexity)]
+pub fn update_invincible_effect(
+    mut set: ParamSet<(
+        Query<Entity, With<ToyTrain0>>,
+        Query<Entity, With<ToyTrain1>>,
+        Query<Entity, With<ToyTrain2>>,
+    )>,
+    children_query: Query<&Children>,
+    material_query: Query<&MeshMaterial3d<StandardMaterial>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    invincible_timer: Res<InvincibleTimer>,
+) {
+    if let Ok(entity) = set.p0().single() {
+        update_invincible_effect_recursive(
+            entity,
+            &children_query,
+            &material_query,
+            &mut materials,
+            &invincible_timer,
+        );
+    }
+
+    if let Ok(entity) = set.p1().single() {
+        update_invincible_effect_recursive(
+            entity,
+            &children_query,
+            &material_query,
+            &mut materials,
+            &invincible_timer,
+        );
+    }
+
+    if let Ok(entity) = set.p2().single() {
+        update_invincible_effect_recursive(
+            entity,
+            &children_query,
+            &material_query,
+            &mut materials,
+            &invincible_timer,
+        );
+    }
+}
+
+/// A recursive helper function that traverses the entity hierarchy and applies the invincibility effect.
+/// It changes the `base_color` of any `StandardMaterial` found on the entity or its children,
+/// creating a flashing white effect based on the remaining invincibility time.
+fn update_invincible_effect_recursive(
+    entity: Entity,
+    children_query: &Query<&Children>,
+    material_query: &Query<&MeshMaterial3d<StandardMaterial>>,
+    materials: &mut ResMut<Assets<StandardMaterial>>,
+    invincible_timer: &Res<InvincibleTimer>,
+) {
+    // Check if the current entity has a material and apply the effect.
+    if let Ok(handle) = material_query.get(entity)
+        && let Some(material) = materials.get_mut(handle.id())
+    {
+        // Use a cosine wave to smoothly oscillate the color between black and white.
+        let t = invincible_timer.remaining * INVINCIBLE_EFFECT_CYCLE;
+        let fill = 0.5 * t.cos() + 0.5;
+        material.base_color = Color::srgb(fill, fill, fill);
+    }
+
+    // Recursively call this function for all children of the current entity.
+    if let Ok(children) = children_query.get(entity) {
+        for child in children.iter() {
+            update_invincible_effect_recursive(
+                child,
+                children_query,
+                material_query,
+                materials,
+                invincible_timer,
+            );
+        }
     }
 }

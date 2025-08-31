@@ -140,6 +140,7 @@ fn main() {
                 in_game::update_score_ui,
                 in_game::update_fuel_deco,
                 in_game::update_fuel_gauge,
+                in_game::update_invincible_effect,
             )
                 .run_if(in_state(GameState::InGame)),
         )

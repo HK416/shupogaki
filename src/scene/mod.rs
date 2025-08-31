@@ -1,7 +1,10 @@
 pub mod in_game;
 pub mod in_game_load;
 
-use std::collections::{HashMap, VecDeque};
+use std::{
+    collections::{HashMap, VecDeque},
+    f32::consts::PI,
+};
 
 // Import necessary Bevy modules.
 use bevy::prelude::*;
@@ -38,6 +41,12 @@ const FUEL_GAUGE_COLOR: Color = Color::srgb(0.2, 0.8, 0.2);
 const LOADING_BAR_COLOR: Color = Color::srgb(0.2, 0.8, 0.2);
 /// The rate at which fuel is consumed per second.
 const FUEL_USAGE: f32 = 100.0 / 16.0;
+/// The cycle speed of the fuel decoration's bobbing animation.
+const FUEL_DECO_CYCLE: f32 = PI * 1.0;
+/// The duration of the player's invincibility after a collision, in seconds.
+const INVINCIBLE_DURATION: f32 = 3.0;
+/// The cycle speed of the invincibility visual effect.
+const INVINCIBLE_EFFECT_CYCLE: f32 = PI * 8.0;
 
 // --- STATES ---
 
@@ -220,9 +229,9 @@ pub struct InvincibleTimer {
 }
 
 impl InvincibleTimer {
-    /// Resets the invincibility timer to its full duration (3 seconds).
+    /// Resets the invincibility timer to its full duration.
     pub fn reset(&mut self) {
-        self.remaining = 3.0;
+        self.remaining = INVINCIBLE_DURATION;
     }
 
     /// Reduces the remaining invincibility time.
