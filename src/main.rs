@@ -2,8 +2,12 @@
 //!
 //! This file is responsible for setting up the Bevy application, configuring plugins,
 //! defining game states, and scheduling all the systems that make up the game's logic.
+
+// `asset` module handles loading and management of custom game assets.
 mod asset;
+// `collider` module defines collider shapes and intersection logic.
 mod collider;
+// `scene` module contains the game's scenes, states, and core logic.
 mod scene;
 
 // Import necessary Bevy modules.
@@ -60,17 +64,17 @@ fn main() {
         // determining which systems run based on the current state (e.g., InGameLoading vs. InGame).
         .init_state::<GameState>()
         // --- IN-GAME LOADING STATE ---
-        // Defines systems to run for the `InGameLoading` state.
+        // Defines systems to run while assets are loading.
         .add_systems(OnEnter(GameState::InGameLoading), in_game_load::on_enter)
         .add_systems(OnExit(GameState::InGameLoading), in_game_load::on_exit)
         .add_systems(
             Update,
             (
-                // Checks the loading status of assets.
+                // Checks the loading progress of assets and transitions state when done.
                 in_game_load::check_loading_progress,
-                // Updates the loading bar UI.
+                // Updates the loading bar UI to reflect asset loading progress.
                 in_game_load::update_loading_bar,
-                // Animates the "Loading..." text.
+                // Animates the "Loading..." text for visual feedback.
                 in_game_load::change_text_scale,
             )
                 // This is a "Run Condition". These systems will only execute
@@ -78,13 +82,13 @@ fn main() {
                 .run_if(in_state(GameState::InGameLoading)),
         )
         // --- IN-GAME STATE ---
-        // Defines systems that run when entering the `InGame` state.
+        // Defines systems that run when the main gameplay starts.
         .add_systems(
             OnEnter(GameState::InGame),
             (
-                // Sets up the main game scene.
+                // Sets up the main game scene (player, camera, lighting, UI).
                 in_game::on_enter,
-                // Starts character and other animations.
+                // Starts character and other animations once their models are loaded.
                 in_game::play_animation,
             ),
         )
@@ -110,6 +114,12 @@ fn main() {
                     in_game::update_player_position,
                     in_game::update_ground_position,
                     in_game::update_object_position,
+                    // This system is for debugging player states and is only compiled when
+                    // the "no-debuging-player" feature is NOT enabled.
+                    #[cfg(not(feature = "no-debuging-player"))]
+                    {
+                        in_game::handle_player
+                    },
                 )
                     .run_if(in_state(GameState::InGame)),
                 // This is a "conditional compilation" attribute. The code below will only be included

@@ -14,7 +14,7 @@ pub fn on_enter(mut commands: Commands) {
     commands.insert_resource(TrainFuel::default()); // Manages the player's fuel.
     commands.insert_resource(InputDelay::default()); // Prevents rapid lane changes.
     commands.insert_resource(PlayScore::default()); // Tracks the player's score.
-    commands.insert_resource(PlayerState::default());
+    commands.insert_resource(PlayerState::default()); // Manages the player's current state (e.g., Idle, Attacked).
     commands.insert_resource(RetiredGrounds::default()); // A queue for recycling ground entities.
     commands.insert_resource(ObjectSpawner::default());
 
@@ -108,6 +108,26 @@ pub fn on_exit(mut commands: Commands, query: Query<Entity, With<InGameStateEnti
 
 // --- PREUPDATE SYSTEMS ---
 
+/// A debug system to manually change the player's state or refill fuel.
+/// - `F5`: Toggles between `Idle` and `Debug` (invincible) states.
+/// - `F6`: Refills the player's fuel to 100%.
+#[cfg(not(feature = "no-debuging-player"))]
+pub fn handle_player(
+    keyboard_input: Res<ButtonInput<KeyCode>>,
+    mut state: ResMut<PlayerState>,
+    mut fuel: ResMut<TrainFuel>,
+) {
+    if keyboard_input.just_pressed(KeyCode::F5) {
+        *state = if state.is_debug() {
+            PlayerState::Idle
+        } else {
+            PlayerState::Debug
+        };
+    } else if keyboard_input.just_pressed(KeyCode::F6) {
+        fuel.remaining = 100.0;
+    }
+}
+
 /// A system that handles player input for movement and jumping.
 pub fn handle_player_input(
     keyboard_input: Res<ButtonInput<KeyCode>>,
@@ -140,10 +160,12 @@ pub fn handle_player_input(
 
 // --- UPDATE SYSTEMS ---
 
+/// A system that updates the input delay timer, preventing rapid lane changes.
 pub fn update_input_delay(mut delay: ResMut<InputDelay>, time: Res<Time>) {
     delay.on_advanced(time.delta_secs());
 }
 
+/// A system that updates the player's state over time, for example, counting down the `Attacked` state duration.
 pub fn update_player_state(mut state: ResMut<PlayerState>, time: Res<Time>) {
     match &mut *state {
         PlayerState::Attacked { remaining } => {
@@ -166,9 +188,11 @@ pub fn update_score(mut score: ResMut<PlayScore>, time: Res<Time>) {
 }
 
 /// A system that consumes fuel over time and triggers a game over when it runs out.
-pub fn update_fuel(mut fuel: ResMut<TrainFuel>, time: Res<Time>) {
+pub fn update_fuel(mut fuel: ResMut<TrainFuel>, state: Res<PlayerState>, time: Res<Time>) {
     // Decrease the fuel based on the time elapsed and the defined usage rate.
-    fuel.saturating_sub(time.delta_secs() * FUEL_USAGE);
+    if !state.is_invincible() {
+        fuel.saturating_sub(time.delta_secs() * FUEL_USAGE);
+    }
 
     // If fuel is empty, the game should end.
     if fuel.is_empty() {
@@ -225,6 +249,7 @@ pub fn update_ground_position(
     }
 }
 
+/// A system that moves spawned objects (obstacles, items) towards the player and despawns them when they go off-screen.
 pub fn update_object_position(
     mut commands: Commands,
     player_query: Query<&ForwardMovement, With<Player>>,
@@ -331,7 +356,7 @@ pub fn spawn_grounds(
     const MODELS: [GroundModel; 1] = [GroundModel::Plane0];
 
     while let Some(mut transform) = retired.transforms.pop_front() {
-        // Use thread_rng for better random number generation.
+        // Randomly select a ground model to spawn next.
         let model = MODELS[rand::random_range(0..MODELS.len())];
         let model_handle = cached_grounds.models.get(&model).unwrap();
         transform.translation.z += 150.0;
@@ -345,6 +370,8 @@ pub fn spawn_grounds(
     }
 }
 
+/// A system that spawns new objects (obstacles, items) based on the player's forward movement.
+/// It uses a weighted random distribution to select which object to spawn next.
 pub fn spawn_objects(
     mut commands: Commands,
     mut spawner: ResMut<ObjectSpawner>,
@@ -374,23 +401,41 @@ pub fn spawn_objects(
 
 /// A system that checks for collisions between the player and obstacles.
 pub fn check_for_collisions(
+    mut commands: Commands,
     mut fuel: ResMut<TrainFuel>,
     mut state: ResMut<PlayerState>,
     player_query: Query<(&Collider, &Transform), With<Player>>,
-    object_query: Query<(&SpawnObject, &Collider, &Transform)>,
+    object_query: Query<(Entity, &SpawnObject, &Collider, &Transform)>,
 ) {
-    for (obj, o_collider, o_trans) in object_query.iter() {
+    for (entity, object, o_collider, o_trans) in object_query.iter() {
         if let Ok((p_collider, p_trans)) = player_query.single()
             && p_collider.intersects(p_trans, o_collider, o_trans)
         {
             info!("Collision detected!");
-            match (*state, *obj) {
-                (PlayerState::Idle, SpawnObject::Obstacle) => {
-                    fuel.saturating_sub(10.0);
+            match (*state, *object) {
+                (PlayerState::Idle, SpawnObject::Fence0) => {
+                    fuel.saturating_sub(FENCE_AMOUNT);
                     *state = PlayerState::Attacked {
                         remaining: ATTACKED_DURATION,
                     };
                 }
+                (PlayerState::Idle, SpawnObject::Stone0) => {
+                    fuel.saturating_sub(STONE_AMOUNT);
+                    *state = PlayerState::Attacked {
+                        remaining: ATTACKED_DURATION,
+                    };
+                }
+                (PlayerState::Idle, SpawnObject::Fuel) => {
+                    fuel.add(FUEL_AMOUNT);
+                    commands.entity(entity).despawn();
+                }
+                (PlayerState::Attacked { .. }, SpawnObject::Fuel) => {
+                    fuel.add(FUEL_AMOUNT);
+                    commands.entity(entity).despawn();
+                }
+                // (PlayerState::Invincible { .. }, SpawnObject::Fuel) => {
+                //     fuel.add(FUEL_AMOUNT);
+                // }
                 _ => { /* empty */ }
             }
             break;
@@ -546,6 +591,10 @@ fn update_player_effect_recursive(
     {
         // Apply an effect based on the current player state.
         match state {
+            #[cfg(not(feature = "no-debuging-player"))]
+            PlayerState::Debug => {
+                material.base_color = Color::BLACK;
+            }
             PlayerState::Idle => {
                 material.base_color = Color::WHITE;
             }
@@ -554,7 +603,13 @@ fn update_player_effect_recursive(
                 let t = *remaining * ATTACKED_EFFECT_CYCLE;
                 let fill = 0.5 * t.cos() + 0.5;
                 material.base_color = Color::srgb(fill, fill, fill);
-            }
+            } // PlayerState::Invincible { remaining } => {
+              //     let h = (INVINCIBLE_DURATION - *remaining).max(0.0) / INVINCIBLE_DURATION;
+              //     let hh = 0.5 * h;
+              //     let t = *remaining * INVINCIBLE_EFFECT_CYCLE;
+              //     let fill = hh * t.cos() + hh;
+              //     material.base_color = Color::srgb(fill, fill, fill);
+              // }
         }
     }
 

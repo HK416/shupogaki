@@ -5,12 +5,17 @@ use bevy::{
 };
 use serde::Deserialize;
 
+use crate::asset::Float4;
+
 /// A serializable representation of a material, designed for loading from a file.
 ///
 /// This struct holds optional values for material properties, which are then
 /// used to construct a Bevy `StandardMaterial`.
 #[derive(Debug, Deserialize, Clone)]
 pub struct SerializableMaterial {
+    /// The base color of the material.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    base_color: Option<Float4>,
     /// The name of the base color texture file (without path or extension).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub base_color_texture: Option<String>,
@@ -68,6 +73,12 @@ impl AssetLoader for MaterialAssetLoader {
             // Deserialize the bytes from JSON into a `SerializableMaterial`.
             let serializable: SerializableMaterial = serde_json::from_slice(&bytes)?;
 
+            let base_color = serializable
+                .base_color
+                .as_ref()
+                .map(|v| Color::srgba(v.x, v.y, v.z, v.w))
+                .unwrap_or(Color::WHITE);
+
             // Load the base color texture as a dependency.
             // The material file specifies texture names without extensions or full paths.
             // We construct the full asset path here to load our custom `.texture` format.
@@ -79,6 +90,7 @@ impl AssetLoader for MaterialAssetLoader {
             // Create the final `StandardMaterial` asset using the loaded data.
             // Default values are used if properties are not specified in the file.
             Ok(StandardMaterial {
+                base_color,
                 base_color_texture,
                 metallic: serializable
                     .metallic

@@ -4,12 +4,16 @@ pub mod in_game_load;
 use std::{
     collections::{HashMap, VecDeque},
     f32::consts::PI,
+    ops::RangeInclusive,
 };
 
 // Import necessary Bevy modules.
 use bevy::prelude::*;
 use lazy_static::lazy_static;
-use rand::distr::{Distribution, weighted::WeightedIndex};
+use rand::{
+    Rng,
+    distr::{Distribution, weighted::WeightedIndex},
+};
 
 use crate::asset::model::ModelAsset;
 
@@ -40,6 +44,7 @@ const SCORE_CYCLE: u32 = 100;
 const FUEL_DECO_CYCLE: f32 = PI * 1.0;
 /// The cycle speed of the flashing effect when the player is attacked.
 const ATTACKED_EFFECT_CYCLE: f32 = PI * 8.0;
+// const INVINCIBLE_EFFECT_CYCLE: f32 = PI * 8.0;
 
 /// The color of the fuel gauge's decorative border.
 const FUEL_COLOR: Color = Color::srgb(48.0 / 255.0, 55.0 / 255.0, 70.0 / 255.0);
@@ -53,30 +58,49 @@ const FUEL_USAGE: f32 = 100.0 / 16.0;
 
 /// The duration in seconds that the player remains in the "attacked" state.
 const ATTACKED_DURATION: f32 = 3.0;
+// const INVINCIBLE_DURATION: f32 = 6.0;
 
 // --- Obstacle Spawning Constants ---
 /// The total number of different obstacle types available to spawn.
-const NUM_SPAWN_OBJECTS: usize = 1;
+const NUM_SPAWN_OBJECTS: usize = 3;
 /// An array defining the types of objects that can be spawned.
-const SPAWN_OBJECTS: [SpawnObject; NUM_SPAWN_OBJECTS] = [SpawnObject::Obstacle];
+const SPAWN_OBJECTS: [SpawnObject; NUM_SPAWN_OBJECTS] =
+    [SpawnObject::Fence0, SpawnObject::Stone0, SpawnObject::Fuel];
 /// The corresponding weights for each object in `SPAWN_OBJECTS`, used for weighted random selection.
-const SPAWN_WEIGHTS: [u32; NUM_SPAWN_OBJECTS] = [5];
+const SPAWN_WEIGHTS: [u32; NUM_SPAWN_OBJECTS] = [5, 5, 4];
 /// The Z-coordinate where new objects are spawned, far in front of the player.
 const SPAWN_LOCATION: f32 = 100.0;
 /// The Z-coordinate at which objects are despawned, far behind the player.
 const DESPAWN_LOCATION: f32 = -100.0;
 /// The distance the player travels before a new obstacle is spawned.
 const SPAWN_INTERVAL: f32 = 25.0;
+/// The random range of Z-offset applied to each spawned object to vary spacing.
+const SPAWN_OFFSETS: RangeInclusive<f32> = -5.0..=5.0;
+
+/// The amount of fuel lost when hitting a fence.
+const FENCE_AMOUNT: f32 = 10.0;
+/// The amount of fuel lost when hitting a stone.
+const STONE_AMOUNT: f32 = 20.0;
+/// The amount of fuel gained when collecting a fuel item.
+const FUEL_AMOUNT: f32 = 15.0;
 
 lazy_static! {
-    static ref OBJECT_OFFSETS: HashMap<SpawnObject, Vec3> =
-        [(SpawnObject::Obstacle, Vec3::new(0.0, 0.5, 0.0)),]
-            .into_iter()
-            .collect();
-    static ref OBJECT_EXTENTS: HashMap<SpawnObject, Vec3> =
-        [(SpawnObject::Obstacle, Vec3::splat(1.0)),]
-            .into_iter()
-            .collect();
+    /// A map defining the visual and collider offset for each spawnable object.
+    static ref OBJECT_OFFSETS: HashMap<SpawnObject, Vec3> = [
+        (SpawnObject::Fence0, Vec3::new(0.0, 0.5, 0.0)),
+        (SpawnObject::Stone0, Vec3::new(0.0, 0.5, 0.0)),
+        (SpawnObject::Fuel, Vec3::new(0.0, 0.5, 0.0)),
+    ]
+    .into_iter()
+    .collect();
+    /// A map defining the collider extents (size) for each spawnable object.
+    static ref OBJECT_EXTENTS: HashMap<SpawnObject, Vec3> = [
+        (SpawnObject::Fence0, Vec3::splat(1.0)),
+        (SpawnObject::Stone0, Vec3::splat(1.0)),
+        (SpawnObject::Fuel, Vec3::splat(0.5)),
+    ]
+    .into_iter()
+    .collect();
 }
 
 // --- STATES ---
@@ -106,7 +130,10 @@ pub struct Ground;
 #[derive(Debug, Default, Clone, Copy, Component, PartialEq, Eq, Hash)]
 pub enum SpawnObject {
     #[default]
-    Obstacle,
+    Fence0,
+    Stone0,
+    Fuel,
+    // Aoba,
 }
 
 /// A marker component for entities that should only exist during the `InGameLoad` state.
@@ -252,11 +279,33 @@ impl Default for InputDelay {
 /// Defines the player's current state, which can affect gameplay and visual effects.
 #[derive(Clone, Copy, Default, Resource)]
 pub enum PlayerState {
+    #[cfg(not(feature = "no-debuging-player"))]
+    Debug,
     /// The default, normal state.
     #[default]
     Idle,
     /// The state after being hit by an obstacle. Includes a timer for how long the state lasts.
     Attacked { remaining: f32 },
+    // Invincible {
+    //     remaining: f32,
+    // },
+}
+
+impl PlayerState {
+    #[cfg(not(feature = "no-debuging-player"))]
+    pub fn is_debug(&self) -> bool {
+        matches!(self, PlayerState::Debug)
+    }
+
+    #[allow(clippy::match_like_matches_macro)]
+    pub fn is_invincible(&self) -> bool {
+        match self {
+            #[cfg(not(feature = "no-debuging-player"))]
+            PlayerState::Debug => true,
+            // PlayerState::Invincible { .. } => true,
+            _ => false,
+        }
+    }
 }
 
 /// A resource that manages the spawning of objects over a distance.
@@ -269,6 +318,13 @@ pub struct ObjectSpawner {
 }
 
 impl ObjectSpawner {
+    /// Advances the spawner based on the distance the player has traveled.
+    ///
+    /// If the traveled distance exceeds the `SPAWN_INTERVAL`, this method determines
+    /// that a new object should be spawned. It returns the type of object to spawn
+    /// and a `delta` value, which is the small amount of Z-offset needed to ensure
+    /// the object spawns at the correct position relative to the player, even if the
+    /// frame rate varies. It then schedules the next object to be spawned.
     pub fn on_advanced(
         &mut self,
         forward_move: &ForwardMovement,
@@ -276,14 +332,16 @@ impl ObjectSpawner {
     ) -> Option<(SpawnObject, f32)> {
         self.distance += forward_move.velocity.abs() * delta_time;
         if self.distance >= SPAWN_INTERVAL {
+            let mut rng = rand::rng();
             let distr = WeightedIndex::new(SPAWN_WEIGHTS).unwrap();
-            let selected_index = distr.sample(&mut rand::rng());
+            let selected_index = distr.sample(&mut rng);
             let selected_item = SPAWN_OBJECTS[selected_index];
 
             let obj = self.next_obj;
             let delta = SPAWN_INTERVAL - self.distance;
 
-            self.distance -= SPAWN_INTERVAL;
+            let offset = rng.random_range(SPAWN_OFFSETS);
+            self.distance -= SPAWN_INTERVAL + offset;
             self.next_obj = selected_item;
 
             Some((obj, delta))

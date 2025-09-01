@@ -61,9 +61,22 @@ pub fn on_enter(mut commands: Commands, asset_server: Res<AssetServer>) {
     // Add its handle to the loading tracker.
     loading_assets.handles.push(model.clone().into());
     // Cache the handle for reuse when spawning new obstacles during gameplay.
-    cached_objects
-        .models
-        .insert(SpawnObject::Obstacle, model.clone());
+    cached_objects.models.insert(SpawnObject::Fence0, model);
+
+    // Load the model for the stone obstacle.
+    let model: Handle<ModelAsset> = asset_server.load("models/Stone_0.hierarchy");
+    // Add its handle to the loading tracker.
+    loading_assets.handles.push(model.clone().into());
+    // Cache the handle for reuse when spawning new obstacles during gameplay.
+    cached_objects.models.insert(SpawnObject::Stone0, model);
+
+    // --- Item Loading ---
+    // Load the model for the fuel item.
+    let model: Handle<ModelAsset> = asset_server.load("models/Fuel.hierarchy");
+    // Add its handle to the loading tracker.
+    loading_assets.handles.push(model.clone().into());
+    // Cache the handle for reuse when spawning new item during gameplay.
+    cached_objects.models.insert(SpawnObject::Fuel, model);
 
     // --- Player and Toy Train Loading ---
     // Load all models and animations for the player and toy trains.
@@ -293,7 +306,7 @@ fn create_in_game_ui(
                 ..Default::default()
             },
             InGameStateEntity,
-            ViewVisibility::HIDDEN, // Use ViewVisibility to control the entire hierarchy's visibility.
+            Visibility::Hidden, // Use `Visibility::Hidden` to hide the entire UI hierarchy initially.
         ))
         .with_children(|parent| {
             // Create the background/border of the fuel gauge.
