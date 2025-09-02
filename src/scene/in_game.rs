@@ -185,13 +185,6 @@ pub fn update_score(
     mut score: ResMut<PlayScore>,
     time: Res<Time>,
 ) {
-    // Grant score based on elapsed time.
-    score.timer += (time.delta_secs() * 1000.0).floor() as u32;
-    if score.timer >= SCORE_TIMER_CYCLE {
-        score.accum = score.accum.saturating_add(score.timer / SCORE_TIMER_CYCLE);
-        score.timer %= SCORE_TIMER_CYCLE;
-    }
-
     // Grant score based on distance traveled.
     if let Ok(forward_move) = player_query.single() {
         score.distance += forward_move.velocity * time.delta_secs();
@@ -413,11 +406,11 @@ pub fn check_for_collisions(
     mut commands: Commands,
     mut fuel: ResMut<TrainFuel>,
     mut state: ResMut<PlayerState>,
-    player_query: Query<(&Collider, &Transform), With<Player>>,
+    mut player_query: Query<(&Collider, &Transform, &mut ForwardMovement), With<Player>>,
     object_query: Query<(Entity, &SpawnObject, &Collider, &Transform)>,
 ) {
     for (entity, object, o_collider, o_trans) in object_query.iter() {
-        if let Ok((p_collider, p_trans)) = player_query.single()
+        if let Ok((p_collider, p_trans, mut forward_move)) = player_query.single_mut()
             && p_collider.intersects(p_trans, o_collider, o_trans)
         {
             info!("Collision detected!");
@@ -425,6 +418,7 @@ pub fn check_for_collisions(
                 // If idle and hits a fence, lose fuel and enter `Attacked` state.
                 (PlayerState::Idle, SpawnObject::Fence0) => {
                     fuel.saturating_sub(FENCE_AMOUNT);
+                    forward_move.reset();
                     *state = PlayerState::Attacked {
                         remaining: ATTACKED_DURATION,
                     };
@@ -432,6 +426,7 @@ pub fn check_for_collisions(
                 // If idle and hits a stone, lose fuel and enter `Attacked` state.
                 (PlayerState::Idle, SpawnObject::Stone0) => {
                     fuel.saturating_sub(STONE_AMOUNT);
+                    forward_move.reset();
                     *state = PlayerState::Attacked {
                         remaining: ATTACKED_DURATION,
                     };
@@ -537,11 +532,19 @@ pub fn update_fuel_deco(mut query: Query<&mut Node, With<FuelDeco>>, time: Res<T
 }
 
 /// A system that updates the fuel gauge's width to visually represent the remaining fuel percentage.
-pub fn update_fuel_gauge(mut query: Query<&mut Node, With<FuelGauge>>, fuel: Res<TrainFuel>) {
-    if let Ok(mut node) = query.single_mut() {
+pub fn update_fuel_gauge(
+    mut query: Query<(&mut Node, &mut BackgroundColor), With<FuelGauge>>,
+    fuel: Res<TrainFuel>,
+) {
+    if let Ok((mut node, mut color)) = query.single_mut() {
         // Directly map the remaining fuel (which is a percentage from 0.0 to 100.0)
         // to the width of the UI node, also as a percentage.
         node.width = Val::Percent(fuel.remaining);
+        color.0 = match fuel.remaining {
+            50.0..=100.0 => FUEL_GOOD_GAUGE_COLOR,
+            25.0..=50.0 => FUEL_FAIR_GAUGE_COLOR,
+            _ => FUEL_POOR_GAUGE_COLOR,
+        };
     }
 }
 

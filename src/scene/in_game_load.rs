@@ -335,7 +335,7 @@ fn create_in_game_ui(
                             height: Val::Percent(100.0),
                             ..Default::default()
                         },
-                        BackgroundColor(FUEL_GAUGE_COLOR),
+                        BackgroundColor(FUEL_GOOD_GAUGE_COLOR),
                         BorderRadius::all(Val::Percent(50.0)),
                         Visibility::Inherited,
                         ZIndex(1), // Drawn below the border.

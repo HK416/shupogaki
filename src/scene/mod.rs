@@ -38,7 +38,7 @@ const SPEED: f32 = 20.0;
 /// The maximum forward movement speed the player can reach.
 const MAX_SPEED: f32 = 30.0;
 /// The rate at which the player's speed increases over time.
-const ACCELERATION: f32 = (MAX_SPEED - SPEED) / (60.0 * 3.0);
+const ACCELERATION: f32 = (MAX_SPEED - SPEED) / 30.0;
 /// The strength of gravity affecting the player.
 const GRAVITY: f32 = -30.0;
 /// The initial upward velocity of the player's jump.
@@ -47,9 +47,7 @@ const JUMP_STRENGTH: f32 = 12.5;
 const LANE_CHANGE_SPEED: f32 = 5.0;
 
 /// The distance the player must travel to gain one score point from movement.
-const SCORE_DIST_CYCLE: f32 = 1000.0;
-/// The time in milliseconds that must pass to gain one score point from time.
-const SCORE_TIMER_CYCLE: u32 = 100;
+const SCORE_DIST_CYCLE: f32 = 1.0;
 /// The cycle speed of the fuel decoration's bobbing animation.
 const FUEL_DECO_CYCLE: f32 = PI * 1.0;
 /// The cycle speed of the flashing effect when the player is attacked.
@@ -58,13 +56,17 @@ const ATTACKED_EFFECT_CYCLE: f32 = PI * 8.0;
 
 /// The color of the fuel gauge's decorative border.
 const FUEL_COLOR: Color = Color::srgb(48.0 / 255.0, 55.0 / 255.0, 70.0 / 255.0);
-/// The color of the fuel gauge's indicator bar.
-const FUEL_GAUGE_COLOR: Color = Color::srgb(0.2, 0.8, 0.2);
+// The color of the fuel gauge's indicator bar when fuel is plentiful (green).
+const FUEL_GOOD_GAUGE_COLOR: Color = Color::srgb(0.2, 0.8, 0.2);
+/// The color of the fuel gauge's indicator bar when fuel is at a medium level (yellow).
+const FUEL_FAIR_GAUGE_COLOR: Color = Color::srgb(0.8, 0.8, 0.2);
+/// The color of the fuel gauge's indicator bar when fuel is low (red).
+const FUEL_POOR_GAUGE_COLOR: Color = Color::srgb(0.8, 0.2, 0.2);
 /// The color of the loading bar.
 const LOADING_BAR_COLOR: Color = Color::srgb(0.2, 0.8, 0.2);
 
 /// The rate at which fuel is consumed per second.
-const FUEL_USAGE: f32 = 100.0 / 30.0;
+const FUEL_USAGE: f32 = 100.0 / 20.0;
 
 /// The duration in seconds that the player remains in the "attacked" state.
 const ATTACKED_DURATION: f32 = 3.0;
@@ -246,6 +248,13 @@ pub struct ForwardMovement {
     velocity: f32,
 }
 
+impl ForwardMovement {
+    /// Resets the entity's forward velocity to the initial `SPEED`.
+    pub fn reset(&mut self) {
+        self.velocity = SPEED;
+    }
+}
+
 impl Default for ForwardMovement {
     fn default() -> Self {
         Self { velocity: SPEED }
@@ -272,14 +281,21 @@ pub struct AnimationClipHandle(pub Handle<AnimationClip>);
 // --- RESOURCES ---
 
 /// A resource to track the player's score.
-#[derive(Default, Resource)]
+#[derive(Resource)]
 pub struct PlayScore {
-    /// A timer that accumulates milliseconds to grant score over time.
-    timer: u32,
     /// The total accumulated score.
     accum: u32,
     /// The distance traveled, used to grant score over distance.
     distance: f32,
+}
+
+impl Default for PlayScore {
+    fn default() -> Self {
+        Self {
+            accum: 0,
+            distance: 0.0,
+        }
+    }
 }
 
 /// A resource to manage the delay between player inputs.
