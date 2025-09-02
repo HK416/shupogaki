@@ -1,5 +1,6 @@
 pub mod in_game;
-pub mod in_game_load;
+pub mod loading;
+pub mod prepare;
 
 use std::{
     collections::{HashMap, VecDeque},
@@ -29,6 +30,10 @@ const NUM_LANES: usize = 3;
 const MAX_LANE_INDEX: usize = NUM_LANES - 1;
 /// The x-coordinates for each lane.
 const LANE_LOCATIONS: [f32; NUM_LANES] = [-3.0, 0.25, 3.5];
+const PLAYER_MIN_Z_POS: f32 = -20.0;
+const PLAYER_MAX_Z_POS: f32 = -7.5;
+
+const UI_ANIMATION_DURATION: f32 = 1.0;
 
 /// The delay between player inputs in seconds, to prevent overly sensitive controls.
 const INPUT_DELAY: f32 = 0.25;
@@ -144,7 +149,8 @@ lazy_static! {
 pub enum GameState {
     /// The default state, where assets are loaded.
     #[default]
-    InGameLoading,
+    Loading,
+    Prepare,
     /// The state where the main gameplay occurs.
     InGame,
 }
@@ -191,9 +197,9 @@ pub struct ToyTrain1;
 #[derive(Component)]
 pub struct ToyTrain2;
 
-/// A marker component for the score text UI element.
+/// A marker component for the UI element.
 #[derive(Component)]
-pub struct Score;
+pub struct UI;
 
 /// A marker component for the fuel gauge's decorative background.
 #[derive(Component)]

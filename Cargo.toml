@@ -18,6 +18,7 @@ panic = "abort"
 strip = true
 
 [dependencies]
+bevy_tweening = { version = "0.13", default-features = false, features = ["bevy_ui"] }
 image = { version = "0.25", default-features = false, features = ["png"] }
 lazy_static = "1.5"
 rand = "0.9"

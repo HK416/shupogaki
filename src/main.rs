@@ -15,6 +15,7 @@ use bevy::{
     log::{Level, LogPlugin},
     prelude::*,
 };
+use bevy_tweening::TweeningPlugin;
 
 // Conditionally import the Collider for debug gizmos.
 #[cfg(not(feature = "no-debuging-gizmo"))]
@@ -22,7 +23,7 @@ use crate::collider::Collider;
 // Import local modules for asset handling and game scenes.
 use crate::{
     asset::spawner::CustomAssetPlugin,
-    scene::{GameState, in_game, in_game_load},
+    scene::{GameState, in_game, loading, prepare},
 };
 
 // --- MAIN FUNCTION ---
@@ -31,66 +32,101 @@ fn main() {
     App::new()
         // --- CORE PLUGINS ---
         // Adds the default Bevy plugins, which provide essential cross-platform functionality.
-        .add_plugins((DefaultPlugins
-            // Configure the primary window.
-            .set(WindowPlugin {
-                primary_window: Some(Window {
-                    title: "Shupogaki 💢".into(),
-                    resolution: (1280.0, 720.0).into(),
-                    // Fit the canvas to the parent element, useful for web builds.
-                    fit_canvas_to_parent: true,
-                    // Prevent the browser from handling default events, like scrolling.
-                    prevent_default_event_handling: false,
+        .add_plugins((
+            DefaultPlugins
+                // Configure the primary window.
+                .set(WindowPlugin {
+                    primary_window: Some(Window {
+                        title: "Shupogaki 💢".into(),
+                        resolution: (1280.0, 720.0).into(),
+                        // Fit the canvas to the parent element, useful for web builds.
+                        fit_canvas_to_parent: true,
+                        // Prevent the browser from handling default events, like scrolling.
+                        prevent_default_event_handling: false,
+                        ..default()
+                    }),
                     ..default()
+                })
+                // Configure the logging plugin.
+                .set(LogPlugin {
+                    // Set the log level based on a feature flag.
+                    // Use WARN level if 'no-debuging-log' is enabled, otherwise INFO.
+                    level: if cfg!(feature = "no-debuging-log") {
+                        Level::WARN
+                    } else {
+                        Level::INFO
+                    },
+                    ..Default::default()
                 }),
-                ..default()
-            })
-            // Configure the logging plugin.
-            .set(LogPlugin {
-                // Set the log level based on a feature flag.
-                // Use WARN level if 'no-debuging-log' is enabled, otherwise INFO.
-                level: if cfg!(feature = "no-debuging-log") {
-                    Level::WARN
-                } else {
-                    Level::INFO
-                },
-                ..Default::default()
-            }),))
+            TweeningPlugin,
+        ))
         // --- CUSTOM PLUGINS ---
         // Adds the custom asset plugin for loading and managing game assets.
         .add_plugins(CustomAssetPlugin)
         // --- STATE MANAGEMENT ---
         // Initializes the game's state machine. This controls the overall application flow,
-        // determining which systems run based on the current state (e.g., InGameLoading vs. InGame).
+        // determining which systems run based on the current state (e.g., Loading vs. InGame).
         .init_state::<GameState>()
-        // --- IN-GAME LOADING STATE ---
+        // --- LOADING STATE ---
         // Defines systems to run while assets are loading.
-        .add_systems(OnEnter(GameState::InGameLoading), in_game_load::on_enter)
-        .add_systems(OnExit(GameState::InGameLoading), in_game_load::on_exit)
+        .add_systems(OnEnter(GameState::Loading), loading::on_enter)
+        .add_systems(OnExit(GameState::Loading), loading::on_exit)
         .add_systems(
             Update,
             (
                 // Checks the loading progress of assets and transitions state when done.
-                in_game_load::check_loading_progress,
+                loading::check_loading_progress,
                 // Updates the loading bar UI to reflect asset loading progress.
-                in_game_load::update_loading_bar,
-                // Animates the "Loading..." text for visual feedback.
-                in_game_load::change_text_scale,
+                loading::update_loading_bar,
+                // Scales the "Loading..." text when the window is resized.
+                loading::change_text_scale,
             )
                 // This is a "Run Condition". These systems will only execute
-                // if the game state is currently `InGameLoading`.
-                .run_if(in_state(GameState::InGameLoading)),
+                // if the game state is currently `GameState::Loading`.
+                .run_if(in_state(GameState::Loading)),
+        )
+        // --- PREPARE STATE ---
+        // Defines systems for the brief intro scene before gameplay starts.
+        .add_systems(
+            OnEnter(GameState::Prepare),
+            (
+                // Sets up the main game scene (player controller, camera, lighting).
+                prepare::on_enter,
+                // Starts character and other animations once their models are loaded.
+                prepare::play_animation,
+            ),
+        )
+        .add_systems(OnExit(GameState::Prepare), prepare::on_exit)
+        .add_systems(
+            Update,
+            (
+                // Advances the scene timer to transition to InGame state.
+                prepare::update_scene_timer,
+                // Animates the player moving into the start position.
+                prepare::update_player_position.after(prepare::update_scene_timer),
+                // Run background scrolling systems during the prepare state for a seamless transition.
+                in_game::update_ground_position,
+                in_game::update_object_position,
+            )
+                .run_if(in_state(GameState::Prepare)),
+        )
+        .add_systems(
+            PostUpdate,
+            (
+                // These systems also run during Prepare to ensure the world is active and moving.
+                in_game::update_toy_trains,
+                in_game::spawn_grounds,
+                in_game::spawn_objects,
+                in_game::update_fuel_deco,
+            )
+                .run_if(in_state(GameState::Prepare)),
         )
         // --- IN-GAME STATE ---
         // Defines systems that run when the main gameplay starts.
         .add_systems(
             OnEnter(GameState::InGame),
-            (
-                // Sets up the main game scene (player, camera, lighting, UI).
-                in_game::on_enter,
-                // Starts character and other animations once their models are loaded.
-                in_game::play_animation,
-            ),
+            // Make the UI visible and start its animations.
+            (in_game::on_enter, in_game::play_ui_animation),
         )
         // Defines systems that run when exiting the `InGame` state for cleanup.
         .add_systems(OnExit(GameState::InGame), in_game::on_exit)
@@ -114,6 +150,7 @@ fn main() {
                     in_game::update_player_position,
                     in_game::update_ground_position,
                     in_game::update_object_position,
+                    in_game::cleanup_ui_animation,
                     // This system is for debugging player states and is only compiled when
                     // the "no-debuging-player" feature is NOT enabled.
                     #[cfg(not(feature = "no-debuging-player"))]
@@ -180,6 +217,7 @@ pub fn draw_collider_gizmos(mut gizmos: Gizmos, query: Query<(&Collider, &Transf
 
     // Iterate over all entities with a Collider component.
     for (collider, transform) in query.iter() {
+        // Draw axes to show the orientation of the entity.
         gizmos.axes(*transform, 2.0);
 
         match collider {

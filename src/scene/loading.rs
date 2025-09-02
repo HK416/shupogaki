@@ -1,5 +1,17 @@
+// src/scene/loading.rs
+
+//! This module handles the `Loading` game state. It is responsible for:
+//! - Displaying a loading screen with a progress bar.
+//! - Loading all necessary game assets, including models, animations, and UI textures.
+//! - Pre-spawning initial game entities (like the ground and player) and hiding them
+//!   to prevent stuttering when the game starts.
+//! - Transitioning to the `Prepare` state once all assets are loaded.
+
+use std::time::Duration;
+
 // Import necessary Bevy modules.
 use bevy::{prelude::*, window::WindowResized};
+use bevy_tweening::{Animator, AnimatorState, Tween, lens::UiPositionLens};
 
 use crate::asset::{model::ModelAsset, spawner::SpawnModel};
 
@@ -25,7 +37,7 @@ pub struct LoadingAssets {
 
 // --- SETUP SYSTEM ---
 
-/// A system that runs once when entering the `InGameLoading` state.
+/// A system that runs once when entering the `GameState::Loading`.
 /// It sets up the loading screen UI and starts loading all necessary game assets.
 pub fn on_enter(mut commands: Commands, asset_server: Res<AssetServer>) {
     // Create resources to track loading progress and cache asset handles for later use.
@@ -56,7 +68,7 @@ pub fn on_enter(mut commands: Commands, asset_server: Res<AssetServer>) {
     }
 
     // --- Obstacle Loading ---
-    // Load the model for the rail obstacle.
+    // Load the model for the fence obstacle.
     let model: Handle<ModelAsset> = asset_server.load("models/Rail_0.hierarchy");
     // Add its handle to the loading tracker.
     loading_assets.handles.push(model.clone().into());
@@ -75,7 +87,7 @@ pub fn on_enter(mut commands: Commands, asset_server: Res<AssetServer>) {
     let model: Handle<ModelAsset> = asset_server.load("models/Fuel.hierarchy");
     // Add its handle to the loading tracker.
     loading_assets.handles.push(model.clone().into());
-    // Cache the handle for reuse when spawning new item during gameplay.
+    // Cache the handle for reuse when spawning new fuel items during gameplay.
     cached_objects.models.insert(SpawnObject::Fuel, model);
 
     // --- Player and Toy Train Loading ---
@@ -134,7 +146,7 @@ pub fn on_enter(mut commands: Commands, asset_server: Res<AssetServer>) {
         .spawn((
             SpawnModel(model),
             AnimationClipHandle(clip),
-            Transform::from_xyz(0.0, 0.375, 0.375),
+            Transform::from_xyz(0.0, 0.5, 0.375),
             InGameStateEntity,
             Visibility::Hidden,
         ))
@@ -199,11 +211,31 @@ fn create_in_game_ui(
                 align_items: AlignItems::Start,
                 ..Default::default()
             },
+            Animator::new(Tween::new(
+                EaseFunction::SmoothStep,
+                Duration::from_secs_f32(UI_ANIMATION_DURATION),
+                UiPositionLens {
+                    start: UiRect {
+                        top: Val::Vh(-20.0),
+                        left: Val::Vw(1.5),
+                        bottom: Val::Auto,
+                        right: Val::Auto,
+                    },
+                    end: UiRect {
+                        top: Val::Vh(1.5),
+                        left: Val::Vw(1.5),
+                        bottom: Val::Auto,
+                        right: Val::Auto,
+                    },
+                },
+            ))
+            .with_state(AnimatorState::Paused),
             InGameStateEntity,
             Visibility::Hidden,
-            Score,
+            UI,
         ))
         .with_children(|parent| {
+            // Spawn the 100,000s place digit.
             parent.spawn((
                 ImageNode::from_atlas_image(
                     texture_handle.clone(),
@@ -215,9 +247,10 @@ fn create_in_game_ui(
                     ..Default::default()
                 },
                 Visibility::Inherited,
-                ScoreSpace100000s, // Marker for the 100,000s place digit.
+                ScoreSpace100000s,
             ));
 
+            // Spawn the 10,000s place digit.
             parent.spawn((
                 ImageNode::from_atlas_image(
                     texture_handle.clone(),
@@ -229,9 +262,10 @@ fn create_in_game_ui(
                     ..Default::default()
                 },
                 Visibility::Inherited,
-                ScoreSpace10000s, // Marker for the 10,000s place digit.
+                ScoreSpace10000s,
             ));
 
+            // Spawn the 1,000s place digit.
             parent.spawn((
                 ImageNode::from_atlas_image(
                     texture_handle.clone(),
@@ -243,9 +277,10 @@ fn create_in_game_ui(
                     ..Default::default()
                 },
                 Visibility::Inherited,
-                ScoreSpace1000s, // Marker for the 1,000s place digit.
+                ScoreSpace1000s,
             ));
 
+            // Spawn the 100s place digit.
             parent.spawn((
                 ImageNode::from_atlas_image(
                     texture_handle.clone(),
@@ -257,9 +292,10 @@ fn create_in_game_ui(
                     ..Default::default()
                 },
                 Visibility::Inherited,
-                ScoreSpace100s, // Marker for the 100s place digit.
+                ScoreSpace100s,
             ));
 
+            // Spawn the 10s place digit.
             parent.spawn((
                 ImageNode::from_atlas_image(
                     texture_handle.clone(),
@@ -271,9 +307,10 @@ fn create_in_game_ui(
                     ..Default::default()
                 },
                 Visibility::Inherited,
-                ScoreSpace10s, // Marker for the 10s place digit.
+                ScoreSpace10s,
             ));
 
+            // Spawn the 1s place digit.
             parent.spawn((
                 ImageNode::from_atlas_image(
                     texture_handle.clone(),
@@ -285,7 +322,7 @@ fn create_in_game_ui(
                     ..Default::default()
                 },
                 Visibility::Inherited,
-                ScoreSpace1s, // Marker for the 1s place digit.
+                ScoreSpace1s,
             ));
         });
 
@@ -305,8 +342,28 @@ fn create_in_game_ui(
                 align_items: AlignItems::Center,
                 ..Default::default()
             },
+            Animator::new(Tween::new(
+                EaseFunction::SmoothStep,
+                Duration::from_secs_f32(UI_ANIMATION_DURATION),
+                UiPositionLens {
+                    start: UiRect {
+                        top: Val::Auto,
+                        left: Val::Auto,
+                        bottom: Val::Vh(-20.0),
+                        right: Val::Vw(3.0),
+                    },
+                    end: UiRect {
+                        top: Val::Auto,
+                        left: Val::Auto,
+                        bottom: Val::Vh(1.5),
+                        right: Val::Vw(3.0),
+                    },
+                },
+            ))
+            .with_state(AnimatorState::Paused),
             InGameStateEntity,
             Visibility::Hidden, // Use `Visibility::Hidden` to hide the entire UI hierarchy initially.
+            UI,                 // Marker component.
         ))
         .with_children(|parent| {
             // Create the background/border of the fuel gauge.
@@ -437,13 +494,13 @@ fn create_loading_ui(
 // --- CLEANUP SYSTEM ---
 
 /// A system that cleans up the loading screen and makes the game objects visible.
-/// This runs once when transitioning from `InGameLoading` to the `InGame` state.
+/// This runs once when transitioning from `GameState::Loading` to the `GameState::Prepare`.
 pub fn on_exit(
     mut commands: Commands,
     // Query for all entities that are part of the loading screen.
     load_entities: Query<Entity, With<InGameLoadStateEntity>>,
     // Query for all entities that are part of the main game.
-    mut in_game_entities: Query<&mut Visibility, With<InGameStateEntity>>,
+    mut in_game_entities: Query<&mut Visibility, (With<InGameStateEntity>, Without<UI>)>,
 ) {
     // Remove resources that were specific to the loading state.
     commands.remove_resource::<ClearColor>(); // Revert to the default background color.
@@ -464,8 +521,8 @@ pub fn on_exit(
 
 // --- UPDATE SYSTEM ---
 
-/// A system that checks if all assets are loaded and transitions to the `InGame` state.
-/// This runs continuously during the `InGameLoading` state.
+/// A system that checks if all assets are loaded and transitions to the `Prepare` state.
+/// This runs continuously during the `GameState::Loading`.
 pub fn check_loading_progress(
     asset_server: Res<AssetServer>,
     loading_assets: Res<LoadingAssets>,
@@ -477,9 +534,9 @@ pub fn check_loading_progress(
         .iter()
         .all(|handle| asset_server.is_loaded_with_dependencies(handle.id()));
 
-    // If all assets are loaded, transition to the `InGame` state.
+    // If all assets are loaded, transition to the `Prepare` state.
     if all_loaded {
-        next_state.set(GameState::InGame);
+        next_state.set(GameState::Prepare);
     }
 }
 

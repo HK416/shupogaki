@@ -1,5 +1,12 @@
+// src/scene/in_game.rs
+
+//! This module contains all the systems and components specific to the main `InGame`
+//! state. This is where the core gameplay logic resides, including player control,
+//! collision detection, scoring, and procedural generation of the environment.
+
 // Import necessary Bevy modules.
-use bevy::{prelude::*, render::camera::ScalingMode};
+use bevy::prelude::*;
+use bevy_tweening::{Animator, AnimatorState, TweenCompleted};
 
 use crate::{asset::spawner::SpawnModel, collider::Collider};
 
@@ -7,83 +14,18 @@ use super::*;
 
 // --- SETUP SYSTEM ---
 
-/// A system that sets up the initial game world when entering the `InGame` state.
-/// This includes initializing resources, and spawning the player, camera, and lighting.
-pub fn on_enter(mut commands: Commands) {
-    // --- Resource Initialization ---
-    // Insert resources required for the InGame state.
-    commands.insert_resource(TrainFuel::default());
-    commands.insert_resource(InputDelay::default());
-    commands.insert_resource(PlayScore::default());
-    commands.insert_resource(PlayerState::default());
-    commands.insert_resource(RetiredGrounds::default());
-    commands.insert_resource(ObjectSpawner::default());
-
-    // --- Player Spawn ---
-    // Spawn the main player controller entity. This entity itself is invisible
-    // but holds the core movement logic, collider, and other essential components.
-    commands.spawn((
-        Transform::from_xyz(0.0, 0.0, -7.5),
-        Lane::default(),
-        ForwardMovement::default(),
-        VerticalMovement::default(),
-        Collider::Aabb {
-            offset: Vec3::new(0.0, 0.5, -1.5),
-            size: Vec3::new(0.9, 1.0, 3.6),
-        },
-        InGameStateEntity, // Marker for game-specific entities.
-        Player,            // Marker for the player entity.
-    ));
-
-    // --- Lighting ---
-    // Spawn a directional light to illuminate the scene.
-    commands.spawn((
-        DirectionalLight {
-            illuminance: 30_000.0, // A bright, sun-like light.
-            shadows_enabled: true, // Enable shadows for realism.
-            ..Default::default()
-        },
-        Transform::from_xyz(8.0, 12.0, 10.0).looking_at(Vec3::ZERO, Vec3::Y),
-        InGameStateEntity,
-    ));
-
-    // --- Camera Spawn ---
-    // Spawn the 3D camera with an orthographic projection for a stylized, fixed-perspective look.
-    commands.spawn((
-        Camera3d::default(),
-        Projection::from(OrthographicProjection {
-            near: 0.1,
-            far: 100.0,
-            // Use a fixed scaling mode to ensure the view is consistent across different window sizes.
-            scaling_mode: ScalingMode::Fixed {
-                width: 16.0,
-                height: 9.0,
-            },
-            scale: 1.25, // Zoom out slightly.
-            ..OrthographicProjection::default_3d()
-        }),
-        // Position the camera and make it look at a point slightly above the origin.
-        Transform::from_xyz(12.0, 9.0, 12.0).looking_at((0.0, 1.5, 0.0).into(), Vec3::Y),
-        InGameStateEntity,
-    ));
+/// A system that runs once when entering `GameState::InGame`.
+/// It makes the in-game UI visible.
+pub fn on_enter(mut in_game_ui: Query<&mut Visibility, With<UI>>) {
+    for mut visibility in in_game_ui.iter_mut() {
+        *visibility = Visibility::Visible;
+    }
 }
 
-/// A system that plays the animation for entities with an `AnimationClipHandle`.
-/// This system is separate from the entity spawning to ensure that the animation graph is correctly setup after the model has been loaded.
-pub fn play_animation(
-    mut commands: Commands,
-    mut graphs: ResMut<Assets<AnimationGraph>>,
-    query: Query<(Entity, &AnimationClipHandle)>,
-) {
-    for (entity, clip) in query.iter() {
-        let (graph, animation_index) = AnimationGraph::from_clip(clip.0.clone());
-        let mut player = AnimationPlayer::default();
-        player.play(animation_index).repeat();
-
-        commands
-            .entity(entity)
-            .insert((AnimationGraphHandle(graphs.add(graph)), player))
-            .remove::<AnimationClipHandle>();
+/// A system that starts the UI animations when the game begins.
+pub fn play_ui_animation(mut query: Query<&mut Animator<Node>>) {
+    for mut animator in query.iter_mut() {
+        animator.state = AnimatorState::Playing;
     }
 }
 
@@ -175,11 +117,12 @@ pub fn update_player_state(mut state: ResMut<PlayerState>, time: Res<Time>) {
                 *state = PlayerState::Idle;
             }
         }
+        // Other states like `Idle` or `Debug` do not have a timed duration.
         _ => { /* empty */ }
     }
 }
 
-/// A system that updates the player's score based on elapsed time and distance traveled.
+/// A system that updates the player's score based on the distance traveled.
 pub fn update_score(
     player_query: Query<&ForwardMovement, With<Player>>,
     mut score: ResMut<PlayScore>,
@@ -280,6 +223,22 @@ pub fn update_object_position(
     }
 }
 
+/// A system that removes the `Animator<Node>` component from UI elements after their animation completes.
+/// This prevents the animation from re-playing and is a good practice for performance.
+pub fn cleanup_ui_animation(
+    mut commands: Commands,
+    mut reader: EventReader<TweenCompleted>,
+    query: Query<(), With<Animator<Node>>>,
+) {
+    for event in reader.read() {
+        let entity = event.entity;
+        if query.contains(entity) {
+            commands.entity(entity).remove::<Animator<Node>>();
+            info!("Animator removed!");
+        }
+    }
+}
+
 // --- POSTUPDATE SYSTEMS ---
 
 /// A system that updates the positions and rotations of the toy train cars.
@@ -300,7 +259,9 @@ pub fn update_toy_trains(
         .map(|transform| transform.translation.with_z(transform.translation.z + 1.5))
         .ok();
 
-    if let Some(mut position) = data {
+    if let Some(p_pos) = data {
+        let mut position = p_pos;
+
         // --- Update the first train car (ToyTrain0) ---
         if let Ok(mut transform) = set.p1().single_mut() {
             // Calculate the rotation required for the car to "look at" its target (`position`).
@@ -317,7 +278,7 @@ pub fn update_toy_trains(
             // Update this car's position to follow its target.
             transform.translation.x = position.x;
             transform.translation.y = position.y;
-            transform.translation.z = -7.5; // Keep a fixed Z-offset from the player controller.
+            transform.translation.z = p_pos.z - 1.5; // Keep a fixed Z-offset from the player controller.
             transform.rotation = rotation;
 
             // The target for the next car is now the old position of this car. This is the key to the chain movement.
@@ -335,7 +296,7 @@ pub fn update_toy_trains(
             let temp = transform.translation;
             transform.translation.x = position.x;
             transform.translation.y = position.y;
-            transform.translation.z = -9.0; // Keep a fixed Z-offset.
+            transform.translation.z = p_pos.z - 3.0; // Keep a fixed Z-offset.
             transform.rotation = rotation;
             position = temp;
         }
@@ -350,7 +311,7 @@ pub fn update_toy_trains(
 
             transform.translation.x = position.x;
             transform.translation.y = position.y;
-            transform.translation.z = -10.5; // Keep a fixed Z-offset.
+            transform.translation.z = p_pos.z - 4.25; // Keep a fixed Z-offset.
             transform.rotation = rotation;
         }
     }
@@ -531,7 +492,7 @@ pub fn update_fuel_deco(mut query: Query<&mut Node, With<FuelDeco>>, time: Res<T
     }
 }
 
-/// A system that updates the fuel gauge's width to visually represent the remaining fuel percentage.
+/// A system that updates the fuel gauge's width and color to visually represent the remaining fuel.
 pub fn update_fuel_gauge(
     mut query: Query<(&mut Node, &mut BackgroundColor), With<FuelGauge>>,
     fuel: Res<TrainFuel>,
@@ -540,6 +501,7 @@ pub fn update_fuel_gauge(
         // Directly map the remaining fuel (which is a percentage from 0.0 to 100.0)
         // to the width of the UI node, also as a percentage.
         node.width = Val::Percent(fuel.remaining);
+        // Change the color of the gauge based on the fuel level.
         color.0 = match fuel.remaining {
             50.0..=100.0 => FUEL_GOOD_GAUGE_COLOR,
             25.0..=50.0 => FUEL_FAIR_GAUGE_COLOR,
