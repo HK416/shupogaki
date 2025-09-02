@@ -7,25 +7,26 @@ use super::*;
 
 // --- SETUP SYSTEM ---
 
-/// A system that sets up the initial game world.
+/// A system that sets up the initial game world when entering the `InGame` state.
+/// This includes initializing resources, and spawning the player, camera, and lighting.
 pub fn on_enter(mut commands: Commands) {
     // --- Resource Initialization ---
-    // Insert resources required for the game state.
-    commands.insert_resource(TrainFuel::default()); // Manages the player's fuel.
-    commands.insert_resource(InputDelay::default()); // Prevents rapid lane changes.
-    commands.insert_resource(PlayScore::default()); // Tracks the player's score.
-    commands.insert_resource(PlayerState::default()); // Manages the player's current state (e.g., Idle, Attacked).
-    commands.insert_resource(RetiredGrounds::default()); // A queue for recycling ground entities.
+    // Insert resources required for the InGame state.
+    commands.insert_resource(TrainFuel::default());
+    commands.insert_resource(InputDelay::default());
+    commands.insert_resource(PlayScore::default());
+    commands.insert_resource(PlayerState::default());
+    commands.insert_resource(RetiredGrounds::default());
     commands.insert_resource(ObjectSpawner::default());
 
     // --- Player Spawn ---
     // Spawn the main player controller entity. This entity itself is invisible
-    // but holds the core movement logic and components.
+    // but holds the core movement logic, collider, and other essential components.
     commands.spawn((
         Transform::from_xyz(0.0, 0.0, -7.5),
-        Lane::default(),             // The player's current lane.
-        ForwardMovement::default(),  // Controls forward speed.
-        VerticalMovement::default(), // Controls jumping and gravity.
+        Lane::default(),
+        ForwardMovement::default(),
+        VerticalMovement::default(),
         Collider::Aabb {
             offset: Vec3::new(0.0, 0.5, -1.5),
             size: Vec3::new(0.9, 1.0, 3.6),
@@ -47,7 +48,7 @@ pub fn on_enter(mut commands: Commands) {
     ));
 
     // --- Camera Spawn ---
-    // Spawn the 3D camera with an orthographic projection for a stylized look.
+    // Spawn the 3D camera with an orthographic projection for a stylized, fixed-perspective look.
     commands.spawn((
         Camera3d::default(),
         Projection::from(OrthographicProjection {
@@ -178,12 +179,28 @@ pub fn update_player_state(mut state: ResMut<PlayerState>, time: Res<Time>) {
     }
 }
 
-/// A system that updates the player's score based on elapsed time.
-pub fn update_score(mut score: ResMut<PlayScore>, time: Res<Time>) {
+/// A system that updates the player's score based on elapsed time and distance traveled.
+pub fn update_score(
+    player_query: Query<&ForwardMovement, With<Player>>,
+    mut score: ResMut<PlayScore>,
+    time: Res<Time>,
+) {
+    // Grant score based on elapsed time.
     score.timer += (time.delta_secs() * 1000.0).floor() as u32;
-    if score.timer >= SCORE_CYCLE {
-        score.accum = score.accum.saturating_add(score.timer / SCORE_CYCLE);
-        score.timer %= SCORE_CYCLE;
+    if score.timer >= SCORE_TIMER_CYCLE {
+        score.accum = score.accum.saturating_add(score.timer / SCORE_TIMER_CYCLE);
+        score.timer %= SCORE_TIMER_CYCLE;
+    }
+
+    // Grant score based on distance traveled.
+    if let Ok(forward_move) = player_query.single() {
+        score.distance += forward_move.velocity * time.delta_secs();
+        if score.distance >= SCORE_DIST_CYCLE {
+            score.accum = score
+                .accum
+                .saturating_add((score.distance / SCORE_DIST_CYCLE).floor() as u32);
+            score.distance %= SCORE_DIST_CYCLE;
+        }
     }
 }
 
@@ -237,10 +254,11 @@ pub fn update_ground_position(
 ) {
     if let Ok(forward_move) = player_query.single() {
         for (entity, mut transform) in ground_query.iter_mut() {
-            // Move the ground towards the player.
+            // Move the ground towards the player based on the player's forward velocity.
             transform.translation.z -= forward_move.velocity * time.delta_secs();
 
-            // If the ground is off-screen, despawn it and add its transform to the retired queue.
+            // If the ground is far enough behind the player, despawn it and add its transform
+            // to the retired queue for reuse. The value -50.0 is chosen to be safely off-screen.
             if transform.translation.z <= -50.0 {
                 retired.transforms.push_back(*transform);
                 commands.entity(entity).despawn();
@@ -306,14 +324,14 @@ pub fn update_toy_trains(
             // Update this car's position to follow its target.
             transform.translation.x = position.x;
             transform.translation.y = position.y;
-            transform.translation.z = -7.5; // Keep a fixed Z-offset from the player.
+            transform.translation.z = -7.5; // Keep a fixed Z-offset from the player controller.
             transform.rotation = rotation;
 
             // The target for the next car is now the old position of this car. This is the key to the chain movement.
             position = temp;
         }
 
-        // Update the second train car.
+        // --- Update the second train car (ToyTrain1) ---
         if let Ok(mut transform) = set.p2().single_mut() {
             let z_axis = (transform.translation - position).normalize_or(Vec3::NEG_Z);
             let y_axis = Vec3::Y;
@@ -324,12 +342,12 @@ pub fn update_toy_trains(
             let temp = transform.translation;
             transform.translation.x = position.x;
             transform.translation.y = position.y;
-            transform.translation.z = -9.0;
+            transform.translation.z = -9.0; // Keep a fixed Z-offset.
             transform.rotation = rotation;
             position = temp;
         }
 
-        // Update the third train car.
+        // --- Update the third train car (ToyTrain2) ---
         if let Ok(mut transform) = set.p3().single_mut() {
             let z_axis = (transform.translation - position).normalize_or(Vec3::NEG_Z);
             let y_axis = Vec3::Y;
@@ -339,7 +357,7 @@ pub fn update_toy_trains(
 
             transform.translation.x = position.x;
             transform.translation.y = position.y;
-            transform.translation.z = -10.5;
+            transform.translation.z = -10.5; // Keep a fixed Z-offset.
             transform.rotation = rotation;
         }
     }
@@ -355,10 +373,13 @@ pub fn spawn_grounds(
 ) {
     const MODELS: [GroundModel; 1] = [GroundModel::Plane0];
 
+    // Process all retired ground transforms.
     while let Some(mut transform) = retired.transforms.pop_front() {
         // Randomly select a ground model to spawn next.
         let model = MODELS[rand::random_range(0..MODELS.len())];
         let model_handle = cached_grounds.models.get(&model).unwrap();
+        // Move the transform far ahead of the player to be reused.
+        // 150.0 is 3x the length of a ground segment (50.0).
         transform.translation.z += 150.0;
 
         commands.spawn((
@@ -372,6 +393,7 @@ pub fn spawn_grounds(
 
 /// A system that spawns new objects (obstacles, items) based on the player's forward movement.
 /// It uses a weighted random distribution to select which object to spawn next.
+/// The `while` loop ensures that multiple objects can be spawned in a single frame if the player travels a large distance.
 pub fn spawn_objects(
     mut commands: Commands,
     mut spawner: ResMut<ObjectSpawner>,
@@ -380,26 +402,13 @@ pub fn spawn_objects(
     time: Res<Time>,
 ) {
     if let Ok(forward_move) = player_query.single() {
-        while let Some((obj, delta)) = spawner.on_advanced(forward_move, time.delta_secs()) {
-            let lane_index = rand::random_range(0..NUM_LANES);
-            let lane_x = LANE_LOCATIONS[lane_index];
-
-            let model_handle = cached.models.get(&obj).unwrap();
-            let offset = OBJECT_OFFSETS.get(&obj).cloned().unwrap();
-            let size = OBJECT_EXTENTS.get(&obj).cloned().unwrap();
-
-            commands.spawn((
-                SpawnModel(model_handle.clone()),
-                Transform::from_xyz(lane_x, 0.0, SPAWN_LOCATION + delta),
-                Collider::Aabb { offset, size },
-                InGameStateEntity,
-                obj,
-            ));
-        }
+        while spawner.on_advanced(&cached, &mut commands, forward_move, time.delta_secs()) {}
     }
 }
 
-/// A system that checks for collisions between the player and obstacles.
+/// A system that checks for collisions between the player and other objects.
+/// When a collision is detected, it applies the appropriate effect (e.g., losing/gaining fuel)
+/// and despawns the object if necessary.
 pub fn check_for_collisions(
     mut commands: Commands,
     mut fuel: ResMut<TrainFuel>,
@@ -413,31 +422,38 @@ pub fn check_for_collisions(
         {
             info!("Collision detected!");
             match (*state, *object) {
+                // If idle and hits a fence, lose fuel and enter `Attacked` state.
                 (PlayerState::Idle, SpawnObject::Fence0) => {
                     fuel.saturating_sub(FENCE_AMOUNT);
                     *state = PlayerState::Attacked {
                         remaining: ATTACKED_DURATION,
                     };
                 }
+                // If idle and hits a stone, lose fuel and enter `Attacked` state.
                 (PlayerState::Idle, SpawnObject::Stone0) => {
                     fuel.saturating_sub(STONE_AMOUNT);
                     *state = PlayerState::Attacked {
                         remaining: ATTACKED_DURATION,
                     };
                 }
+                // If idle and collects fuel, gain fuel and despawn the item.
                 (PlayerState::Idle, SpawnObject::Fuel) => {
                     fuel.add(FUEL_AMOUNT);
                     commands.entity(entity).despawn();
                 }
+                // If already attacked and collects fuel, still gain fuel and despawn.
                 (PlayerState::Attacked { .. }, SpawnObject::Fuel) => {
                     fuel.add(FUEL_AMOUNT);
                     commands.entity(entity).despawn();
                 }
+                // If invincible and collects fuel, gain fuel.
                 // (PlayerState::Invincible { .. }, SpawnObject::Fuel) => {
                 //     fuel.add(FUEL_AMOUNT);
                 // }
+                // No effect for other collision combinations.
                 _ => { /* empty */ }
             }
+            // Break the loop after handling one collision to prevent multiple effects in a single frame.
             break;
         }
     }
@@ -618,5 +634,15 @@ fn update_player_effect_recursive(
         for child in children.iter() {
             update_player_effect_recursive(child, children_query, material_query, materials, state);
         }
+    }
+}
+
+/// A system that gradually increases the player's forward speed up to a maximum limit.
+pub fn update_player_speed(mut query: Query<&mut ForwardMovement, With<Player>>, time: Res<Time>) {
+    if let Ok(mut forward_move) = query.single_mut() {
+        // Calculate the speed increase for this frame.
+        let addition = ACCELERATION * time.delta_secs();
+        // Add to the current velocity, ensuring it does not exceed MAX_SPEED.
+        forward_move.velocity = (forward_move.velocity + addition).min(MAX_SPEED);
     }
 }

@@ -2,7 +2,7 @@ use bevy::prelude::*;
 use serde::Deserialize;
 
 /// Represents a geometric shape that can be used for collision detection.
-#[derive(Component, Deserialize)]
+#[derive(Component, Clone, Copy, Deserialize)]
 pub enum Collider {
     /// An Axis-Aligned Bounding Box (AABB) collider.
     Aabb { offset: Vec3, size: Vec3 },

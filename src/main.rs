@@ -143,6 +143,7 @@ fn main() {
                 in_game::update_fuel_deco,
                 in_game::update_fuel_gauge,
                 in_game::update_player_effect,
+                in_game::update_player_speed,
             )
                 .run_if(in_state(GameState::InGame)),
         )

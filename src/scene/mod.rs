@@ -13,9 +13,13 @@ use lazy_static::lazy_static;
 use rand::{
     Rng,
     distr::{Distribution, weighted::WeightedIndex},
+    seq::IndexedRandom,
 };
 
-use crate::asset::model::ModelAsset;
+use crate::{
+    asset::{model::ModelAsset, spawner::SpawnModel},
+    collider::Collider,
+};
 
 // --- GAME CONSTANTS ---
 
@@ -29,17 +33,23 @@ const LANE_LOCATIONS: [f32; NUM_LANES] = [-3.0, 0.25, 3.5];
 /// The delay between player inputs in seconds, to prevent overly sensitive controls.
 const INPUT_DELAY: f32 = 0.25;
 
-/// The forward movement speed of the player and the world.
+/// The initial forward movement speed of the player.
 const SPEED: f32 = 20.0;
+/// The maximum forward movement speed the player can reach.
+const MAX_SPEED: f32 = 30.0;
+/// The rate at which the player's speed increases over time.
+const ACCELERATION: f32 = (MAX_SPEED - SPEED) / (60.0 * 3.0);
 /// The strength of gravity affecting the player.
 const GRAVITY: f32 = -30.0;
 /// The initial upward velocity of the player's jump.
 const JUMP_STRENGTH: f32 = 12.5;
-/// The lane change speed of the player.
+/// The speed at which the player changes lanes.
 const LANE_CHANGE_SPEED: f32 = 5.0;
 
-/// The score cycle that determines how frequently the score increases.
-const SCORE_CYCLE: u32 = 100;
+/// The distance the player must travel to gain one score point from movement.
+const SCORE_DIST_CYCLE: f32 = 1000.0;
+/// The time in milliseconds that must pass to gain one score point from time.
+const SCORE_TIMER_CYCLE: u32 = 100;
 /// The cycle speed of the fuel decoration's bobbing animation.
 const FUEL_DECO_CYCLE: f32 = PI * 1.0;
 /// The cycle speed of the flashing effect when the player is attacked.
@@ -54,7 +64,7 @@ const FUEL_GAUGE_COLOR: Color = Color::srgb(0.2, 0.8, 0.2);
 const LOADING_BAR_COLOR: Color = Color::srgb(0.2, 0.8, 0.2);
 
 /// The rate at which fuel is consumed per second.
-const FUEL_USAGE: f32 = 100.0 / 16.0;
+const FUEL_USAGE: f32 = 100.0 / 30.0;
 
 /// The duration in seconds that the player remains in the "attacked" state.
 const ATTACKED_DURATION: f32 = 3.0;
@@ -67,40 +77,62 @@ const NUM_SPAWN_OBJECTS: usize = 3;
 const SPAWN_OBJECTS: [SpawnObject; NUM_SPAWN_OBJECTS] =
     [SpawnObject::Fence0, SpawnObject::Stone0, SpawnObject::Fuel];
 /// The corresponding weights for each object in `SPAWN_OBJECTS`, used for weighted random selection.
-const SPAWN_WEIGHTS: [u32; NUM_SPAWN_OBJECTS] = [5, 5, 4];
+const SPAWN_WEIGHTS: [u32; NUM_SPAWN_OBJECTS] = [5, 5, 3];
 /// The Z-coordinate where new objects are spawned, far in front of the player.
 const SPAWN_LOCATION: f32 = 100.0;
 /// The Z-coordinate at which objects are despawned, far behind the player.
 const DESPAWN_LOCATION: f32 = -100.0;
-/// The distance the player travels before a new obstacle is spawned.
+/// The base distance the player travels before a new object group is spawned.
 const SPAWN_INTERVAL: f32 = 25.0;
 /// The random range of Z-offset applied to each spawned object to vary spacing.
 const SPAWN_OFFSETS: RangeInclusive<f32> = -5.0..=5.0;
 
 /// The amount of fuel lost when hitting a fence.
 const FENCE_AMOUNT: f32 = 10.0;
+/// The number of predefined spawn patterns for fences.
+const NUM_FENCE_LOCATIONS: usize = 7;
+/// The corresponding weights for each fence spawn pattern, used for random selection.
+const FENCE_WEIGHTS: [u32; NUM_FENCE_LOCATIONS] = [3, 3, 2, 3, 2, 2, 1];
 /// The amount of fuel lost when hitting a stone.
 const STONE_AMOUNT: f32 = 20.0;
+/// The number of predefined spawn patterns for stones.
+const NUM_STONE_LOCATIONS: usize = 7;
+/// The corresponding weights for each stone spawn pattern, used for random selection.
+const STONE_WEIGHTS: [u32; NUM_STONE_LOCATIONS] = [3, 3, 2, 3, 2, 2, 1];
 /// The amount of fuel gained when collecting a fuel item.
-const FUEL_AMOUNT: f32 = 15.0;
+const FUEL_AMOUNT: f32 = 30.0;
 
 lazy_static! {
-    /// A map defining the visual and collider offset for each spawnable object.
-    static ref OBJECT_OFFSETS: HashMap<SpawnObject, Vec3> = [
-        (SpawnObject::Fence0, Vec3::new(0.0, 0.5, 0.0)),
-        (SpawnObject::Stone0, Vec3::new(0.0, 0.5, 0.0)),
-        (SpawnObject::Fuel, Vec3::new(0.0, 0.5, 0.0)),
+    /// A map defining the collider for each spawnable object.
+    static ref OBJECT_COLLIDER: HashMap<SpawnObject, Collider> = [
+        (SpawnObject::Fence0, Collider::Aabb { offset: Vec3::new(0.0, 0.5, 0.0), size: Vec3::splat(1.0) }),
+        (SpawnObject::Stone0, Collider::Sphere { offset: Vec3::splat(0.0), radius: 1.0 }),
+        (SpawnObject::Fuel, Collider::Aabb { offset: Vec3::new(0.0, 0.5, 0.0), size: Vec3::splat(0.5) }),
     ]
     .into_iter()
     .collect();
-    /// A map defining the collider extents (size) for each spawnable object.
-    static ref OBJECT_EXTENTS: HashMap<SpawnObject, Vec3> = [
-        (SpawnObject::Fence0, Vec3::splat(1.0)),
-        (SpawnObject::Stone0, Vec3::splat(1.0)),
-        (SpawnObject::Fuel, Vec3::splat(0.5)),
-    ]
-    .into_iter()
-    .collect();
+
+    /// Defines the possible lane combinations for fence obstacles. Each inner vector represents a spawn pattern.
+    static ref FENCE_LOCATIONS: [Vec<f32>; NUM_FENCE_LOCATIONS] = [
+        vec![LANE_LOCATIONS[0]], // Pattern 1: Lane 0
+        vec![LANE_LOCATIONS[1]], // Pattern 2: Lane 1
+        vec![LANE_LOCATIONS[0], LANE_LOCATIONS[1]], // Pattern 3: Lanes 0, 1
+        vec![LANE_LOCATIONS[2]], // Pattern 4: Lane 2
+        vec![LANE_LOCATIONS[0], LANE_LOCATIONS[2]], // Pattern 5: Lanes 0, 2
+        vec![LANE_LOCATIONS[1], LANE_LOCATIONS[2]], // Pattern 6: Lanes 1, 2
+        vec![LANE_LOCATIONS[0], LANE_LOCATIONS[1], LANE_LOCATIONS[2]], // Pattern 7: Lanes 0, 1, 2
+    ];
+
+    /// Defines the possible lane combinations for stone obstacles. Each inner vector represents a spawn pattern.
+    static ref STONE_LOCATIONS: [Vec<f32>; 7] = [
+        vec![LANE_LOCATIONS[0]], // Pattern 1: Lane 0
+        vec![LANE_LOCATIONS[1]], // Pattern 2: Lane 1
+        vec![LANE_LOCATIONS[0], LANE_LOCATIONS[1]], // Pattern 3: Lanes 0, 1
+        vec![LANE_LOCATIONS[2]], // Pattern 4: Lane 2
+        vec![LANE_LOCATIONS[0], LANE_LOCATIONS[2]], // Pattern 5: Lanes 0, 2
+        vec![LANE_LOCATIONS[1], LANE_LOCATIONS[2]], // Pattern 6: Lanes 1, 2
+        vec![LANE_LOCATIONS[0], LANE_LOCATIONS[1], LANE_LOCATIONS[2]], // Pattern 7: Lanes 0, 1, 2
+    ];
 }
 
 // --- STATES ---
@@ -127,12 +159,13 @@ pub struct Ground;
 
 /// An enum representing the different types of objects that can be spawned in the game.
 /// This is used as a component to identify and differentiate game objects.
+#[repr(usize)]
 #[derive(Debug, Default, Clone, Copy, Component, PartialEq, Eq, Hash)]
 pub enum SpawnObject {
     #[default]
-    Fence0,
-    Stone0,
-    Fuel,
+    Fence0 = 0,
+    Stone0 = 1,
+    Fuel = 2,
     // Aoba,
 }
 
@@ -241,10 +274,12 @@ pub struct AnimationClipHandle(pub Handle<AnimationClip>);
 /// A resource to track the player's score.
 #[derive(Default, Resource)]
 pub struct PlayScore {
-    /// A timer that accumulates milliseconds.
+    /// A timer that accumulates milliseconds to grant score over time.
     timer: u32,
     /// The total accumulated score.
     accum: u32,
+    /// The distance traveled, used to grant score over distance.
+    distance: f32,
 }
 
 /// A resource to manage the delay between player inputs.
@@ -292,11 +327,13 @@ pub enum PlayerState {
 }
 
 impl PlayerState {
+    /// Checks if the player is in the `Debug` state (invincible).
     #[cfg(not(feature = "no-debuging-player"))]
     pub fn is_debug(&self) -> bool {
         matches!(self, PlayerState::Debug)
     }
 
+    /// Checks if the player is in any state that grants invincibility.
     #[allow(clippy::match_like_matches_macro)]
     pub fn is_invincible(&self) -> bool {
         match self {
@@ -311,10 +348,16 @@ impl PlayerState {
 /// A resource that manages the spawning of objects over a distance.
 #[derive(Resource)]
 pub struct ObjectSpawner {
-    /// The distance traveled since the last object was spawned.
+    /// The distance traveled since the last object group was spawned.
     distance: f32,
-    /// The next object that is scheduled to be spawned.
+    /// The next object that is scheduled to be spawned (currently unused).
     next_obj: SpawnObject,
+    /// A weighted distribution for selecting the type of object to spawn (Fence, Stone, or Fuel).
+    object_distr: WeightedIndex<u32>,
+    /// A weighted distribution for selecting the spawn pattern for fences.
+    fence_distr: WeightedIndex<u32>,
+    /// A weighted distribution for selecting the spawn pattern for stones.
+    stone_distr: WeightedIndex<u32>,
 }
 
 impl ObjectSpawner {
@@ -327,26 +370,64 @@ impl ObjectSpawner {
     /// frame rate varies. It then schedules the next object to be spawned.
     pub fn on_advanced(
         &mut self,
+        cached: &CachedObjects,
+        commands: &mut Commands,
         forward_move: &ForwardMovement,
         delta_time: f32,
-    ) -> Option<(SpawnObject, f32)> {
+    ) -> bool {
         self.distance += forward_move.velocity.abs() * delta_time;
         if self.distance >= SPAWN_INTERVAL {
             let mut rng = rand::rng();
-            let distr = WeightedIndex::new(SPAWN_WEIGHTS).unwrap();
-            let selected_index = distr.sample(&mut rng);
+            let selected_index = self.object_distr.sample(&mut rng);
             let selected_item = SPAWN_OBJECTS[selected_index];
-
-            let obj = self.next_obj;
             let delta = SPAWN_INTERVAL - self.distance;
+
+            let model_handle = cached.models.get(&selected_item).unwrap();
+            let collider = OBJECT_COLLIDER.get(&selected_item).cloned().unwrap();
+            match selected_item {
+                SpawnObject::Fence0 => {
+                    let locations = &FENCE_LOCATIONS[self.fence_distr.sample(&mut rng)];
+                    for lane_x in locations {
+                        commands.spawn((
+                            SpawnModel(model_handle.clone()),
+                            Transform::from_xyz(*lane_x, 0.0, SPAWN_LOCATION + delta),
+                            InGameStateEntity,
+                            collider,
+                            selected_item,
+                        ));
+                    }
+                }
+                SpawnObject::Stone0 => {
+                    let locations = &STONE_LOCATIONS[self.stone_distr.sample(&mut rng)];
+                    for lane_x in locations {
+                        commands.spawn((
+                            SpawnModel(model_handle.clone()),
+                            Transform::from_xyz(*lane_x, 0.0, SPAWN_LOCATION + delta),
+                            InGameStateEntity,
+                            collider,
+                            selected_item,
+                        ));
+                    }
+                }
+                SpawnObject::Fuel => {
+                    let lane_x = LANE_LOCATIONS.choose(&mut rng).unwrap();
+                    commands.spawn((
+                        SpawnModel(model_handle.clone()),
+                        Transform::from_xyz(*lane_x, 0.0, SPAWN_LOCATION + delta),
+                        InGameStateEntity,
+                        collider,
+                        selected_item,
+                    ));
+                }
+            };
 
             let offset = rng.random_range(SPAWN_OFFSETS);
             self.distance -= SPAWN_INTERVAL + offset;
             self.next_obj = selected_item;
 
-            Some((obj, delta))
+            true
         } else {
-            None
+            false
         }
     }
 }
@@ -356,6 +437,9 @@ impl Default for ObjectSpawner {
         Self {
             distance: 0.0,
             next_obj: SpawnObject::default(),
+            object_distr: WeightedIndex::new(SPAWN_WEIGHTS).unwrap(),
+            fence_distr: WeightedIndex::new(FENCE_WEIGHTS).unwrap(),
+            stone_distr: WeightedIndex::new(STONE_WEIGHTS).unwrap(),
         }
     }
 }
