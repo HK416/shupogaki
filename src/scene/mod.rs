@@ -1,6 +1,7 @@
 pub mod in_game;
 pub mod loading;
 pub mod prepare;
+pub mod wrap_up;
 
 use std::{
     collections::{HashMap, VecDeque},
@@ -30,9 +31,12 @@ const NUM_LANES: usize = 3;
 const MAX_LANE_INDEX: usize = NUM_LANES - 1;
 /// The x-coordinates for each lane.
 const LANE_LOCATIONS: [f32; NUM_LANES] = [-3.0, 0.25, 3.5];
+/// The starting Z-position of the player during the `Prepare` scene intro animation.
 const PLAYER_MIN_Z_POS: f32 = -20.0;
+/// The final Z-position of the player after the `Prepare` scene intro, which is the gameplay position.
 const PLAYER_MAX_Z_POS: f32 = -7.5;
 
+/// The duration of the UI slide-in/out animations in seconds.
 const UI_ANIMATION_DURATION: f32 = 1.0;
 
 /// The delay between player inputs in seconds, to prevent overly sensitive controls.
@@ -57,11 +61,10 @@ const SCORE_DIST_CYCLE: f32 = 1.0;
 const FUEL_DECO_CYCLE: f32 = PI * 1.0;
 /// The cycle speed of the flashing effect when the player is attacked.
 const ATTACKED_EFFECT_CYCLE: f32 = PI * 8.0;
-// const INVINCIBLE_EFFECT_CYCLE: f32 = PI * 8.0;
 
 /// The color of the fuel gauge's decorative border.
 const FUEL_COLOR: Color = Color::srgb(48.0 / 255.0, 55.0 / 255.0, 70.0 / 255.0);
-// The color of the fuel gauge's indicator bar when fuel is plentiful (green).
+/// The color of the fuel gauge's indicator bar when fuel is plentiful (green).
 const FUEL_GOOD_GAUGE_COLOR: Color = Color::srgb(0.2, 0.8, 0.2);
 /// The color of the fuel gauge's indicator bar when fuel is at a medium level (yellow).
 const FUEL_FAIR_GAUGE_COLOR: Color = Color::srgb(0.8, 0.8, 0.2);
@@ -75,7 +78,6 @@ const FUEL_USAGE: f32 = 100.0 / 20.0;
 
 /// The duration in seconds that the player remains in the "attacked" state.
 const ATTACKED_DURATION: f32 = 3.0;
-// const INVINCIBLE_DURATION: f32 = 6.0;
 
 // --- Obstacle Spawning Constants ---
 /// The total number of different obstacle types available to spawn.
@@ -114,7 +116,7 @@ lazy_static! {
     static ref OBJECT_COLLIDER: HashMap<SpawnObject, Collider> = [
         (SpawnObject::Fence0, Collider::Aabb { offset: Vec3::new(0.0, 0.5, 0.0), size: Vec3::splat(1.0) }),
         (SpawnObject::Stone0, Collider::Sphere { offset: Vec3::splat(0.0), radius: 1.0 }),
-        (SpawnObject::Fuel, Collider::Aabb { offset: Vec3::new(0.0, 0.5, 0.0), size: Vec3::splat(0.5) }),
+        (SpawnObject::Fuel, Collider::Aabb { offset: Vec3::new(0.0, 0.0, 0.0), size: Vec3::splat(0.5) }),
     ]
     .into_iter()
     .collect();
@@ -147,12 +149,15 @@ lazy_static! {
 /// Defines the different states of the game, controlling which systems run.
 #[derive(States, Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum GameState {
-    /// The default state, where assets are loaded.
+    /// The default state, where assets are loaded and a loading screen is displayed.
     #[default]
     Loading,
+    /// A brief introductory scene before gameplay starts.
     Prepare,
     /// The state where the main gameplay occurs.
     InGame,
+    /// A brief scene that plays when the game ends (e.g., fuel runs out).
+    WrapUp,
 }
 
 // --- COMPONENTS ---
@@ -174,7 +179,6 @@ pub enum SpawnObject {
     Fence0 = 0,
     Stone0 = 1,
     Fuel = 2,
-    // Aoba,
 }
 
 /// A marker component for entities that should only exist during the `InGameLoad` state.
@@ -197,9 +201,18 @@ pub struct ToyTrain1;
 #[derive(Component)]
 pub struct ToyTrain2;
 
-/// A marker component for the UI element.
+/// A marker component to identify different parts of the UI hierarchy.
 #[derive(Component)]
-pub struct UI;
+pub enum UI {
+    /// The root node of the score display.
+    Score,
+    /// The root node of the fuel gauge display.
+    Fuel,
+    /// The "Start" message UI.
+    Start,
+    /// The "Finish" message UI.
+    Finish,
+}
 
 /// A marker component for the fuel gauge's decorative background.
 #[derive(Component)]
@@ -279,6 +292,107 @@ impl Default for VerticalMovement {
     }
 }
 
+/// A component that makes an entity rotate continuously.
+#[derive(Component)]
+pub struct Rotate {
+    /// The axis around which the entity will rotate.
+    axis: Vec3,
+    /// The rotation speed in radians per second.
+    radian_per_sec: f32,
+}
+
+impl Default for Rotate {
+    fn default() -> Self {
+        Self {
+            axis: Vec3::Y,
+            radian_per_sec: 120f32.to_radians(),
+        }
+    }
+}
+
+/// A component for animating the "Start" UI element with a fade-in and fade-out effect.
+#[derive(Component)]
+pub struct StartAnimation {
+    /// The total duration of the animation.
+    duration: f32,
+    /// The time elapsed since the animation started.
+    elapsed: f32,
+}
+
+impl StartAnimation {
+    /// Creates a new `StartAnimation`.
+    pub fn new(duration: f32) -> Self {
+        #[cfg(not(feature = "no-debuging-assert"))]
+        assert!(duration > 0.0);
+
+        Self {
+            duration,
+            elapsed: 0.0,
+        }
+    }
+
+    /// Advances the animation's timer.
+    pub fn update(&mut self, delta_time: f32) {
+        self.elapsed += delta_time;
+    }
+
+    /// Calculates the current color based on the elapsed time, creating a fade-in then fade-out effect.
+    pub fn color(&self) -> Color {
+        let half_duration = self.duration * 0.5;
+        if self.elapsed <= half_duration {
+            // Fade-in phase using an ease-out-cubic-like curve.
+            let t = self.elapsed / half_duration;
+            let alpha = (t - 1.0).powi(3) * (1.0 - t) + 1.0;
+            Color::srgba(1.0, 1.0, 1.0, alpha)
+        } else {
+            // Fade-out phase using an ease-out-quart curve.
+            let t = (self.elapsed - half_duration) / half_duration;
+            let alpha = 1.0 - t * t * t * t;
+            Color::srgba(1.0, 1.0, 1.0, alpha)
+        }
+    }
+
+    /// Checks if the animation has finished.
+    pub fn is_expired(&self) -> bool {
+        self.elapsed >= self.duration
+    }
+}
+
+/// A component for animating the "Finish" UI element with a fade-in effect.
+#[derive(Component)]
+pub struct FinishAnimation {
+    /// The total duration of the animation.
+    duration: f32,
+    /// The time elapsed since the animation started.
+    elapsed: f32,
+}
+
+impl FinishAnimation {
+    /// Creates a new `FinishAnimation`.
+    pub fn new(duration: f32) -> Self {
+        #[cfg(not(feature = "no-debuging-assert"))]
+        assert!(duration > 0.0);
+
+        Self {
+            duration,
+            elapsed: 0.0,
+        }
+    }
+
+    /// Advances the animation's timer.
+    pub fn update(&mut self, delta_time: f32) {
+        self.elapsed += delta_time;
+    }
+
+    /// Calculates the current color based on the elapsed time, creating a fade-in effect.
+    pub fn color(&self) -> Color {
+        // Fade-in using an ease-out-cubic-like curve.
+        let t = (self.elapsed / self.duration).min(1.0);
+        let alpha = (t - 1.0).powi(3) * (1.0 - t) + 1.0;
+        Color::srgba(1.0, 1.0, 1.0, alpha)
+    }
+}
+
 /// A component that holds a handle to an animation clip.
 /// This is used to trigger the animation playback once the model is loaded.
 #[derive(Component)]
@@ -336,6 +450,7 @@ impl Default for InputDelay {
 /// Defines the player's current state, which can affect gameplay and visual effects.
 #[derive(Clone, Copy, Default, Resource)]
 pub enum PlayerState {
+    /// A debug state that might grant invincibility or other effects.
     #[cfg(not(feature = "no-debuging-player"))]
     Debug,
     /// The default, normal state.
@@ -343,9 +458,6 @@ pub enum PlayerState {
     Idle,
     /// The state after being hit by an obstacle. Includes a timer for how long the state lasts.
     Attacked { remaining: f32 },
-    // Invincible {
-    //     remaining: f32,
-    // },
 }
 
 impl PlayerState {
@@ -361,7 +473,6 @@ impl PlayerState {
         match self {
             #[cfg(not(feature = "no-debuging-player"))]
             PlayerState::Debug => true,
-            // PlayerState::Invincible { .. } => true,
             _ => false,
         }
     }
@@ -435,8 +546,9 @@ impl ObjectSpawner {
                     let lane_x = LANE_LOCATIONS.choose(&mut rng).unwrap();
                     commands.spawn((
                         SpawnModel(model_handle.clone()),
-                        Transform::from_xyz(*lane_x, 0.0, SPAWN_LOCATION + delta),
+                        Transform::from_xyz(*lane_x, 0.5, SPAWN_LOCATION + delta),
                         InGameStateEntity,
+                        Rotate::default(),
                         collider,
                         selected_item,
                     ));
@@ -520,5 +632,15 @@ impl Default for TrainFuel {
     /// Initializes fuel to the maximum value of 100.0.
     fn default() -> Self {
         Self { remaining: 100.0 }
+    }
+}
+
+/// A resource that tracks the elapsed time of a scene, used for timed transitions or animations.
+#[derive(Resource)]
+pub struct SceneTimer(pub f32);
+
+impl Default for SceneTimer {
+    fn default() -> Self {
+        Self(0.0)
     }
 }

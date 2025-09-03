@@ -12,6 +12,7 @@ mod scene;
 
 // Import necessary Bevy modules.
 use bevy::{
+    asset::AssetMetaCheck,
     log::{Level, LogPlugin},
     prelude::*,
 };
@@ -23,7 +24,7 @@ use crate::collider::Collider;
 // Import local modules for asset handling and game scenes.
 use crate::{
     asset::spawner::CustomAssetPlugin,
-    scene::{GameState, in_game, loading, prepare},
+    scene::{GameState, in_game, loading, prepare, wrap_up},
 };
 
 // --- MAIN FUNCTION ---
@@ -47,6 +48,13 @@ fn main() {
                     }),
                     ..default()
                 })
+                // Configure the asset plugin.
+                .set(AssetPlugin {
+                    // This setting prevents Bevy from logging warnings about unrecognized asset types,
+                    // which is useful since this project uses custom asset formats (e.g., .hierarchy, .mesh).
+                    meta_check: AssetMetaCheck::Never,
+                    ..Default::default()
+                })
                 // Configure the logging plugin.
                 .set(LogPlugin {
                     // Set the log level based on a feature flag.
@@ -58,6 +66,7 @@ fn main() {
                     },
                     ..Default::default()
                 }),
+            // Add the tweening plugin for UI and other animations.
             TweeningPlugin,
         ))
         // --- CUSTOM PLUGINS ---
@@ -151,6 +160,8 @@ fn main() {
                     in_game::update_ground_position,
                     in_game::update_object_position,
                     in_game::cleanup_ui_animation,
+                    in_game::update_rotate_anim,
+                    in_game::update_start_ui,
                     // This system is for debugging player states and is only compiled when
                     // the "no-debuging-player" feature is NOT enabled.
                     #[cfg(not(feature = "no-debuging-player"))]
@@ -183,6 +194,47 @@ fn main() {
                 in_game::update_player_speed,
             )
                 .run_if(in_state(GameState::InGame)),
+        )
+        // --- WRAP-UP STATE ---
+        // Defines systems for the game-over or completion scene.
+        .add_systems(
+            OnEnter(GameState::WrapUp),
+            (
+                // Shows the "Finish" UI and starts the UI animations.
+                wrap_up::on_enter,
+                wrap_up::play_ui_animation,
+            ),
+        )
+        .add_systems(OnExit(GameState::WrapUp), wrap_up::on_exit)
+        .add_systems(
+            Update,
+            (
+                // Advances the scene timer to eventually end the wrap-up sequence.
+                wrap_up::update_scene_timer,
+                // Animates the player moving off-screen.
+                wrap_up::update_player_position.after(wrap_up::update_scene_timer),
+                // Fades in the "Finish" UI.
+                wrap_up::update_finish_ui,
+                // The standard player position system still runs to handle gravity and lane movement.
+                in_game::update_player_position.before(wrap_up::update_player_position),
+                // Run background scrolling systems for a seamless transition.
+                in_game::update_ground_position,
+                in_game::update_object_position,
+                in_game::cleanup_ui_animation,
+                in_game::update_rotate_anim,
+            )
+                .run_if(in_state(GameState::WrapUp)),
+        )
+        .add_systems(
+            PostUpdate,
+            (
+                // These systems also run during WrapUp to ensure the world is active and moving.
+                in_game::update_toy_trains,
+                in_game::spawn_grounds,
+                in_game::update_fuel_deco,
+                wrap_up::update_player_speed,
+            )
+                .run_if(in_state(GameState::WrapUp)),
         )
         // --- RUN THE APP ---
         // Start the Bevy application loop.

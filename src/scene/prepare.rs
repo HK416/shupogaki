@@ -17,23 +17,12 @@ use super::*;
 /// The duration of the preparation scene in seconds.
 const SCENE_DURATION: f32 = 3.0;
 
-// --- RESOURCES ---
-
-/// A resource that tracks the elapsed time of the preparation scene.
-#[derive(Resource)]
-pub struct SceneTimer(f32);
-
-impl Default for SceneTimer {
-    fn default() -> Self {
-        Self(0.0)
-    }
-}
-
 // --- SETUP SYSTEM ---
 
 /// A system that runs once when entering `GameState::Prepare`.
 /// It initializes all necessary resources and spawns the core entities for the game.
 pub fn on_enter(mut commands: Commands) {
+    info!("Enter Prepare state.");
     // --- Resource initialization ---
     // Insert resources required for the InGame state.
     commands.insert_resource(TrainFuel::default());
@@ -42,7 +31,6 @@ pub fn on_enter(mut commands: Commands) {
     commands.insert_resource(PlayerState::default());
     commands.insert_resource(RetiredGrounds::default());
     commands.insert_resource(ObjectSpawner::default());
-
     commands.insert_resource(SceneTimer::default());
 
     // --- Player Spawn ---
@@ -118,6 +106,7 @@ pub fn play_animation(
 /// A system that runs once when exiting `GameState::Prepare`.
 /// It cleans up resources specific to this state.
 pub fn on_exit(mut commands: Commands) {
+    info!("Exit Prepare state.");
     commands.remove_resource::<SceneTimer>();
 }
 

@@ -38,7 +38,16 @@ pub struct LoadingAssets {
 // --- SETUP SYSTEM ---
 
 /// A system that runs once when entering the `GameState::Loading`.
-/// It sets up the loading screen UI and starts loading all necessary game assets.
+///
+/// This function is responsible for the bulk of the initial setup. It orchestrates:
+/// 1.  **Asset Loading**: It begins loading all models, animations, and textures required for the game.
+/// 2.  **Resource Creation**: It creates and inserts the resources that will track loading progress (`LoadingAssets`)
+///     and cache asset handles for later use (`CachedGrounds`, `CachedObjects`).
+/// 3.  **Entity Pre-spawning**: It pre-spawns the initial game entities (player, ground, obstacles) with
+///     `Visibility::Hidden`. This "pre-warming" technique prevents performance stutters that might
+///     occur if these entities were all spawned at once when gameplay begins.
+/// 4.  **UI Creation**: It calls helper functions to build both the loading screen UI and the in-game UI,
+///     which is also initially hidden.
 pub fn on_enter(mut commands: Commands, asset_server: Res<AssetServer>) {
     // Create resources to track loading progress and cache asset handles for later use.
     let mut loading_assets = LoadingAssets::default();
@@ -180,14 +189,77 @@ pub fn on_enter(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands.insert_resource(ClearColor(Color::BLACK));
 }
 
-/// Creates the in-game UI elements, specifically the score display.
-/// The score is composed of multiple digit images, which are pre-loaded here.
-/// The UI is initially hidden and will be made visible when the game starts.
+/// Creates the in-game UI elements.
+///
+/// The UI is built here during the `Loading` state to ensure all its assets (fonts, textures)
+/// are loaded upfront. The entire UI is spawned with `Visibility::Hidden` and its entrance
+/// animations are set to `AnimatorState::Paused`. The animations will be started manually
+/// when the `InGame` state is entered, creating a smooth slide-in effect.
 fn create_in_game_ui(
     commands: &mut Commands,
     asset_server: &Res<AssetServer>,
     loading_assets: &mut LoadingAssets,
 ) {
+    let texture_handle: Handle<Image> = asset_server.load("fonts/ImgFont_Start.sprite");
+    loading_assets.handles.push(texture_handle.clone().into());
+
+    commands
+        .spawn((
+            Node {
+                width: Val::Percent(100.0),
+                height: Val::Percent(100.0),
+                justify_content: JustifyContent::Center,
+                align_content: AlignContent::Center,
+                align_items: AlignItems::Center,
+                ..Default::default()
+            },
+            InGameStateEntity,
+            Visibility::Hidden,
+            UI::Start,
+        ))
+        .with_children(|parent| {
+            parent.spawn((
+                ImageNode::new(texture_handle),
+                Node {
+                    width: Val::Vw(40.0),
+                    height: Val::Vw(15.0),
+                    ..Default::default()
+                },
+                StartAnimation::new(UI_ANIMATION_DURATION),
+                Visibility::Inherited,
+            ));
+        });
+
+    let texture_handle: Handle<Image> = asset_server.load("fonts/ImgFont_Finish.sprite");
+    loading_assets.handles.push(texture_handle.clone().into());
+
+    commands
+        .spawn((
+            Node {
+                width: Val::Percent(100.0),
+                height: Val::Percent(100.0),
+                justify_content: JustifyContent::Center,
+                align_content: AlignContent::Center,
+                align_items: AlignItems::Center,
+                ..Default::default()
+            },
+            InGameStateEntity,
+            Visibility::Hidden,
+            UI::Finish,
+        ))
+        .with_children(|parent| {
+            parent.spawn((
+                ImageNode::new(texture_handle),
+                Node {
+                    width: Val::Vw(40.0),
+                    height: Val::Vw(15.0),
+                    ..Default::default()
+                },
+                FinishAnimation::new(UI_ANIMATION_DURATION),
+                Visibility::Inherited,
+            ));
+        });
+
     // Load the sprite sheet and texture atlas for the number font.
     let texture_handle: Handle<Image> = asset_server.load("fonts/ImgFont_Number.sprite");
     loading_assets.handles.push(texture_handle.clone().into());
@@ -204,13 +276,14 @@ fn create_in_game_ui(
                 position_type: PositionType::Absolute,
                 top: Val::Vh(1.5),
                 left: Val::Vw(1.5),
-                width: Val::Vw(25.0),
-                height: Val::Vw(5.0),
+                width: Val::Vw(30.0),
+                height: Val::Vw(7.5),
                 flex_direction: FlexDirection::Row,
                 justify_content: JustifyContent::Start,
                 align_items: AlignItems::Start,
                 ..Default::default()
             },
+            // This Animator component will handle the slide-in animation.
             Animator::new(Tween::new(
                 EaseFunction::SmoothStep,
                 Duration::from_secs_f32(UI_ANIMATION_DURATION),
@@ -229,10 +302,10 @@ fn create_in_game_ui(
                     },
                 },
             ))
-            .with_state(AnimatorState::Paused),
+            .with_state(AnimatorState::Paused), // Start the animation in a paused state.
             InGameStateEntity,
             Visibility::Hidden,
-            UI,
+            UI::Score,
         ))
         .with_children(|parent| {
             // Spawn the 100,000s place digit.
@@ -336,8 +409,8 @@ fn create_in_game_ui(
                 position_type: PositionType::Absolute,
                 bottom: Val::Vh(1.5),
                 right: Val::Vw(3.0),
-                width: Val::Vw(25.0),
-                height: Val::Vw(5.0),
+                width: Val::Vw(30.0),
+                height: Val::Vw(7.5),
                 align_content: AlignContent::Center,
                 align_items: AlignItems::Center,
                 ..Default::default()
@@ -363,7 +436,7 @@ fn create_in_game_ui(
             .with_state(AnimatorState::Paused),
             InGameStateEntity,
             Visibility::Hidden, // Use `Visibility::Hidden` to hide the entire UI hierarchy initially.
-            UI,                 // Marker component.
+            UI::Fuel,           // Marker component.
         ))
         .with_children(|parent| {
             // Create the background/border of the fuel gauge.
@@ -547,8 +620,10 @@ pub fn change_text_scale(
     mut query: Query<&mut TextFont, With<LoadingText>>,
 ) {
     for e in resize_reader.read() {
+        // Calculate the smaller of the window's width or height.
         let vmin = e.width.min(e.height);
         for mut text_font in query.iter_mut() {
+            // Scale the font size relative to a base height of 720px.
             text_font.font_size = 18.0 * vmin / 720.0;
             info!("Resize Font size:{:?}", text_font.font_size);
         }
@@ -577,7 +652,8 @@ pub fn update_loading_bar(
             1.0
         };
 
-        // Update the width of the loading bar.
+        // Update the width of the loading bar. In older Bevy versions, this was done by directly
+        // modifying the `width` field of the `Node` component.
         node.width = Val::Percent(progress * 100.0);
     }
 }

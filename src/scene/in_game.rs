@@ -15,14 +15,20 @@ use super::*;
 // --- SETUP SYSTEM ---
 
 /// A system that runs once when entering `GameState::InGame`.
-/// It makes the in-game UI visible.
-pub fn on_enter(mut in_game_ui: Query<&mut Visibility, With<UI>>) {
-    for mut visibility in in_game_ui.iter_mut() {
-        *visibility = Visibility::Visible;
+/// It makes the core in-game UI (Score, Fuel) visible, but keeps other UI like "Finish" hidden.
+pub fn on_enter(mut in_game_ui: Query<(&mut Visibility, &UI)>) {
+    info!("Enter InGame state.");
+    for (mut visibility, ui) in in_game_ui.iter_mut() {
+        match *ui {
+            // The Finish UI should not be visible at the start of the game.
+            UI::Finish => { /* empty */ }
+            // Make all other UI elements visible.
+            _ => *visibility = Visibility::Visible,
+        }
     }
 }
 
-/// A system that starts the UI animations when the game begins.
+/// A system that starts the UI animations (e.g., for score and fuel) when the game begins.
 pub fn play_ui_animation(mut query: Query<&mut Animator<Node>>) {
     for mut animator in query.iter_mut() {
         animator.state = AnimatorState::Playing;
@@ -31,20 +37,12 @@ pub fn play_ui_animation(mut query: Query<&mut Animator<Node>>) {
 
 // --- CLEANUP SYSTEM ---
 
-/// A system that cleans up the game world when exiting the state.
-pub fn on_exit(mut commands: Commands, query: Query<Entity, With<InGameStateEntity>>) {
-    // Despawn all entities associated with the InGame state.
-    for entity in query.iter() {
-        commands.entity(entity).despawn();
-    }
-
-    // Remove resources specific to the InGame state.
+/// A system that cleans up the game world when exiting the `InGame` state.
+pub fn on_exit(mut commands: Commands) {
+    info!("Exit InGame state.");
+    // Remove resources specific to the InGame state to ensure a clean slate for the next run.
     commands.remove_resource::<CachedObjects>();
-    commands.remove_resource::<RetiredGrounds>();
-    commands.remove_resource::<CachedGrounds>();
     commands.remove_resource::<ObjectSpawner>();
-    commands.remove_resource::<PlayerState>();
-    commands.remove_resource::<PlayScore>();
     commands.remove_resource::<InputDelay>();
     commands.remove_resource::<TrainFuel>();
 }
@@ -141,16 +139,20 @@ pub fn update_score(
 }
 
 /// A system that consumes fuel over time and triggers a game over when it runs out.
-pub fn update_fuel(mut fuel: ResMut<TrainFuel>, state: Res<PlayerState>, time: Res<Time>) {
-    // Decrease the fuel based on the time elapsed and the defined usage rate.
+pub fn update_fuel(
+    mut next_state: ResMut<NextState<GameState>>,
+    mut fuel: ResMut<TrainFuel>,
+    state: Res<PlayerState>,
+    time: Res<Time>,
+) {
+    // Decrease the fuel based on the time elapsed and the defined usage rate, unless the player is invincible.
     if !state.is_invincible() {
         fuel.saturating_sub(time.delta_secs() * FUEL_USAGE);
     }
 
     // If fuel is empty, the game should end.
     if fuel.is_empty() {
-        // TODO: Implement the actual game over logic (e.g., transitioning to a game over screen).
-        todo!("Game Over!");
+        next_state.set(GameState::WrapUp);
     }
 }
 
@@ -223,6 +225,15 @@ pub fn update_object_position(
     }
 }
 
+/// A system that applies continuous rotation to any entity with a `Rotate` component.
+pub fn update_rotate_anim(mut query: Query<(&mut Transform, &Rotate)>, time: Res<Time>) {
+    for (mut transform, rotate) in query.iter_mut() {
+        let angle = rotate.radian_per_sec * time.delta_secs();
+        let rotation = Quat::from_axis_angle(rotate.axis, angle);
+        transform.rotate(rotation);
+    }
+}
+
 /// A system that removes the `Animator<Node>` component from UI elements after their animation completes.
 /// This prevents the animation from re-playing and is a good practice for performance.
 pub fn cleanup_ui_animation(
@@ -235,6 +246,22 @@ pub fn cleanup_ui_animation(
         if query.contains(entity) {
             commands.entity(entity).remove::<Animator<Node>>();
             info!("Animator removed!");
+        }
+    }
+}
+
+/// A system that updates the "Start" UI animation, fading it in and out, and despawns it when finished.
+pub fn update_start_ui(
+    mut commands: Commands,
+    mut query: Query<(Entity, &mut ImageNode, &mut StartAnimation)>,
+    time: Res<Time>,
+) {
+    for (entity, mut image_node, mut fade_out) in query.iter_mut() {
+        fade_out.update(time.delta_secs());
+        if fade_out.is_expired() {
+            commands.entity(entity).despawn();
+        } else {
+            image_node.color = fade_out.color();
         }
     }
 }
@@ -511,7 +538,10 @@ pub fn update_fuel_gauge(
 }
 
 /// A system that applies a visual effect to the player's train cars based on the `PlayerState`.
-/// It initiates a recursive traversal of the entity hierarchy for each train car.
+///
+/// This system initiates a recursive traversal of the entity hierarchy for each train car.
+/// This is necessary because the materials are not on the `ToyTrain` entities themselves,
+/// but on their children (the visible meshes).
 #[allow(clippy::type_complexity)]
 pub fn update_player_effect(
     mut set: ParamSet<(
