@@ -25,7 +25,9 @@ pub fn visible_in_game_ui(mut query: Query<(&mut Visibility, &UI)>) {
             | UI::PauseTitle
             | UI::ResumeCount1
             | UI::ResumeCount2
-            | UI::ResumeCount3 => *visibility = Visibility::Hidden,
+            | UI::ResumeCount3
+            | UI::ResumeButton
+            | UI::ExitButton => *visibility = Visibility::Hidden,
             // Make all other UI elements visible.
             _ => *visibility = Visibility::Visible,
         }
@@ -272,7 +274,7 @@ pub fn update_start_ui(
 /// It changes the button's color on hover and press, and transitions
 /// to the `GameState::Pause` when the button is pressed.
 #[allow(clippy::type_complexity)]
-pub fn pause_btn_system(
+pub fn button_system(
     mut query: Query<
         (&UI, &Interaction, &mut BackgroundColor),
         (Changed<Interaction>, With<Button>),

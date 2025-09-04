@@ -221,7 +221,6 @@ fn create_in_game_ui(
             InGameStateEntity,
             Visibility::Hidden,
             UI::Start,
-            ZIndex(5),
         ))
         .with_children(|parent| {
             // Spawn the image node for the "Start" message.
@@ -234,6 +233,7 @@ fn create_in_game_ui(
                 },
                 StartAnimation::new(UI_ANIMATION_DURATION),
                 Visibility::Inherited,
+                ZIndex(4),
             ));
         });
 
@@ -256,7 +256,6 @@ fn create_in_game_ui(
             InGameStateEntity,
             Visibility::Hidden,
             UI::Finish,
-            ZIndex(5),
         ))
         .with_children(|parent| {
             // Spawn the image node for the "Finish" message.
@@ -269,6 +268,7 @@ fn create_in_game_ui(
                 },
                 FinishAnimation::new(UI_ANIMATION_DURATION),
                 Visibility::Inherited,
+                ZIndex(4),
             ));
         });
 
@@ -285,6 +285,8 @@ fn create_in_game_ui(
             },
             BorderRadius::all(Val::Percent(30.0)),
             BackgroundColor(PAUSE_BTN_COLOR),
+            // Defines a drop shadow for the button to give it some depth.
+            // Parameters: color, h_offset, v_offset, spread, blur_radius
             BoxShadow::new(
                 Color::BLACK.with_alpha(0.3),
                 Val::Percent(0.0),
@@ -315,11 +317,12 @@ fn create_in_game_ui(
             InGameStateEntity,
             Visibility::Hidden,
             UI::PauseButton, // Marker component for the pause button.
+            ZIndex(1),
             Button,
-            ZIndex(4),
         ))
         // Add children to create the pause icon (two vertical bars).
         .with_children(|parent| {
+            // The left vertical bar of the pause icon.
             parent.spawn((
                 Node {
                     position_type: PositionType::Absolute,
@@ -333,9 +336,10 @@ fn create_in_game_ui(
                 BackgroundColor(PAUSE_ICON_COLOR),
                 // Inherit visibility from parent, so it's hidden initially.
                 Visibility::Inherited,
+                ZIndex(2),
             ));
 
-            // Second bar of the pause icon.
+            // The right vertical bar of the pause icon.
             parent.spawn((
                 Node {
                     position_type: PositionType::Absolute,
@@ -349,6 +353,7 @@ fn create_in_game_ui(
                 BackgroundColor(PAUSE_ICON_COLOR),
                 // Inherit visibility from parent, so it's hidden initially.
                 Visibility::Inherited,
+                ZIndex(2),
             ));
         });
 
@@ -401,7 +406,7 @@ fn create_in_game_ui(
             InGameStateEntity,
             Visibility::Hidden,
             UI::Score, // Marker component for the score display.
-            ZIndex(0),
+            ZIndex(1),
         ))
         .with_children(|parent| {
             // Spawn the 100,000s place digit.
@@ -534,7 +539,7 @@ fn create_in_game_ui(
             InGameStateEntity,
             Visibility::Hidden, // Hide the entire UI hierarchy initially.
             UI::Fuel,           // Marker component.
-            ZIndex(0),
+            ZIndex(1),
         ))
         .with_children(|parent| {
             // Create the background/border of the fuel gauge.
@@ -552,10 +557,11 @@ fn create_in_game_ui(
                     BorderColor(FUEL_COLOR),
                     BorderRadius::all(Val::Percent(50.0)),
                     Visibility::Inherited, // Inherit visibility from parent.
-                    ZIndex(1),             // Ensure the border is drawn above the gauge bar.
+                    ZIndex(2),             // Ensure the border is drawn above the gauge bar.
                 ))
                 .with_children(|parent| {
                     // Create the actual fuel gauge bar that will change width.
+                    // This node is a child of the background, so it appears inside it.
                     parent.spawn((
                         Node {
                             position_type: PositionType::Absolute,
@@ -566,7 +572,7 @@ fn create_in_game_ui(
                         BackgroundColor(FUEL_GOOD_GAUGE_COLOR),
                         BorderRadius::all(Val::Percent(50.0)),
                         Visibility::Inherited, // Inherit visibility from parent.
-                        ZIndex(1),             // Drawn below the border.
+                        ZIndex(2),             // Drawn below the border.
                         FuelGauge,             // Marker to identify this entity for updates.
                     ));
                 });
@@ -582,7 +588,7 @@ fn create_in_game_ui(
                     ..Default::default()
                 },
                 Visibility::Inherited, // Inherit visibility from parent.
-                ZIndex(1),             // Ensure it's drawn on top.
+                ZIndex(2),             // Ensure it's drawn on top.
                 FuelDeco,              // Marker component.
             ));
         });
@@ -601,6 +607,15 @@ fn create_pause_ui(
     // Load the texture for the "Pause" title.
     let texture_handle: Handle<Image> = asset_server.load("fonts/ImgFont_Pause.sprite");
     loading_assets.handles.push(texture_handle.clone().into());
+
+    // Load the texture for the "Resume" button text.
+    let resume_handle: Handle<Image> = asset_server.load("fonts/ImgFont_Resume.sprite");
+    loading_assets.handles.push(resume_handle.clone().into());
+
+    // Load the texture for the "Exit" button text.
+    let exit_handle: Handle<Image> = asset_server.load("fonts/ImgFont_Exit.sprite");
+    loading_assets.handles.push(exit_handle.clone().into());
+
     commands
         .spawn((
             Node {
@@ -630,6 +645,94 @@ fn create_pause_ui(
                 Visibility::Inherited,
                 PauseTitle, // Marker component for the pause menu title.
             ));
+
+            parent.spawn((Node {
+                width: Val::Percent(30.0),
+                height: Val::Percent(1.5),
+                ..Default::default()
+            },));
+
+            parent
+                .spawn((
+                    Node {
+                        width: Val::Percent(30.0),
+                        height: Val::Percent(8.0),
+                        justify_content: JustifyContent::Center,
+                        align_content: AlignContent::Center,
+                        align_items: AlignItems::Baseline,
+                        ..Default::default()
+                    },
+                    Visibility::Inherited,
+                ))
+                .with_children(|parent| {
+                    // Spawn the "Resume" button.
+                    parent
+                        .spawn((
+                            Node {
+                                width: Val::Percent(48.0),
+                                height: Val::Percent(100.0),
+                                justify_content: JustifyContent::Center,
+                                align_content: AlignContent::Center,
+                                ..Default::default()
+                            },
+                            BorderRadius::all(Val::Percent(30.0)),
+                            BackgroundColor(RESUME_BTN_COLOR),
+                            Visibility::Inherited,
+                            UI::ResumeButton, // Marker component for the resume button.
+                            Button,
+                        ))
+                        .with_children(|parent| {
+                            parent.spawn((
+                                ImageNode::new(resume_handle),
+                                Node {
+                                    width: Val::Auto,
+                                    height: Val::Percent(100.0),
+                                    overflow: Overflow::hidden(),
+                                    ..Default::default()
+                                },
+                                Visibility::Inherited,
+                            ));
+                        });
+
+                    // A small, invisible spacer between the two buttons.
+                    parent.spawn((
+                        Node {
+                            width: Val::Percent(4.0),
+                            height: Val::Percent(100.0),
+                            ..Default::default()
+                        },
+                        Visibility::Hidden,
+                    ));
+
+                    // Spawn the "Exit" button.
+                    parent
+                        .spawn((
+                            Node {
+                                width: Val::Percent(48.0),
+                                height: Val::Percent(100.0),
+                                justify_content: JustifyContent::Center,
+                                align_content: AlignContent::Center,
+                                ..Default::default()
+                            },
+                            BorderRadius::all(Val::Percent(30.0)),
+                            BackgroundColor(EXIT_BTN_COLOR),
+                            Visibility::Inherited,
+                            UI::ExitButton, // Marker component for the exit button.
+                            Button,
+                        ))
+                        .with_children(|parent| {
+                            parent.spawn((
+                                ImageNode::new(exit_handle),
+                                Node {
+                                    width: Val::Auto,
+                                    height: Val::Percent(100.0),
+                                    overflow: Overflow::hidden(),
+                                    ..Default::default()
+                                },
+                                Visibility::Inherited,
+                            ));
+                        });
+                });
         });
 
     let texture_handle: Handle<Image> = asset_server.load("fonts/ImgFont_1.sprite");
@@ -853,7 +956,9 @@ pub fn change_text_scale(
         // Calculate the smaller of the window's width or height.
         let vmin = e.width.min(e.height);
         for mut text_font in query.iter_mut() {
-            // Scale the font size relative to a base height of 720px.
+            // Scale the font size based on the window's smaller dimension (vmin).
+            // The font size of 18.0 is our baseline, designed for a 720px reference height.
+            // This calculation maintains the font's relative size as the window resizes.
             text_font.font_size = 18.0 * vmin / 720.0;
             info!("Resize Font size:{:?}", text_font.font_size);
         }
@@ -874,16 +979,15 @@ pub fn update_loading_bar(
             .filter(|handle| asset_server.is_loaded_with_dependencies(handle.id()))
             .count();
 
-        // Calculate the progress.
+        // Calculate the loading progress as a value between 0.0 and 1.0.
         let total_count = loading_assets.handles.len();
         let progress = if total_count > 0 {
             loaded_count as f32 / total_count as f32
         } else {
-            1.0
+            1.0 // Avoid division by zero if there are no assets to load.
         };
 
-        // Update the width of the loading bar. In older Bevy versions, this was done by directly
-        // modifying the `width` field of the `Node` component.
+        // Update the width of the loading bar UI node to reflect the current progress.
         node.width = Val::Percent(progress * 100.0);
     }
 }

@@ -109,7 +109,7 @@ fn main() {
         )
         .add_systems(
             Update,
-            pause::update_pause_title.run_if(in_state(GameState::Pause)),
+            (pause::update_pause_title, pause::button_system).run_if(in_state(GameState::Pause)),
         )
         // --- PREPARE STATE ---
         // Defines systems for the brief intro scene before gameplay starts.
@@ -186,7 +186,7 @@ fn main() {
                 in_game::cleanup_ui_animation,
                 in_game::update_rotate_anim,
                 in_game::update_start_ui,
-                in_game::pause_btn_system,
+                in_game::button_system,
             )
                 .run_if(in_state(GameState::InGame)),
         )

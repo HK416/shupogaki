@@ -62,7 +62,9 @@ const SCORE_DIST_CYCLE: f32 = 1.0;
 /// The cycle speed of the fuel decoration's bobbing animation.
 const FUEL_DECO_CYCLE: f32 = PI * 1.0;
 /// The cycle speed of the flashing effect when the player is attacked.
-const ATTACKED_EFFECT_CYCLE: f32 = PI * 8.0;
+const ATTACKED_EFFECT_CYCLE: f32 = PI * 8.0; // 8 cycles per second
+/// The cycle speed for the pause title's blinking effect.
+const PAUSE_TITLE_CYCLE: f32 = 1.5; // 1.5 seconds per blink cycle
 
 /// The color of the fuel gauge's decorative border.
 const FUEL_COLOR: Color = Color::srgb(48.0 / 255.0, 55.0 / 255.0, 70.0 / 255.0);
@@ -80,6 +82,10 @@ const PAUSE_BTN_COLOR: Color = Color::WHITE;
 const PAUSE_ICON_COLOR: Color = Color::srgb(0.8, 0.8, 0.8);
 /// The translucent background color for the pause screen.
 const UI_PAUSE_BG_COLOR: Color = Color::srgba(0.0, 0.0, 0.0, 0.85);
+/// The color of the "Resume" button in the pause menu.
+const RESUME_BTN_COLOR: Color = Color::WHITE;
+/// The color of the "Exit" button in the pause menu.
+const EXIT_BTN_COLOR: Color = Color::srgb(250.0 / 255.0, 95.0 / 255.0, 85.0 / 255.0);
 
 /// The rate at which fuel is consumed per second.
 const FUEL_USAGE: f32 = 100.0 / 20.0;
@@ -224,11 +230,20 @@ pub enum UI {
     Start,
     /// The "Finish" message UI.
     Finish,
+    /// The pause button in the in-game UI.
     PauseButton,
+    /// The title text of the pause menu.
     PauseTitle,
+    /// The "1" in the resume countdown.
     ResumeCount1,
+    /// The "2" in the resume countdown.
     ResumeCount2,
+    /// The "3" in the resume countdown.
     ResumeCount3,
+    /// The "Resume" button in the pause menu.
+    ResumeButton,
+    /// The "Exit" button in the pause menu.
+    ExitButton,
 }
 
 /// A marker component for the fuel gauge's decorative background.
