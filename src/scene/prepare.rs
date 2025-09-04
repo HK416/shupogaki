@@ -118,7 +118,7 @@ pub fn update_scene_timer(
     mut timer: ResMut<SceneTimer>,
     time: Res<Time>,
 ) {
-    timer.0 += time.delta_secs();
+    timer.tick(time.delta_secs());
     if timer.0 >= SCENE_DURATION {
         next_state.set(GameState::InGame);
     }

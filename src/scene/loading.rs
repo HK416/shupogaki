@@ -66,10 +66,10 @@ pub fn on_enter(mut commands: Commands, asset_server: Res<AssetServer>) {
     // Pre-spawn the initial ground segments. They are created with `Visibility::Hidden` and will be made
     // visible when the game starts. This technique, often called "object pooling" or "pre-warming",
     // helps prevent a performance stutter that could occur if these entities were all spawned at once at the beginning of the game.
-    for i in 0..5 {
+    for i in 0..7 {
         commands.spawn((
             SpawnModel(model.clone()),
-            Transform::from_xyz(0.0, 0.0, 30.0 * i as f32),
+            Transform::from_xyz(0.0, 0.0, DESPAWN_LOCATION + 30.0 * i as f32),
             InGameStateEntity,
             Visibility::Hidden,
             Ground,
@@ -179,6 +179,7 @@ pub fn on_enter(mut commands: Commands, asset_server: Res<AssetServer>) {
     // These are also loaded upfront to prevent hitches.
     create_loading_ui(&mut commands, &asset_server, &mut loading_assets);
     create_in_game_ui(&mut commands, &asset_server, &mut loading_assets);
+    create_pause_ui(&mut commands, &asset_server, &mut loading_assets);
 
     // --- Resource Insertion ---
     // Make the asset tracking and caching resources available to other systems.
@@ -200,10 +201,14 @@ fn create_in_game_ui(
     asset_server: &Res<AssetServer>,
     loading_assets: &mut LoadingAssets,
 ) {
+    // Load the texture for the "Start" message.
     let texture_handle: Handle<Image> = asset_server.load("fonts/ImgFont_Start.sprite");
+    // Add the handle to the list of assets to track for loading progress.
     loading_assets.handles.push(texture_handle.clone().into());
 
     commands
+        // Spawn the root node for the "Start" UI element.
+        // This node acts as a container for the "Start" image.
         .spawn((
             Node {
                 width: Val::Percent(100.0),
@@ -216,8 +221,10 @@ fn create_in_game_ui(
             InGameStateEntity,
             Visibility::Hidden,
             UI::Start,
+            ZIndex(5),
         ))
         .with_children(|parent| {
+            // Spawn the image node for the "Start" message.
             parent.spawn((
                 ImageNode::new(texture_handle),
                 Node {
@@ -230,9 +237,12 @@ fn create_in_game_ui(
             ));
         });
 
+    // Load the texture for the "Finish" message.
     let texture_handle: Handle<Image> = asset_server.load("fonts/ImgFont_Finish.sprite");
+    // Add the handle to the list of assets to track for loading progress.
     loading_assets.handles.push(texture_handle.clone().into());
 
+    // Spawn the root node for the "Finish" UI element.
     commands
         .spawn((
             Node {
@@ -246,8 +256,10 @@ fn create_in_game_ui(
             InGameStateEntity,
             Visibility::Hidden,
             UI::Finish,
+            ZIndex(5),
         ))
         .with_children(|parent| {
+            // Spawn the image node for the "Finish" message.
             parent.spawn((
                 ImageNode::new(texture_handle),
                 Node {
@@ -260,12 +272,94 @@ fn create_in_game_ui(
             ));
         });
 
+    // Spawn the pause button UI element.
+    commands
+        .spawn((
+            Node {
+                position_type: PositionType::Absolute,
+                top: Val::Vh(1.5),
+                right: Val::Vw(1.5),
+                width: Val::Vw(4.5),
+                height: Val::Vw(4.5),
+                ..Default::default()
+            },
+            BorderRadius::all(Val::Percent(30.0)),
+            BackgroundColor(PAUSE_BTN_COLOR),
+            BoxShadow::new(
+                Color::BLACK.with_alpha(0.3),
+                Val::Percent(0.0),
+                Val::Percent(0.0),
+                Val::Percent(0.0),
+                Val::Px(10.0),
+            ),
+            Animator::new(Tween::new(
+                // Define the animation for the pause button sliding in from the top.
+                EaseFunction::SmoothStep,
+                Duration::from_secs_f32(UI_ANIMATION_DURATION),
+                UiPositionLens {
+                    start: UiRect {
+                        left: Val::Auto,
+                        right: Val::Vw(1.5),
+                        top: Val::Vh(-20.0),
+                        bottom: Val::Auto,
+                    },
+                    end: UiRect {
+                        left: Val::Auto,
+                        right: Val::Vw(1.5),
+                        top: Val::Vh(1.5),
+                        bottom: Val::Auto,
+                    },
+                },
+            ))
+            .with_state(AnimatorState::Paused),
+            InGameStateEntity,
+            Visibility::Hidden,
+            UI::PauseButton, // Marker component for the pause button.
+            Button,
+            ZIndex(4),
+        ))
+        // Add children to create the pause icon (two vertical bars).
+        .with_children(|parent| {
+            parent.spawn((
+                Node {
+                    position_type: PositionType::Absolute,
+                    top: Val::Percent(20.0),
+                    left: Val::Percent(30.0),
+                    width: Val::Percent(15.0),
+                    height: Val::Percent(60.0),
+                    ..Default::default()
+                },
+                BorderRadius::all(Val::Percent(50.0)),
+                BackgroundColor(PAUSE_ICON_COLOR),
+                // Inherit visibility from parent, so it's hidden initially.
+                Visibility::Inherited,
+            ));
+
+            // Second bar of the pause icon.
+            parent.spawn((
+                Node {
+                    position_type: PositionType::Absolute,
+                    top: Val::Percent(20.0),
+                    right: Val::Percent(30.0),
+                    width: Val::Percent(15.0),
+                    height: Val::Percent(60.0),
+                    ..Default::default()
+                },
+                BorderRadius::all(Val::Percent(50.0)),
+                BackgroundColor(PAUSE_ICON_COLOR),
+                // Inherit visibility from parent, so it's hidden initially.
+                Visibility::Inherited,
+            ));
+        });
+
     // Load the sprite sheet and texture atlas for the number font.
     let texture_handle: Handle<Image> = asset_server.load("fonts/ImgFont_Number.sprite");
     loading_assets.handles.push(texture_handle.clone().into());
 
+    // Load the texture atlas layout for the number font.
     let texture_atlas_handle: Handle<TextureAtlasLayout> =
         asset_server.load("fonts/ImgFont_Number.atlas");
+    // Add the handle to the list of assets to track for loading progress.
     loading_assets
         .handles
         .push(texture_atlas_handle.clone().into());
@@ -284,6 +378,7 @@ fn create_in_game_ui(
                 ..Default::default()
             },
             // This Animator component will handle the slide-in animation.
+            // The score UI slides in from the top.
             Animator::new(Tween::new(
                 EaseFunction::SmoothStep,
                 Duration::from_secs_f32(UI_ANIMATION_DURATION),
@@ -305,7 +400,8 @@ fn create_in_game_ui(
             .with_state(AnimatorState::Paused), // Start the animation in a paused state.
             InGameStateEntity,
             Visibility::Hidden,
-            UI::Score,
+            UI::Score, // Marker component for the score display.
+            ZIndex(0),
         ))
         .with_children(|parent| {
             // Spawn the 100,000s place digit.
@@ -319,7 +415,7 @@ fn create_in_game_ui(
                     height: Val::Percent(80.0),
                     ..Default::default()
                 },
-                Visibility::Inherited,
+                Visibility::Inherited, // Inherit visibility from parent.
                 ScoreSpace100000s,
             ));
 
@@ -334,7 +430,7 @@ fn create_in_game_ui(
                     height: Val::Percent(80.0),
                     ..Default::default()
                 },
-                Visibility::Inherited,
+                Visibility::Inherited, // Inherit visibility from parent.
                 ScoreSpace10000s,
             ));
 
@@ -349,7 +445,7 @@ fn create_in_game_ui(
                     height: Val::Percent(80.0),
                     ..Default::default()
                 },
-                Visibility::Inherited,
+                Visibility::Inherited, // Inherit visibility from parent.
                 ScoreSpace1000s,
             ));
 
@@ -364,7 +460,7 @@ fn create_in_game_ui(
                     height: Val::Percent(80.0),
                     ..Default::default()
                 },
-                Visibility::Inherited,
+                Visibility::Inherited, // Inherit visibility from parent.
                 ScoreSpace100s,
             ));
 
@@ -379,7 +475,7 @@ fn create_in_game_ui(
                     height: Val::Percent(80.0),
                     ..Default::default()
                 },
-                Visibility::Inherited,
+                Visibility::Inherited, // Inherit visibility from parent.
                 ScoreSpace10s,
             ));
 
@@ -394,7 +490,7 @@ fn create_in_game_ui(
                     height: Val::Percent(80.0),
                     ..Default::default()
                 },
-                Visibility::Inherited,
+                Visibility::Inherited, // Inherit visibility from parent.
                 ScoreSpace1s,
             ));
         });
@@ -416,6 +512,7 @@ fn create_in_game_ui(
                 ..Default::default()
             },
             Animator::new(Tween::new(
+                // Define the animation for the fuel gauge sliding in from the bottom.
                 EaseFunction::SmoothStep,
                 Duration::from_secs_f32(UI_ANIMATION_DURATION),
                 UiPositionLens {
@@ -435,8 +532,9 @@ fn create_in_game_ui(
             ))
             .with_state(AnimatorState::Paused),
             InGameStateEntity,
-            Visibility::Hidden, // Use `Visibility::Hidden` to hide the entire UI hierarchy initially.
+            Visibility::Hidden, // Hide the entire UI hierarchy initially.
             UI::Fuel,           // Marker component.
+            ZIndex(0),
         ))
         .with_children(|parent| {
             // Create the background/border of the fuel gauge.
@@ -453,8 +551,8 @@ fn create_in_game_ui(
                     BackgroundColor(FUEL_COLOR),
                     BorderColor(FUEL_COLOR),
                     BorderRadius::all(Val::Percent(50.0)),
-                    Visibility::Inherited,
-                    ZIndex(2), // Ensure the border is drawn above the gauge bar.
+                    Visibility::Inherited, // Inherit visibility from parent.
+                    ZIndex(1),             // Ensure the border is drawn above the gauge bar.
                 ))
                 .with_children(|parent| {
                     // Create the actual fuel gauge bar that will change width.
@@ -467,9 +565,9 @@ fn create_in_game_ui(
                         },
                         BackgroundColor(FUEL_GOOD_GAUGE_COLOR),
                         BorderRadius::all(Val::Percent(50.0)),
-                        Visibility::Inherited,
-                        ZIndex(1), // Drawn below the border.
-                        FuelGauge, // Marker to identify this entity for updates.
+                        Visibility::Inherited, // Inherit visibility from parent.
+                        ZIndex(1),             // Drawn below the border.
+                        FuelGauge,             // Marker to identify this entity for updates.
                     ));
                 });
 
@@ -483,9 +581,141 @@ fn create_in_game_ui(
                     left: Val::Px(0.0),
                     ..Default::default()
                 },
+                Visibility::Inherited, // Inherit visibility from parent.
+                ZIndex(1),             // Ensure it's drawn on top.
+                FuelDeco,              // Marker component.
+            ));
+        });
+}
+
+/// Creates the UI elements for the pause menu and resume countdown.
+///
+/// This includes the "Pause" title and the "3, 2, 1" countdown numbers.
+/// All elements are spawned with `Visibility::Hidden` and are made visible
+/// by the systems in the `pause` and `resume` modules.
+fn create_pause_ui(
+    commands: &mut Commands,
+    asset_server: &Res<AssetServer>,
+    loading_assets: &mut LoadingAssets,
+) {
+    // Load the texture for the "Pause" title.
+    let texture_handle: Handle<Image> = asset_server.load("fonts/ImgFont_Pause.sprite");
+    loading_assets.handles.push(texture_handle.clone().into());
+    commands
+        .spawn((
+            Node {
+                width: Val::Percent(100.0),
+                height: Val::Percent(100.0),
+                flex_direction: FlexDirection::Column,
+                justify_content: JustifyContent::Center,
+                align_content: AlignContent::Center,
+                align_items: AlignItems::Center,
+                ..Default::default()
+            },
+            BackgroundColor(UI_PAUSE_BG_COLOR),
+            InGameStateEntity,
+            Visibility::Hidden,
+            UI::PauseTitle, // Marker component for the pause menu title.
+            ZIndex(5),
+        ))
+        .with_children(|parent| {
+            // Spawn the image node for the "Pause" title.
+            parent.spawn((
+                ImageNode::new(texture_handle),
+                Node {
+                    width: Val::Vw(40.0),
+                    height: Val::Vw(15.0),
+                    ..Default::default()
+                },
                 Visibility::Inherited,
-                ZIndex(2), // Ensure it's drawn on top.
-                FuelDeco,  // Marker component.
+                PauseTitle, // Marker component for the pause menu title.
+            ));
+        });
+
+    let texture_handle: Handle<Image> = asset_server.load("fonts/ImgFont_1.sprite");
+    loading_assets.handles.push(texture_handle.clone().into());
+    commands
+        .spawn((
+            Node {
+                width: Val::Percent(100.0),
+                height: Val::Percent(100.0),
+                justify_content: JustifyContent::Center,
+                align_content: AlignContent::Center,
+                align_items: AlignItems::Center,
+                ..Default::default()
+            },
+            InGameStateEntity,
+            Visibility::Hidden,
+            UI::ResumeCount1,
+            ZIndex(5),
+        ))
+        .with_children(|parent| {
+            parent.spawn((
+                ImageNode::new(texture_handle),
+                Node {
+                    width: Val::Vw(15.0),
+                    height: Val::Vw(15.0),
+                    ..Default::default()
+                },
+                Visibility::Inherited,
+            ));
+        });
+
+    let texture_handle: Handle<Image> = asset_server.load("fonts/ImgFont_2.sprite");
+    loading_assets.handles.push(texture_handle.clone().into());
+    commands
+        .spawn((
+            Node {
+                width: Val::Percent(100.0),
+                height: Val::Percent(100.0),
+                justify_content: JustifyContent::Center,
+                align_content: AlignContent::Center,
+                align_items: AlignItems::Center,
+                ..Default::default()
+            },
+            InGameStateEntity,
+            Visibility::Hidden,
+            UI::ResumeCount2,
+            ZIndex(5),
+        ))
+        .with_children(|parent| {
+            parent.spawn((
+                ImageNode::new(texture_handle),
+                Node {
+                    width: Val::Vw(15.0),
+                    height: Val::Vw(15.0),
+                    ..Default::default()
+                },
+                Visibility::Inherited,
+            ));
+        });
+
+    let texture_handle: Handle<Image> = asset_server.load("fonts/ImgFont_3.sprite");
+    loading_assets.handles.push(texture_handle.clone().into());
+    commands
+        .spawn((
+            Node {
+                width: Val::Percent(100.0),
+                height: Val::Percent(100.0),
+                justify_content: JustifyContent::Center,
+                align_content: AlignContent::Center,
+                align_items: AlignItems::Center,
+                ..Default::default()
+            },
+            InGameStateEntity,
+            Visibility::Hidden,
+            UI::ResumeCount3,
+            ZIndex(5),
+        ))
+        .with_children(|parent| {
+            parent.spawn((
+                ImageNode::new(texture_handle),
+                Node {
+                    width: Val::Vw(15.0),
+                    height: Val::Vw(15.0),
+                    ..Default::default()
+                },
+                Visibility::Inherited,
             ));
         });
 }

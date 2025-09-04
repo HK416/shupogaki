@@ -24,7 +24,7 @@ use crate::collider::Collider;
 // Import local modules for asset handling and game scenes.
 use crate::{
     asset::spawner::CustomAssetPlugin,
-    scene::{GameState, in_game, loading, prepare, wrap_up},
+    scene::{GameState, in_game, loading, pause, prepare, resume, wrap_up},
 };
 
 // --- MAIN FUNCTION ---
@@ -94,6 +94,23 @@ fn main() {
                 // if the game state is currently `GameState::Loading`.
                 .run_if(in_state(GameState::Loading)),
         )
+        // --- PAUSE STATE ---
+        .add_systems(
+            OnEnter(GameState::Pause),
+            (pause::enable_pause_ui, pause::pause_animation),
+        )
+        .add_systems(
+            OnExit(GameState::Pause),
+            (pause::disable_pause_ui, pause::disable_pause_title),
+        )
+        .add_systems(
+            PreUpdate,
+            pause::handle_player_input.run_if(in_state(GameState::Pause)),
+        )
+        .add_systems(
+            Update,
+            pause::update_pause_title.run_if(in_state(GameState::Pause)),
+        )
         // --- PREPARE STATE ---
         // Defines systems for the brief intro scene before gameplay starts.
         .add_systems(
@@ -135,39 +152,58 @@ fn main() {
         .add_systems(
             OnEnter(GameState::InGame),
             // Make the UI visible and start its animations.
-            (in_game::on_enter, in_game::play_ui_animation),
+            (in_game::visible_in_game_ui, in_game::play_ui_animation),
         )
-        // Defines systems that run when exiting the `InGame` state for cleanup.
-        .add_systems(OnExit(GameState::InGame), in_game::on_exit)
         // --- GAMEPLAY SYSTEMS ---
         // Schedule systems to run at different stages of the game loop.
         .add_systems(
             PreUpdate,
             // Handle player input in the `PreUpdate` stage for responsiveness.
-            (in_game::handle_player_input).run_if(in_state(GameState::InGame)),
+            (
+                in_game::handle_player_input,
+                in_game::handle_pause_input,
+                // This system is for debugging player states and is only compiled when
+                // the "no-debuging-player" feature is NOT enabled.
+                #[cfg(not(feature = "no-debuging-player"))]
+                {
+                    in_game::handle_player
+                },
+            )
+                .run_if(in_state(GameState::InGame)),
         )
         .add_systems(
             Update,
+            // Main game logic runs in the `Update` stage.
             (
-                // Main game logic runs in the `Update` stage.
+                // Update game logic like timers, score, and entity positions.
+                in_game::update_input_delay,
+                in_game::update_player_state,
+                in_game::update_score,
+                in_game::update_fuel,
+                in_game::update_player_position,
+                in_game::update_ground_position,
+                in_game::update_object_position,
+                in_game::cleanup_ui_animation,
+                in_game::update_rotate_anim,
+                in_game::update_start_ui,
+                in_game::pause_btn_system,
+            )
+                .run_if(in_state(GameState::InGame)),
+        )
+        .add_systems(
+            PostUpdate,
+            // Systems that react to changes from the `Update` stage.
+            (
                 (
-                    // Update game logic like timers, score, and entity positions.
-                    in_game::update_input_delay,
-                    in_game::update_player_state,
-                    in_game::update_score,
-                    in_game::update_fuel,
-                    in_game::update_player_position,
-                    in_game::update_ground_position,
-                    in_game::update_object_position,
-                    in_game::cleanup_ui_animation,
-                    in_game::update_rotate_anim,
-                    in_game::update_start_ui,
-                    // This system is for debugging player states and is only compiled when
-                    // the "no-debuging-player" feature is NOT enabled.
-                    #[cfg(not(feature = "no-debuging-player"))]
-                    {
-                        in_game::handle_player
-                    },
+                    in_game::update_toy_trains,
+                    in_game::spawn_grounds,
+                    in_game::spawn_objects,
+                    in_game::check_for_collisions,
+                    in_game::update_score_ui,
+                    in_game::update_fuel_deco,
+                    in_game::update_fuel_gauge,
+                    in_game::update_player_effect,
+                    in_game::update_player_speed,
                 )
                     .run_if(in_state(GameState::InGame)),
                 // This is a "conditional compilation" attribute. The code below will only be included
@@ -179,21 +215,19 @@ fn main() {
                 },
             ),
         )
+        // --- RESUME STATE ---
+        .add_systems(OnEnter(GameState::Resume), resume::on_enter)
         .add_systems(
-            PostUpdate,
-            // Systems that react to changes from the `Update` stage.
+            OnExit(GameState::Resume),
+            (resume::on_exit, resume::resume_animation),
+        )
+        .add_systems(
+            Update,
             (
-                in_game::update_toy_trains,
-                in_game::spawn_grounds,
-                in_game::spawn_objects,
-                in_game::check_for_collisions,
-                in_game::update_score_ui,
-                in_game::update_fuel_deco,
-                in_game::update_fuel_gauge,
-                in_game::update_player_effect,
-                in_game::update_player_speed,
+                resume::update_scene_timer,
+                resume::update_resume_ui.after(resume::update_scene_timer),
             )
-                .run_if(in_state(GameState::InGame)),
+                .run_if(in_state(GameState::Resume)),
         )
         // --- WRAP-UP STATE ---
         // Defines systems for the game-over or completion scene.

@@ -87,6 +87,27 @@ pub fn play_ui_animation(mut commands: Commands, query: Query<(Entity, &UI)>) {
                     },
                 )));
             }
+            UI::PauseButton => {
+                commands.insert(Animator::new(Tween::new(
+                    // Animate the pause button sliding up and off-screen.
+                    EaseFunction::SmoothStep,
+                    Duration::from_secs_f32(UI_ANIMATION_DURATION),
+                    UiPositionLens {
+                        start: UiRect {
+                            left: Val::Auto,
+                            right: Val::Vw(1.5),
+                            top: Val::Vh(1.5),
+                            bottom: Val::Auto,
+                        },
+                        end: UiRect {
+                            left: Val::Auto,
+                            right: Val::Vw(1.5),
+                            top: Val::Vh(-20.0),
+                            bottom: Val::Auto,
+                        },
+                    },
+                )));
+            }
             _ => { /* empty */ }
         }
     }
@@ -102,7 +123,11 @@ pub fn on_exit(mut commands: Commands, query: Query<Entity, With<InGameStateEnti
         commands.entity(entity).despawn();
     }
 
-    // Remove resources specific to the InGame state to prepare for a potential restart.
+    // Remove all game-specific resources.
+    commands.remove_resource::<CachedObjects>();
+    commands.remove_resource::<ObjectSpawner>();
+    commands.remove_resource::<InputDelay>();
+    commands.remove_resource::<TrainFuel>();
     commands.remove_resource::<RetiredGrounds>();
     commands.remove_resource::<CachedGrounds>();
     commands.remove_resource::<PlayerState>();
@@ -117,7 +142,7 @@ pub fn update_scene_timer(
     mut timer: ResMut<SceneTimer>,
     time: Res<Time>,
 ) {
-    timer.0 += time.delta_secs();
+    timer.tick(time.delta_secs());
     if timer.0 >= SCENE_DURATION {
         // TODO: Implement the actual game over logic (e.g., transitioning to a score screen or main menu).
         todo!("Game Over!");

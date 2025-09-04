@@ -1,6 +1,8 @@
 pub mod in_game;
 pub mod loading;
+pub mod pause;
 pub mod prepare;
+pub mod resume;
 pub mod wrap_up;
 
 use std::{
@@ -71,7 +73,13 @@ const FUEL_FAIR_GAUGE_COLOR: Color = Color::srgb(0.8, 0.8, 0.2);
 /// The color of the fuel gauge's indicator bar when fuel is low (red).
 const FUEL_POOR_GAUGE_COLOR: Color = Color::srgb(0.8, 0.2, 0.2);
 /// The color of the loading bar.
-const LOADING_BAR_COLOR: Color = Color::srgb(0.2, 0.8, 0.2);
+const LOADING_BAR_COLOR: Color = Color::srgb(0.2, 0.8, 0.2); // Green color for the loading bar.
+/// The base color of the pause button.
+const PAUSE_BTN_COLOR: Color = Color::WHITE;
+/// The color of the pause icon (the two vertical bars).
+const PAUSE_ICON_COLOR: Color = Color::srgb(0.8, 0.8, 0.8);
+/// The translucent background color for the pause screen.
+const UI_PAUSE_BG_COLOR: Color = Color::srgba(0.0, 0.0, 0.0, 0.85);
 
 /// The rate at which fuel is consumed per second.
 const FUEL_USAGE: f32 = 100.0 / 20.0;
@@ -152,10 +160,14 @@ pub enum GameState {
     /// The default state, where assets are loaded and a loading screen is displayed.
     #[default]
     Loading,
+    /// The state where the game is paused.
+    Pause,
     /// A brief introductory scene before gameplay starts.
     Prepare,
-    /// The state where the main gameplay occurs.
+    /// The state where the main gameplay occurs. This is the primary game loop.
     InGame,
+    /// The state where the game resumes after being paused.
+    Resume,
     /// A brief scene that plays when the game ends (e.g., fuel runs out).
     WrapUp,
 }
@@ -202,7 +214,7 @@ pub struct ToyTrain1;
 pub struct ToyTrain2;
 
 /// A marker component to identify different parts of the UI hierarchy.
-#[derive(Component)]
+#[derive(Component, Clone, Copy)]
 pub enum UI {
     /// The root node of the score display.
     Score,
@@ -212,6 +224,11 @@ pub enum UI {
     Start,
     /// The "Finish" message UI.
     Finish,
+    PauseButton,
+    PauseTitle,
+    ResumeCount1,
+    ResumeCount2,
+    ResumeCount3,
 }
 
 /// A marker component for the fuel gauge's decorative background.
@@ -245,6 +262,10 @@ pub struct ScoreSpace10000s;
 /// A marker component for the 100,000s place digit of the score display.
 #[derive(Component)]
 pub struct ScoreSpace100000s;
+
+/// A marker component for the pause menu title.
+#[derive(Component)]
+pub struct PauseTitle;
 
 /// Stores the player's current lane index.
 #[derive(Component)]
@@ -638,6 +659,13 @@ impl Default for TrainFuel {
 /// A resource that tracks the elapsed time of a scene, used for timed transitions or animations.
 #[derive(Resource)]
 pub struct SceneTimer(pub f32);
+
+impl SceneTimer {
+    /// Advances the timer by the given `delta_time`.
+    pub fn tick(&mut self, delta_time: f32) {
+        self.0 += delta_time;
+    }
+}
 
 impl Default for SceneTimer {
     fn default() -> Self {

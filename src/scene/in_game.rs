@@ -16,12 +16,16 @@ use super::*;
 
 /// A system that runs once when entering `GameState::InGame`.
 /// It makes the core in-game UI (Score, Fuel) visible, but keeps other UI like "Finish" hidden.
-pub fn on_enter(mut in_game_ui: Query<(&mut Visibility, &UI)>) {
+pub fn visible_in_game_ui(mut query: Query<(&mut Visibility, &UI)>) {
     info!("Enter InGame state.");
-    for (mut visibility, ui) in in_game_ui.iter_mut() {
+    for (mut visibility, ui) in query.iter_mut() {
         match *ui {
-            // The Finish UI should not be visible at the start of the game.
-            UI::Finish => { /* empty */ }
+            // Hide UI elements that are not part of the main in-game display.
+            UI::Finish
+            | UI::PauseTitle
+            | UI::ResumeCount1
+            | UI::ResumeCount2
+            | UI::ResumeCount3 => *visibility = Visibility::Hidden,
             // Make all other UI elements visible.
             _ => *visibility = Visibility::Visible,
         }
@@ -33,18 +37,6 @@ pub fn play_ui_animation(mut query: Query<&mut Animator<Node>>) {
     for mut animator in query.iter_mut() {
         animator.state = AnimatorState::Playing;
     }
-}
-
-// --- CLEANUP SYSTEM ---
-
-/// A system that cleans up the game world when exiting the `InGame` state.
-pub fn on_exit(mut commands: Commands) {
-    info!("Exit InGame state.");
-    // Remove resources specific to the InGame state to ensure a clean slate for the next run.
-    commands.remove_resource::<CachedObjects>();
-    commands.remove_resource::<ObjectSpawner>();
-    commands.remove_resource::<InputDelay>();
-    commands.remove_resource::<TrainFuel>();
 }
 
 // --- PREUPDATE SYSTEMS ---
@@ -96,6 +88,16 @@ pub fn handle_player_input(
         if keyboard_input.just_pressed(KeyCode::Space) && is_grounded {
             vert_move.velocity = JUMP_STRENGTH;
         }
+    }
+}
+
+/// A system that handles pausing the game when the Escape key is pressed.
+pub fn handle_pause_input(
+    keyboard_input: Res<ButtonInput<KeyCode>>,
+    mut next_state: ResMut<NextState<GameState>>,
+) {
+    if keyboard_input.just_pressed(KeyCode::Escape) {
+        next_state.set(GameState::Pause);
     }
 }
 
@@ -262,6 +264,34 @@ pub fn update_start_ui(
             commands.entity(entity).despawn();
         } else {
             image_node.color = fade_out.color();
+        }
+    }
+}
+
+/// A system that handles the interaction with the pause button.
+/// It changes the button's color on hover and press, and transitions
+/// to the `GameState::Pause` when the button is pressed.
+#[allow(clippy::type_complexity)]
+pub fn pause_btn_system(
+    mut query: Query<
+        (&UI, &Interaction, &mut BackgroundColor),
+        (Changed<Interaction>, With<Button>),
+    >,
+    mut next_state: ResMut<NextState<GameState>>,
+) {
+    for (ui, interaction, mut color) in query.iter_mut() {
+        match (*ui, *interaction) {
+            (UI::PauseButton, Interaction::Hovered) => {
+                color.0 = PAUSE_BTN_COLOR.darker(0.15);
+            }
+            (UI::PauseButton, Interaction::Pressed) => {
+                color.0 = PAUSE_BTN_COLOR.darker(0.3);
+                next_state.set(GameState::Pause);
+            }
+            (UI::PauseButton, Interaction::None) => {
+                color.0 = PAUSE_BTN_COLOR;
+            }
+            _ => { /* empty */ }
         }
     }
 }
