@@ -60,6 +60,8 @@ pub fn handle_player(
         };
     } else if keyboard_input.just_pressed(KeyCode::F6) {
         fuel.remaining = 100.0;
+    } else if keyboard_input.just_pressed(KeyCode::F7) {
+        fuel.remaining = 0.0;
     }
 }
 

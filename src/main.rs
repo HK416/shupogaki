@@ -24,7 +24,7 @@ use crate::collider::Collider;
 // Import local modules for asset handling and game scenes.
 use crate::{
     asset::spawner::CustomAssetPlugin,
-    scene::{GameState, in_game, loading, pause, prepare, resume, wrap_up},
+    scene::{GameState, in_game, loading, pause, prepare, result_start, resume, wrap_up},
 };
 
 // --- MAIN FUNCTION ---
@@ -110,6 +110,19 @@ fn main() {
         .add_systems(
             Update,
             (pause::update_pause_title, pause::button_system).run_if(in_state(GameState::Pause)),
+        )
+        // --- RESULT_START STATE ---
+        .add_systems(
+            OnEnter(GameState::ResultStart),
+            (
+                result_start::on_enter,
+                result_start::spawn_ground,
+                result_start::enable_result_ui,
+            ),
+        )
+        .add_systems(
+            Update,
+            result_start::post_process_spawned_entities.run_if(in_state(GameState::ResultStart)),
         )
         // --- PREPARE STATE ---
         // Defines systems for the brief intro scene before gameplay starts.
@@ -236,10 +249,14 @@ fn main() {
             (
                 // Shows the "Finish" UI and starts the UI animations.
                 wrap_up::on_enter,
+                wrap_up::enable_finish_ui,
                 wrap_up::play_ui_animation,
             ),
         )
-        .add_systems(OnExit(GameState::WrapUp), wrap_up::on_exit)
+        .add_systems(
+            OnExit(GameState::WrapUp),
+            (wrap_up::on_exit, wrap_up::remove_game_world),
+        )
         .add_systems(
             Update,
             (

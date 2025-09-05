@@ -27,11 +27,14 @@ const HIDE_DURATION: f32 = 1.5;
 // --- SETUP SYSTEM ---
 
 /// A system that runs once when entering `GameState::WrapUp`.
-/// It makes the "Finish" UI visible and inserts the scene timer.
-pub fn on_enter(mut commands: Commands, mut in_game_ui: Query<(&mut Visibility, &UI)>) {
+pub fn on_enter(mut commands: Commands) {
     info!("Enter WrapUp State.");
     commands.insert_resource(SceneTimer::default());
-    for (mut visibility, ui) in in_game_ui.iter_mut() {
+}
+
+/// A system that makes the "Finish" UI element visible.
+pub fn enable_finish_ui(mut query: Query<(&mut Visibility, &UI)>) {
+    for (mut visibility, ui) in query.iter_mut() {
         match *ui {
             // Make the "Finish" UI visible.
             UI::Finish => *visibility = Visibility::Visible,
@@ -116,36 +119,30 @@ pub fn play_ui_animation(mut commands: Commands, query: Query<(Entity, &UI)>) {
 // --- CLEANUP SYSTEM ---
 
 /// A system that cleans up the game world when exiting the `WrapUp` state.
-pub fn on_exit(mut commands: Commands, query: Query<Entity, With<InGameStateEntity>>) {
+pub fn on_exit(mut commands: Commands) {
     info!("Exit WrapUp State.");
-    // Despawn all entities associated with the InGame state.
+    commands.remove_resource::<SceneTimer>();
+}
+
+/// A system that despawns all entities marked with `InGameStateEntity`.
+/// This effectively clears the game world of all gameplay-related objects.
+pub fn remove_game_world(mut commands: Commands, query: Query<Entity, With<InGameStateEntity>>) {
     for entity in query.iter() {
         commands.entity(entity).despawn();
     }
-
-    // Remove all game-specific resources.
-    commands.remove_resource::<CachedObjects>();
-    commands.remove_resource::<ObjectSpawner>();
-    commands.remove_resource::<InputDelay>();
-    commands.remove_resource::<TrainFuel>();
-    commands.remove_resource::<RetiredGrounds>();
-    commands.remove_resource::<CachedGrounds>();
-    commands.remove_resource::<PlayerState>();
-    commands.remove_resource::<PlayScore>();
 }
 
 // --- UPDATE SYSTEMS ---
 
 /// A system that advances the scene timer and handles the end of the wrap-up sequence.
 pub fn update_scene_timer(
-    mut _next_state: ResMut<NextState<GameState>>,
+    mut next_state: ResMut<NextState<GameState>>,
     mut timer: ResMut<SceneTimer>,
     time: Res<Time>,
 ) {
     timer.tick(time.delta_secs());
     if timer.0 >= SCENE_DURATION {
-        // TODO: Implement the actual game over logic (e.g., transitioning to a score screen or main menu).
-        todo!("Game Over!");
+        next_state.set(GameState::ResultStart);
     }
 }
 
@@ -157,7 +154,7 @@ pub fn update_finish_ui(
 ) {
     for (mut image_node, mut finish_animation) in query.iter_mut() {
         // Start the fade-in animation partway through the scene.
-        if timer.0 >= SCENE_DURATION - UI_ANIMATION_DURATION {
+        if timer.0 >= HIDE_DURATION {
             finish_animation.update(time.delta_secs());
         }
         image_node.color = finish_animation.color();

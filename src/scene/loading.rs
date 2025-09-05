@@ -76,9 +76,18 @@ pub fn on_enter(mut commands: Commands, asset_server: Res<AssetServer>) {
         ));
     }
 
+    // Load the ground model specifically for the result display area.
+    let model: Handle<ModelAsset> = asset_server.load("models/Plane_999.hierarchy");
+    // Add its handle to the `LoadingAssets` resource to track its loading status.
+    loading_assets.handles.push(model.clone().into());
+    // Cache the handle in the `CachedGrounds` resource, associating it with `GroundModel::Plane999`.
+    cached_grounds
+        .models
+        .insert(GroundModel::Plane999, model.clone());
+
     // --- Obstacle Loading ---
     // Load the model for the fence obstacle.
-    let model: Handle<ModelAsset> = asset_server.load("models/Rail_0.hierarchy");
+    let model: Handle<ModelAsset> = asset_server.load("models/Barricade.hierarchy");
     // Add its handle to the loading tracker.
     loading_assets.handles.push(model.clone().into());
     // Cache the handle for reuse when spawning new obstacles during gameplay.
@@ -126,7 +135,6 @@ pub fn on_enter(mut commands: Commands, asset_server: Res<AssetServer>) {
             SpawnModel(model),
             AnimationClipHandle(clip),
             Transform::from_xyz(0.0, 0.8775, 0.0),
-            InGameStateEntity,
             Visibility::Hidden,
         ))
         .id();
@@ -156,7 +164,6 @@ pub fn on_enter(mut commands: Commands, asset_server: Res<AssetServer>) {
             SpawnModel(model),
             AnimationClipHandle(clip),
             Transform::from_xyz(0.0, 0.5, 0.375),
-            InGameStateEntity,
             Visibility::Hidden,
         ))
         .id();

@@ -7,6 +7,32 @@ use serde::Deserialize;
 
 use crate::asset::Float4;
 
+/// Represents the blend mode for a material, mapping to Bevy's `AlphaMode`.
+#[derive(Debug, Deserialize, Clone)]
+pub enum BlendMode {
+    Opaque,
+    Mask(f32),
+    Blend,
+    Premultiplied,
+    AlphaToCoverage,
+    Add,
+    Multiply,
+}
+
+impl Into<AlphaMode> for BlendMode {
+    fn into(self) -> AlphaMode {
+        match self {
+            BlendMode::Opaque => AlphaMode::Opaque,
+            BlendMode::Mask(mask) => AlphaMode::Mask(mask),
+            BlendMode::Blend => AlphaMode::Blend,
+            BlendMode::Premultiplied => AlphaMode::Premultiplied,
+            BlendMode::AlphaToCoverage => AlphaMode::AlphaToCoverage,
+            BlendMode::Add => AlphaMode::Add,
+            BlendMode::Multiply => AlphaMode::Multiply,
+        }
+    }
+}
+
 /// A serializable representation of a material, designed for loading from a file.
 ///
 /// This struct holds optional values for material properties, which are then
@@ -30,6 +56,8 @@ pub struct SerializableMaterial {
     pub unlit: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub double_sided: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub blend_mode: Option<BlendMode>,
 }
 
 /// An error that can occur when loading a `.material` asset.
@@ -102,6 +130,10 @@ impl AssetLoader for MaterialAssetLoader {
                     .unwrap_or(0.5),
                 unlit: serializable.unlit.unwrap_or(false),
                 double_sided: serializable.double_sided.unwrap_or(false),
+                alpha_mode: serializable
+                    .blend_mode
+                    .map(|m| m.into())
+                    .unwrap_or(AlphaMode::Opaque),
                 ..Default::default()
             })
         })

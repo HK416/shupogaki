@@ -2,6 +2,7 @@ pub mod in_game;
 pub mod loading;
 pub mod pause;
 pub mod prepare;
+pub mod result_start;
 pub mod resume;
 pub mod wrap_up;
 
@@ -172,6 +173,8 @@ pub enum GameState {
     Prepare,
     /// The state where the main gameplay occurs. This is the primary game loop.
     InGame,
+    /// The state where the game results are displayed after gameplay.
+    ResultStart,
     /// The state where the game resumes after being paused.
     Resume,
     /// A brief scene that plays when the game ends (e.g., fuel runs out).
@@ -206,6 +209,10 @@ pub struct InGameLoadStateEntity;
 /// A marker component for entities that should only exist during the `InGame` state.
 #[derive(Component)]
 pub struct InGameStateEntity;
+
+/// A marker component for entities that should only exist during the `ResultStart` state.
+#[derive(Component)]
+pub struct InGameResultEntity;
 
 /// A marker component for the first toy train entity.
 #[derive(Component)]
@@ -626,6 +633,8 @@ pub struct CachedObjects {
 enum GroundModel {
     /// The standard ground plane model.
     Plane0,
+    /// The ground model used for the result display area.
+    Plane999,
 }
 
 /// A resource that caches handles to ground models to avoid reloading them.
