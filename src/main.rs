@@ -24,7 +24,7 @@ use crate::collider::Collider;
 // Import local modules for asset handling and game scenes.
 use crate::{
     asset::spawner::CustomAssetPlugin,
-    scene::{GameState, in_game, loading, pause, prepare, result_start, resume, wrap_up},
+    scene::{GameState, generate, in_game, loading, pause, prepare, result_start, resume, wrap_up},
 };
 
 // --- MAIN FUNCTION ---
@@ -78,8 +78,14 @@ fn main() {
         .init_state::<GameState>()
         // --- LOADING STATE ---
         // Defines systems to run while assets are loading.
-        .add_systems(OnEnter(GameState::Loading), loading::on_enter)
-        .add_systems(OnExit(GameState::Loading), loading::on_exit)
+        .add_systems(
+            OnEnter(GameState::Loading),
+            (
+                loading::setup_loading_screen,
+                loading::load_necessary_assets,
+            ),
+        )
+        .add_systems(OnExit(GameState::Loading), loading::update_loading_text)
         .add_systems(
             Update,
             (
@@ -90,9 +96,19 @@ fn main() {
                 // Scales the "Loading..." text when the window is resized.
                 loading::change_text_scale,
             )
-                // This is a "Run Condition". These systems will only execute
-                // if the game state is currently `GameState::Loading`.
+                // This is a "Run Condition". These systems will only execute if the game
+                // state is currently `GameState::Loading`.
                 .run_if(in_state(GameState::Loading)),
+        )
+        // --- GENERATE STATE ---
+        .add_systems(OnEnter(GameState::Generate), generate::on_setup)
+        .add_systems(
+            OnExit(GameState::Generate),
+            generate::remove_loading_state_entities,
+        )
+        .add_systems(
+            Update,
+            loading::change_text_scale.run_if(in_state(GameState::Generate)),
         )
         // --- PAUSE STATE ---
         .add_systems(
@@ -116,8 +132,9 @@ fn main() {
             OnEnter(GameState::ResultStart),
             (
                 result_start::on_enter,
-                result_start::spawn_ground,
+                result_start::visible_result_entities,
                 result_start::enable_result_ui,
+                result_start::play_animation,
             ),
         )
         .add_systems(
@@ -130,9 +147,11 @@ fn main() {
             OnEnter(GameState::Prepare),
             (
                 // Sets up the main game scene (player controller, camera, lighting).
-                prepare::on_enter,
+                prepare::on_setup,
                 // Starts character and other animations once their models are loaded.
                 prepare::play_animation,
+                // Makes pre-spawned in-game entities visible.
+                prepare::visible_in_game_entities,
             ),
         )
         .add_systems(OnExit(GameState::Prepare), prepare::on_exit)

@@ -1,3 +1,4 @@
+pub mod generate;
 pub mod in_game;
 pub mod loading;
 pub mod pause;
@@ -21,10 +22,7 @@ use rand::{
     seq::IndexedRandom,
 };
 
-use crate::{
-    asset::{model::ModelAsset, spawner::SpawnModel},
-    collider::Collider,
-};
+use crate::{asset::spawner::SpawnModel, collider::Collider};
 
 // --- GAME CONSTANTS ---
 
@@ -98,8 +96,11 @@ const ATTACKED_DURATION: f32 = 3.0;
 /// The total number of different obstacle types available to spawn.
 const NUM_SPAWN_OBJECTS: usize = 3;
 /// An array defining the types of objects that can be spawned.
-const SPAWN_OBJECTS: [SpawnObject; NUM_SPAWN_OBJECTS] =
-    [SpawnObject::Fence0, SpawnObject::Stone0, SpawnObject::Fuel];
+const SPAWN_OBJECTS: [SpawnObject; NUM_SPAWN_OBJECTS] = [
+    SpawnObject::Barricade,
+    SpawnObject::Stone,
+    SpawnObject::Fuel,
+];
 /// The corresponding weights for each object in `SPAWN_OBJECTS`, used for weighted random selection.
 const SPAWN_WEIGHTS: [u32; NUM_SPAWN_OBJECTS] = [5, 5, 3];
 /// The Z-coordinate where new objects are spawned, far in front of the player.
@@ -129,8 +130,8 @@ const FUEL_AMOUNT: f32 = 30.0;
 lazy_static! {
     /// A map defining the collider for each spawnable object.
     static ref OBJECT_COLLIDER: HashMap<SpawnObject, Collider> = [
-        (SpawnObject::Fence0, Collider::Aabb { offset: Vec3::new(0.0, 0.5, 0.0), size: Vec3::splat(1.0) }),
-        (SpawnObject::Stone0, Collider::Sphere { offset: Vec3::splat(0.0), radius: 1.0 }),
+        (SpawnObject::Barricade, Collider::Aabb { offset: Vec3::new(0.0, 0.5, 0.0), size: Vec3::splat(1.0) }),
+        (SpawnObject::Stone, Collider::Sphere { offset: Vec3::splat(0.0), radius: 1.0 }),
         (SpawnObject::Fuel, Collider::Aabb { offset: Vec3::new(0.0, 0.0, 0.0), size: Vec3::splat(0.5) }),
     ]
     .into_iter()
@@ -167,6 +168,8 @@ pub enum GameState {
     /// The default state, where assets are loaded and a loading screen is displayed.
     #[default]
     Loading,
+    /// The state where game entities and UI are generated and pre-spawned.
+    Generate,
     /// The state where the game is paused.
     Pause,
     /// A brief introductory scene before gameplay starts.
@@ -197,14 +200,24 @@ pub struct Ground;
 #[derive(Debug, Default, Clone, Copy, Component, PartialEq, Eq, Hash)]
 pub enum SpawnObject {
     #[default]
-    Fence0 = 0,
-    Stone0 = 1,
+    Barricade = 0,
+    Stone = 1,
     Fuel = 2,
 }
 
-/// A marker component for entities that should only exist during the `InGameLoad` state.
+impl SpawnObject {
+    pub fn path(&self) -> &'static str {
+        match self {
+            SpawnObject::Barricade => "models/Barricade.hierarchy",
+            SpawnObject::Stone => "models/Stone.hierarchy",
+            SpawnObject::Fuel => "models/Fuel.hierarchy",
+        }
+    }
+}
+
+/// A marker component for entities that should only exist during the `Loading` state.
 #[derive(Component)]
-pub struct InGameLoadStateEntity;
+pub struct LoadingStateEntity;
 
 /// A marker component for entities that should only exist during the `InGame` state.
 #[derive(Component)]
@@ -212,7 +225,7 @@ pub struct InGameStateEntity;
 
 /// A marker component for entities that should only exist during the `ResultStart` state.
 #[derive(Component)]
-pub struct InGameResultEntity;
+pub struct ResultStateEntity;
 
 /// A marker component for the first toy train entity.
 #[derive(Component)]
@@ -521,6 +534,12 @@ impl PlayerState {
     }
 }
 
+/// A resource to store handles of assets that need to be loaded before the game can start.
+#[derive(Default, Resource)]
+pub struct LoadingAssets {
+    handles: Vec<UntypedHandle>,
+}
+
 /// A resource that manages the spawning of objects over a distance.
 #[derive(Resource)]
 pub struct ObjectSpawner {
@@ -546,8 +565,8 @@ impl ObjectSpawner {
     /// frame rate varies. It then schedules the next object to be spawned.
     pub fn on_advanced(
         &mut self,
-        cached: &CachedObjects,
         commands: &mut Commands,
+        asset_server: &AssetServer,
         forward_move: &ForwardMovement,
         delta_time: f32,
     ) -> bool {
@@ -558,10 +577,10 @@ impl ObjectSpawner {
             let selected_item = SPAWN_OBJECTS[selected_index];
             let delta = SPAWN_INTERVAL - self.distance;
 
-            let model_handle = cached.models.get(&selected_item).unwrap();
+            let model_handle = asset_server.load(selected_item.path());
             let collider = OBJECT_COLLIDER.get(&selected_item).cloned().unwrap();
             match selected_item {
-                SpawnObject::Fence0 => {
+                SpawnObject::Barricade => {
                     let locations = &FENCE_LOCATIONS[self.fence_distr.sample(&mut rng)];
                     for lane_x in locations {
                         commands.spawn((
@@ -573,7 +592,7 @@ impl ObjectSpawner {
                         ));
                     }
                 }
-                SpawnObject::Stone0 => {
+                SpawnObject::Stone => {
                     let locations = &STONE_LOCATIONS[self.stone_distr.sample(&mut rng)];
                     for lane_x in locations {
                         commands.spawn((
@@ -619,28 +638,6 @@ impl Default for ObjectSpawner {
             stone_distr: WeightedIndex::new(STONE_WEIGHTS).unwrap(),
         }
     }
-}
-
-/// A resource that caches handles to all spawnable object models.
-#[derive(Default, Resource)]
-pub struct CachedObjects {
-    models: HashMap<SpawnObject, Handle<ModelAsset>>,
-}
-
-/// An enum to identify different ground models.
-/// This is used as a key in the `CachedGrounds` resource HashMap to retrieve the correct model handle.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-enum GroundModel {
-    /// The standard ground plane model.
-    Plane0,
-    /// The ground model used for the result display area.
-    Plane999,
-}
-
-/// A resource that caches handles to ground models to avoid reloading them.
-#[derive(Default, Resource)]
-pub struct CachedGrounds {
-    models: HashMap<GroundModel, Handle<ModelAsset>>,
 }
 
 /// A resource that holds the transforms of ground entities that have moved off-screen

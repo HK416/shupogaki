@@ -42,6 +42,15 @@ pub struct SpawnModel(pub Handle<ModelAsset>);
 ///
 /// This system looks for entities with the `SpawnModel` component and spawns the corresponding model.
 /// Spawns the models that have been requested to be spawned.
+///
+/// The spawning process is divided into two main steps to correctly handle skinned meshes and animations:
+/// 1. **Logical Hierarchy Spawning**: `spawn_node_recursive` creates a hierarchy of entities with `Transform`
+///    and `AnimationTarget` components. This hierarchy mirrors the bone structure and is essential for
+///    the animation system to find its targets by name.
+/// 2. **Visual Component Attachment**: `add_render_components_recursive` traverses the newly created logical
+///    hierarchy and attaches the visible components (`Mesh3d`, `MeshMaterial3d`, `SkinnedMesh`) as children
+///    to the appropriate logical nodes. This ensures that `SkinnedMesh` can find the `Entity` IDs of its
+///    joints (bones) from the logical hierarchy.
 fn spawn_model_system(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
@@ -75,7 +84,7 @@ fn spawn_model_system(
 
         info!("Spawning model: {}", model_asset.serializable.root.name);
 
-        // Spawn the model hierarchy.
+        // Step 1: Spawn the logical model hierarchy for animation targeting.
         let mut nodes = HashMap::default();
         let entity = spawn_node_recursive(
             root_entity, // The entity that the animation player is attached to.
@@ -84,7 +93,7 @@ fn spawn_model_system(
             &model_asset.serializable.root,
         );
 
-        // Add the render components to the model hierarchy.
+        // Step 2: Add the render components (meshes, materials) to the logical hierarchy.
         add_render_components_recursive(
             &mut commands,
             &model_asset.serializable.root,
@@ -94,7 +103,7 @@ fn spawn_model_system(
             &mut inverse_bindposes_assets,
         );
 
-        // Add the model to the entity that requested it.
+        // Add the fully constructed model as a child to the entity that requested it.
         commands
             .entity(root_entity)
             .add_child(entity)
@@ -102,7 +111,11 @@ fn spawn_model_system(
     }
 }
 
-/// Recursively spawns the nodes of a model hierarchy.
+/// Recursively spawns the logical hierarchy of a model.
+///
+/// This function creates entities with `Transform` and `AnimationTarget` components,
+/// establishing the parent-child relationships and names needed for animation targeting.
+/// It does not add any visible components.
 fn spawn_node_recursive(
     root_entity: Entity, // The entity that the animation player is attached to.
     commands: &mut Commands,
@@ -123,6 +136,7 @@ fn spawn_node_recursive(
             player: root_entity,
         },
         Transform::from_matrix(node.transform.into()),
+        Visibility::Inherited,
     ));
     entity_commands.add_children(&children);
 
@@ -130,8 +144,11 @@ fn spawn_node_recursive(
     entity_commands.id()
 }
 
-/// Recursively adds the render components to the model hierarchy.
-/// This function now directly uses the handles to Bevy's native `Mesh` and `StandardMaterial` assets.
+/// Recursively adds the render components (meshes, materials) to the logical model hierarchy.
+///
+/// This function traverses the hierarchy and, for nodes that have a mesh, spawns child entities
+/// with the actual `Mesh3d` and `MeshMaterial3d` components. It also adds the `SkinnedMesh`
+/// component if the mesh is skinned, linking it to the joint entities created in `spawn_node_recursive`.
 fn add_render_components_recursive(
     commands: &mut Commands,
     node: &SerializableModelNode,
@@ -180,6 +197,7 @@ fn add_render_components_recursive(
                     Mesh3d(submesh.clone()),
                     MeshMaterial3d(material_handle.clone()),
                     Transform::IDENTITY,
+                    Visibility::Inherited,
                 ));
 
                 if let Some(skinned_mesh_component) = skinned_mesh_component.as_ref() {

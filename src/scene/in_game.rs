@@ -20,22 +20,16 @@ pub fn visible_in_game_ui(mut query: Query<(&mut Visibility, &UI)>) {
     info!("Enter InGame state.");
     for (mut visibility, ui) in query.iter_mut() {
         match *ui {
+            // Show UI elements that are part of the main in-game display.
+            UI::Start | UI::PauseButton | UI::Score | UI::Fuel => *visibility = Visibility::Visible,
             // Hide UI elements that are not part of the main in-game display.
-            UI::Finish
-            | UI::PauseTitle
-            | UI::ResumeCount1
-            | UI::ResumeCount2
-            | UI::ResumeCount3
-            | UI::ResumeButton
-            | UI::ExitButton => *visibility = Visibility::Hidden,
-            // Make all other UI elements visible.
-            _ => *visibility = Visibility::Visible,
+            _ => *visibility = Visibility::Hidden,
         }
     }
 }
 
 /// A system that starts the UI animations (e.g., for score and fuel) when the game begins.
-pub fn play_ui_animation(mut query: Query<&mut Animator<Node>>) {
+pub fn play_ui_animation(mut query: Query<&mut Animator<Node>, With<InGameStateEntity>>) {
     for mut animator in query.iter_mut() {
         animator.state = AnimatorState::Playing;
     }
@@ -201,9 +195,9 @@ pub fn update_ground_position(
             // Move the ground towards the player based on the player's forward velocity.
             transform.translation.z -= forward_move.velocity * time.delta_secs();
 
-            // If the ground is far enough behind the player, despawn it and add its transform
-            // to the retired queue for reuse. The value -50.0 is chosen to be safely off-screen.
-            if transform.translation.z <= -50.0 {
+            // If the ground is far enough behind the player,
+            // despawn it and add its transform to the retired queue for reuse.
+            if transform.translation.z <= DESPAWN_LOCATION {
                 retired.transforms.push_back(*transform);
                 commands.entity(entity).despawn();
             }
@@ -286,10 +280,10 @@ pub fn button_system(
     for (ui, interaction, mut color) in query.iter_mut() {
         match (*ui, *interaction) {
             (UI::PauseButton, Interaction::Hovered) => {
-                color.0 = PAUSE_BTN_COLOR.darker(0.15);
+                color.0 = PAUSE_BTN_COLOR.darker(0.25);
             }
             (UI::PauseButton, Interaction::Pressed) => {
-                color.0 = PAUSE_BTN_COLOR.darker(0.3);
+                color.0 = PAUSE_BTN_COLOR.darker(0.5);
                 next_state.set(GameState::Pause);
             }
             (UI::PauseButton, Interaction::None) => {
@@ -321,6 +315,9 @@ pub fn update_toy_trains(
         .ok();
 
     if let Some(p_pos) = data {
+        // `position` starts as the target for the first car (derived from the player).
+        // In each step, it's updated to be the previous position of the car that was just moved,
+        // becoming the target for the next car in the chain.
         let mut position = p_pos;
 
         // --- Update the first train car (ToyTrain0) ---
@@ -354,11 +351,13 @@ pub fn update_toy_trains(
             let y_axis = z_axis.cross(x_axis);
             let rotation = Quat::from_mat3(&Mat3::from_cols(x_axis, y_axis, z_axis));
 
+            // Store this car's position to be used as the target for the next car.
             let temp = transform.translation;
             transform.translation.x = position.x;
             transform.translation.y = position.y;
             transform.translation.z = p_pos.z - 3.0; // Keep a fixed Z-offset.
             transform.rotation = rotation;
+            // Update `position` for the next car in the chain.
             position = temp;
         }
 
@@ -384,18 +383,17 @@ pub fn update_toy_trains(
 pub fn spawn_grounds(
     mut commands: Commands,
     mut retired: ResMut<RetiredGrounds>,
-    cached_grounds: Res<CachedGrounds>,
+    asset_server: Res<AssetServer>,
 ) {
-    const MODELS: [GroundModel; 1] = [GroundModel::Plane0];
+    const MODELS: [&'static str; 1] = ["models/Plane_0.hierarchy"];
 
     // Process all retired ground transforms.
     while let Some(mut transform) = retired.transforms.pop_front() {
         // Randomly select a ground model to spawn next.
-        let model = MODELS[rand::random_range(0..MODELS.len())];
-        let model_handle = cached_grounds.models.get(&model).unwrap();
+        let path = MODELS[rand::random_range(0..MODELS.len())];
+        let model_handle = asset_server.load(path);
         // Move the transform far ahead of the player to be reused.
-        // 150.0 is 3x the length of a ground segment (50.0).
-        transform.translation.z += 150.0;
+        transform.translation.z += SPAWN_LOCATION - DESPAWN_LOCATION;
 
         commands.spawn((
             SpawnModel(model_handle.clone()),
@@ -413,11 +411,16 @@ pub fn spawn_objects(
     mut commands: Commands,
     mut spawner: ResMut<ObjectSpawner>,
     player_query: Query<&ForwardMovement, With<Player>>,
-    cached: Res<CachedObjects>,
+    asset_server: Res<AssetServer>,
     time: Res<Time>,
 ) {
     if let Ok(forward_move) = player_query.single() {
-        while spawner.on_advanced(&cached, &mut commands, forward_move, time.delta_secs()) {}
+        while spawner.on_advanced(
+            &mut commands,
+            &asset_server,
+            forward_move,
+            time.delta_secs(),
+        ) {}
     }
 }
 
@@ -438,7 +441,7 @@ pub fn check_for_collisions(
             info!("Collision detected!");
             match (*state, *object) {
                 // If idle and hits a fence, lose fuel and enter `Attacked` state.
-                (PlayerState::Idle, SpawnObject::Fence0) => {
+                (PlayerState::Idle, SpawnObject::Barricade) => {
                     fuel.saturating_sub(FENCE_AMOUNT);
                     forward_move.reset();
                     *state = PlayerState::Attacked {
@@ -446,7 +449,7 @@ pub fn check_for_collisions(
                     };
                 }
                 // If idle and hits a stone, lose fuel and enter `Attacked` state.
-                (PlayerState::Idle, SpawnObject::Stone0) => {
+                (PlayerState::Idle, SpawnObject::Stone) => {
                     fuel.saturating_sub(STONE_AMOUNT);
                     forward_move.reset();
                     *state = PlayerState::Attacked {
@@ -463,10 +466,6 @@ pub fn check_for_collisions(
                     fuel.add(FUEL_AMOUNT);
                     commands.entity(entity).despawn();
                 }
-                // If invincible and collects fuel, gain fuel.
-                // (PlayerState::Invincible { .. }, SpawnObject::Fuel) => {
-                //     fuel.add(FUEL_AMOUNT);
-                // }
                 // No effect for other collision combinations.
                 _ => { /* empty */ }
             }

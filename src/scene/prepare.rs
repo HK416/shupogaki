@@ -21,7 +21,7 @@ const SCENE_DURATION: f32 = 3.0;
 
 /// A system that runs once when entering `GameState::Prepare`.
 /// It initializes all necessary resources and spawns the core entities for the game.
-pub fn on_enter(mut commands: Commands) {
+pub fn on_setup(mut commands: Commands) {
     info!("Enter Prepare state.");
     // --- Resource initialization ---
     // Insert resources required for the InGame state.
@@ -87,7 +87,7 @@ pub fn on_enter(mut commands: Commands) {
 pub fn play_animation(
     mut commands: Commands,
     mut graphs: ResMut<Assets<AnimationGraph>>,
-    query: Query<(Entity, &AnimationClipHandle)>,
+    query: Query<(Entity, &AnimationClipHandle), Without<ResultStateEntity>>,
 ) {
     for (entity, clip) in query.iter() {
         let (graph, animation_index) = AnimationGraph::from_clip(clip.0.clone());
@@ -98,6 +98,16 @@ pub fn play_animation(
             .entity(entity)
             .insert((AnimationGraphHandle(graphs.add(graph)), player))
             .remove::<AnimationClipHandle>();
+    }
+}
+
+/// A system that makes all entities marked with `InGameStateEntity` (excluding UI elements)
+/// visible. This is typically used after pre-spawning hidden entities.
+pub fn visible_in_game_entities(
+    mut query: Query<&mut Visibility, (With<InGameStateEntity>, Without<UI>)>,
+) {
+    for mut visibility in query.iter_mut() {
+        *visibility = Visibility::Visible;
     }
 }
 

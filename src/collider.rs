@@ -67,6 +67,9 @@ impl Collider {
                 },
             ) => {
                 // Find the point on the AABB closest to the sphere's center.
+                // This is done by "clamping" the sphere's center coordinates to be within the AABB's bounds.
+                // If the sphere's center is inside the AABB, the closest point is the center itself.
+                // If it's outside, the closest point will be on the surface of the AABB.
                 let a_min = transform.translation + *a_offset - *a_size * 0.5;
                 let a_max = transform.translation + *a_offset + *a_size * 0.5;
                 let b_center = other_transform.translation + *b_offset;
