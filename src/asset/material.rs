@@ -19,9 +19,9 @@ pub enum BlendMode {
     Multiply,
 }
 
-impl Into<AlphaMode> for BlendMode {
-    fn into(self) -> AlphaMode {
-        match self {
+impl From<BlendMode> for AlphaMode {
+    fn from(value: BlendMode) -> Self {
+        match value {
             BlendMode::Opaque => AlphaMode::Opaque,
             BlendMode::Mask(mask) => AlphaMode::Mask(mask),
             BlendMode::Blend => AlphaMode::Blend,
@@ -51,6 +51,14 @@ pub struct SerializableMaterial {
     /// The perceptual roughness value (0.0 to 1.0) for this material.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub roughness: Option<f32>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reflectance: Option<f32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub emissive_color: Option<Float4>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub emissive_color_texture: Option<String>,
+
     /// Whether this material should be rendered as unlit.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub unlit: Option<bool>,
@@ -115,6 +123,11 @@ impl AssetLoader for MaterialAssetLoader {
                 .as_ref()
                 .map(|name| load_context.load(format!("textures/{}.texture", name)));
 
+            let emissive_color_texture = serializable
+                .emissive_color_texture
+                .as_ref()
+                .map(|name| load_context.load(format!("textures/{}.texture", name)));
+
             // Create the final `StandardMaterial` asset using the loaded data.
             // Default values are used if properties are not specified in the file.
             Ok(StandardMaterial {
@@ -128,6 +141,12 @@ impl AssetLoader for MaterialAssetLoader {
                     .roughness
                     .map(|v| v.clamp(0.089, 1.0))
                     .unwrap_or(0.5),
+                reflectance: serializable.reflectance.unwrap_or(0.5),
+                emissive: serializable
+                    .emissive_color
+                    .map(|v| LinearRgba::new(v.x, v.y, v.z, v.w))
+                    .unwrap_or(LinearRgba::BLACK),
+                emissive_texture: emissive_color_texture,
                 unlit: serializable.unlit.unwrap_or(false),
                 double_sided: serializable.double_sided.unwrap_or(false),
                 alpha_mode: serializable

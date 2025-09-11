@@ -1,68 +1,71 @@
-// src/scene/pause.rs
-
-//! This module contains all the systems and components specific to the `Pause`
-//! game state. This includes enabling the pause UI, pausing animations, and
-//! handling input to resume the game.
-
 // Import necessary Bevy modules.
 use bevy::prelude::*;
 
 use super::*;
 
-// --- SETUP SYSTEM ---
+// --- PLUGIN ---
 
-/// A system that runs once when entering `GameState::Pause`.
-/// It makes the "Pause" UI visible.
-pub fn enable_pause_ui(mut query: Query<(&mut Visibility, &UI)>) {
-    for (mut visibility, ui) in query.iter_mut() {
-        match *ui {
-            // Make the pause title, resume button, and exit button visible.
-            UI::PauseTitle | UI::ResumeButton | UI::ExitButton => *visibility = Visibility::Visible,
-            // Ignore all other UI elements, as they are not part of the pause screen.
+pub struct StatePlugin;
+
+impl Plugin for StatePlugin {
+    fn build(&self, app: &mut App) {
+        app.add_systems(
+            OnEnter(GameState::Pause),
+            (debug_label, show_interface, pause_animation),
+        )
+        .add_systems(OnExit(GameState::Pause), (hide_title, hide_interface))
+        .add_systems(
+            PreUpdate,
+            handle_player_input.run_if(in_state(GameState::Pause)),
+        )
+        .add_systems(
+            Update,
+            (update_pause_title, handle_button_system).run_if(in_state(GameState::Pause)),
+        );
+    }
+}
+
+// --- SETUP SYSTEMS ---
+
+fn debug_label() {
+    info!("Current State: Pause");
+}
+
+fn show_interface(mut query: Query<(&UI, &mut Visibility)>) {
+    for (&ui, mut visibility) in query.iter_mut() {
+        match ui {
+            UI::Pause => *visibility = Visibility::Visible,
             _ => { /* empty */ }
         }
     }
 }
 
-/// A system that pauses all active animations when entering the `GameState::Pause`.
-pub fn pause_animation(mut query: Query<&mut AnimationPlayer>) {
+fn pause_animation(mut query: Query<&mut AnimationPlayer>) {
     for mut player in query.iter_mut() {
         player.pause_all();
     }
 }
 
-// --- CLEANUP SYSTEM ---
+// --- CLEANUP SYSTEMS ---
 
-/// A system that runs once when exiting `GameState::Pause`.
-/// It hides the "Pause" UI.
-pub fn disable_pause_ui(mut query: Query<(&mut Visibility, &UI)>) {
-    info!("Exit Pause state.");
-    for (mut visibility, ui) in query.iter_mut() {
-        match *ui {
-            // Hide the pause title, resume button, and exit button.
-            UI::PauseTitle | UI::ResumeButton | UI::ExitButton => *visibility = Visibility::Hidden,
-            // Ignore all other UI elements.
+fn hide_title(mut query: Query<&mut Visibility, With<PauseTitle>>) {
+    for mut visibility in query.iter_mut() {
+        *visibility = Visibility::Inherited;
+    }
+}
+
+fn hide_interface(mut query: Query<(&UI, &mut Visibility)>) {
+    for (&ui, mut visibility) in query.iter_mut() {
+        match ui {
+            UI::Pause => *visibility = Visibility::Hidden,
             _ => { /* empty */ }
         }
     }
 }
 
-/// A system that hides the pause title when exiting the `GameState::Pause`.
-/// NOTE: This system's functionality is also handled by `disable_pause_ui`.
-/// It might be redundant and could potentially be removed or merged in the future
-/// unless a more specific ordering or logic is required for the title.
-pub fn disable_pause_title(mut query: Query<&mut Visibility, With<PauseTitle>>) {
-    for mut visibility in query.iter_mut() {
-        *visibility = Visibility::Hidden;
-    }
-}
-
 // --- PREUPDATE SYSTEMS ---
 
-/// A system that handles player input while in the `GameState::Pause`.
-/// Currently, it only checks for the Escape key, but does not change the state here.
-/// The state change logic for unpausing is handled in `in_game.rs`.
-pub fn handle_player_input(
+fn handle_player_input(
     keyboard_input: Res<ButtonInput<KeyCode>>,
     mut next_state: ResMut<NextState<GameState>>,
 ) {
@@ -73,11 +76,8 @@ pub fn handle_player_input(
 
 // --- UPDATE SYSTEMS ---
 
-/// A system that makes the pause title blink by toggling its visibility.
-pub fn update_pause_title(mut query: Query<&mut Visibility, With<PauseTitle>>, time: Res<Time>) {
+fn update_pause_title(mut query: Query<&mut Visibility, With<PauseTitle>>, time: Res<Time>) {
     for mut visibility in query.iter_mut() {
-        // Use the modulo operator to create a cyclical timer.
-        // The title will be visible for the first half of the cycle and hidden for the second half.
         let t = time.elapsed_secs() % PAUSE_TITLE_CYCLE;
         if t < PAUSE_TITLE_CYCLE * 0.5 {
             *visibility = Visibility::Visible;
@@ -87,77 +87,46 @@ pub fn update_pause_title(mut query: Query<&mut Visibility, With<PauseTitle>>, t
     }
 }
 
-/// A system that handles interactions with the "Resume" and "Exit" buttons in the pause menu.
 #[allow(clippy::type_complexity)]
-pub fn button_system(
+fn handle_button_system(
     mut query: Query<
-        (&UI, &Interaction, &mut BackgroundColor, &Children),
-        // This query only runs when a button's interaction state changes (e.g., hovered, pressed).
-        // This is a Bevy performance optimization to prevent the system from running on every frame.
+        (&UI, &Interaction, &mut BackgroundColor),
         (Changed<Interaction>, With<Button>),
     >,
-    mut nodes: Query<&mut ImageNode>,
     mut next_state: ResMut<NextState<GameState>>,
 ) {
-    for (ui, interaction, mut color, children) in query.iter_mut() {
+    for (ui, interaction, mut color) in query.iter_mut() {
         match (*ui, *interaction) {
             (UI::ResumeButton, Interaction::Hovered) => {
-                // Slightly darken the button on hover for visual feedback.
                 color.0 = RESUME_BTN_COLOR.darker(0.15);
-                for child in children.iter() {
-                    if let Ok(mut image) = nodes.get_mut(child) {
-                        image.color = Color::srgb(0.85, 0.85, 0.85);
-                    }
-                }
             }
             (UI::ResumeButton, Interaction::Pressed) => {
-                // Darken it more when pressed.
                 color.0 = RESUME_BTN_COLOR.darker(0.3);
-                for child in children.iter() {
-                    if let Ok(mut image) = nodes.get_mut(child) {
-                        image.color = Color::srgb(0.7, 0.7, 0.7);
-                    }
-                }
-                // Transition to the Resume state to unpause the game.
                 next_state.set(GameState::Resume);
             }
             (UI::ResumeButton, Interaction::None) => {
-                // Return to the original color when not interacting.
                 color.0 = RESUME_BTN_COLOR;
-                for child in children.iter() {
-                    if let Ok(mut image) = nodes.get_mut(child) {
-                        image.color = Color::srgb(1.0, 1.0, 1.0);
-                    }
-                }
             }
-            (UI::ExitButton, Interaction::Hovered) => {
+            (UI::OptionButton, Interaction::Hovered) => {
+                color.0 = OPTION_BTN_COLOR.darker(0.15);
+            }
+            (UI::OptionButton, Interaction::Pressed) => {
+                color.0 = OPTION_BTN_COLOR.darker(0.3);
+                next_state.set(GameState::Option);
+            }
+            (UI::OptionButton, Interaction::None) => {
+                color.0 = OPTION_BTN_COLOR;
+            }
+            (UI::InGameExitButton, Interaction::Hovered) => {
                 color.0 = EXIT_BTN_COLOR.darker(0.15);
-                for child in children.iter() {
-                    if let Ok(mut image) = nodes.get_mut(child) {
-                        image.color = Color::srgb(0.85, 0.85, 0.85);
-                    }
-                }
             }
-            (UI::ExitButton, Interaction::Pressed) => {
+            (UI::InGameExitButton, Interaction::Pressed) => {
                 color.0 = EXIT_BTN_COLOR.darker(0.3);
-                for child in children.iter() {
-                    if let Ok(mut image) = nodes.get_mut(child) {
-                        image.color = Color::srgb(0.7, 0.7, 0.7);
-                    }
-                }
-                // TODO: Implement application exit logic.
-                // This should gracefully close the game window.
-                todo!("Game exit!");
+                next_state.set(GameState::ExitInGame);
             }
-            (UI::ExitButton, Interaction::None) => {
+            (UI::InGameExitButton, Interaction::None) => {
                 color.0 = EXIT_BTN_COLOR;
-                for child in children.iter() {
-                    if let Ok(mut image) = nodes.get_mut(child) {
-                        image.color = Color::srgb(1.0, 1.0, 1.0);
-                    }
-                }
             }
-            // Ignore other UI elements that might have a Button component.
             _ => { /* empty */ }
         }
     }

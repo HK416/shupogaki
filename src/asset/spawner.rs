@@ -8,6 +8,7 @@ use bevy::{
 
 use crate::asset::{
     animation::AnimationAssetLoader,
+    locale::{CurrentLocale, LocalizationAssets, LocalizationData, LocalizationDataLoader},
     material::MaterialAssetLoader,
     mesh::{MeshAsset, MeshAssetLoader},
     model::{ModelAsset, ModelAssetLoader, SerializableModelNode},
@@ -23,6 +24,8 @@ impl Plugin for CustomAssetPlugin {
     fn build(&self, app: &mut App) {
         app.init_asset::<ModelAsset>()
             .init_asset::<MeshAsset>()
+            .init_asset::<LocalizationData>()
+            .init_resource::<CurrentLocale>()
             .register_asset_loader(ModelAssetLoader)
             .register_asset_loader(MeshAssetLoader)
             .register_asset_loader(MaterialAssetLoader)
@@ -30,7 +33,60 @@ impl Plugin for CustomAssetPlugin {
             .register_asset_loader(TexelAssetLoader)
             .register_asset_loader(SpriteAssetLoader)
             .register_asset_loader(AnimationAssetLoader)
-            .add_systems(Update, spawn_model_system);
+            .register_asset_loader(LocalizationDataLoader)
+            .add_systems(
+                Update,
+                (
+                    spawn_model_system,
+                    changed_translation_system,
+                    added_translation_system,
+                ),
+            );
+    }
+}
+
+#[derive(Component)]
+pub struct TranslatableText(pub String);
+
+fn changed_translation_system(
+    locale: Res<CurrentLocale>,
+    localization_assets: Res<LocalizationAssets>,
+    localization_data: Res<Assets<LocalizationData>>,
+    mut query: Query<(&mut Text, &TranslatableText)>,
+) {
+    if !locale.is_changed() {
+        return;
+    }
+
+    if let Some(locale_data) = localization_assets.locale.get(&locale.0)
+        && let Some(translations) = localization_data.get(locale_data.id())
+    {
+        for (mut text, translatable_text) in query.iter_mut() {
+            if let Some(translation) = translations.0.get(&translatable_text.0) {
+                *text = Text::new(translation);
+            } else {
+                error!("Translation not found: {}", translatable_text.0);
+            }
+        }
+    }
+}
+
+fn added_translation_system(
+    locale: Res<CurrentLocale>,
+    localization_assets: Res<LocalizationAssets>,
+    localization_data: Res<Assets<LocalizationData>>,
+    mut query: Query<(&mut Text, &TranslatableText), Added<TranslatableText>>,
+) {
+    if let Some(locale_data) = localization_assets.locale.get(&locale.0)
+        && let Some(translations) = localization_data.get(locale_data.id())
+    {
+        for (mut text, translatable_text) in query.iter_mut() {
+            if let Some(translation) = translations.0.get(&translatable_text.0) {
+                *text = Text::new(translation);
+            } else {
+                error!("Translation not found: {}", translatable_text.0);
+            }
+        }
     }
 }
 

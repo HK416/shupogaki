@@ -1,7 +1,9 @@
 pub mod animation;
+pub mod locale;
 pub mod material;
 pub mod mesh;
 pub mod model;
+pub mod sound;
 pub mod spawner;
 pub mod sprite;
 pub mod texture;

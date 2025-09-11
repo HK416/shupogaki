@@ -8,6 +8,11 @@ use serde::Deserialize;
 
 use crate::asset::{Float3, Float4};
 
+/// A component that holds a handle to an animation clip.
+/// This is used to trigger the animation playback once the model is loaded.
+#[derive(Component)]
+pub struct AnimationClipHandle(pub Handle<AnimationClip>);
+
 /// A serializable representation of an animation clip, designed for loading from a file.
 #[derive(Debug, Deserialize, Clone)]
 pub struct SerializableAnimation {
