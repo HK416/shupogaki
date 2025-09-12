@@ -42,6 +42,7 @@ impl Plugin for StatePlugin {
                 update_toy_trains,
                 spawn_grounds,
                 update_player_effect,
+                update_player_speed,
             )
                 .run_if(in_state(GameState::WrapUpInGame)),
         );
@@ -225,11 +226,27 @@ fn cleanup_ui_animation(
 
 // --- POSTUPDATE SYSTEMS ---
 
-fn update_player_position(mut query: Query<&mut Transform, With<Player>>, timer: Res<SceneTimer>) {
-    if let Ok(mut transform) = query.single_mut() {
-        // Calculate the interpolation factor `t` from 0.0 to 1.0 based on the scene timer.
+fn update_player_position(
+    lane: Res<CurrentLane>,
+    mut vert_move: ResMut<VerticalMovement>,
+    mut player_query: Query<&mut Transform, With<Player>>,
+    timer: Res<SceneTimer>,
+    time: Res<Time>,
+) {
+    if let Ok(mut transform) = player_query.single_mut() {
+        let target_x = LANE_LOCATIONS[lane.index];
+        transform.translation.x +=
+            (target_x - transform.translation.x) * LANE_CHANGE_SPEED * time.delta_secs();
+
+        vert_move.on_advanced(time.delta_secs());
+        transform.translation.y += vert_move.velocity * time.delta_secs();
+
+        if transform.translation.y <= 0.0 {
+            transform.translation.y = 0.0;
+            vert_move.reset();
+        }
+
         let t = timer.elapsed_time / SCENE_DURATION;
-        // Linearly interpolate the player's z-position from the starting point to the final gameplay position.
         let z_pos = PLAYER_MAX_Z_POS * (1.0 - t) + PLAYER_MIN_Z_POS * t;
         transform.translation.z = z_pos;
     }
@@ -387,4 +404,8 @@ fn update_player_effect_recursive(
             update_player_effect_recursive(child, children_query, material_query, materials, state);
         }
     }
+}
+
+pub fn update_player_speed(mut forward_move: ResMut<ForwardMovement>, time: Res<Time>) {
+    forward_move.decel(time.delta_secs());
 }

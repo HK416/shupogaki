@@ -132,25 +132,178 @@ fn spawn_result_ui_entities(
                         ..Default::default()
                     });
 
-                    let font = asset_server.load(FONT_PATH_NOTOSANS_BOLD);
-                    parent.spawn((
-                        Text::new("Game Result"),
-                        TextFont::from_font(font),
-                        TextLayout::new_with_justify(JustifyText::Center),
-                        TextShadow::default(),
-                        TextColor::WHITE,
-                        TranslatableText("result".into()),
-                        ResizableFont::Vertical {
-                            base: 1280.0,
-                            size: 84.0,
-                        },
-                        Node::default(),
-                        Visibility::Hidden,
-                        UI::ResultLabel,
-                    ));
+                    parent
+                        .spawn(Node {
+                            left: Val::Percent(5.0),
+                            width: Val::Percent(100.0),
+                            height: Val::Percent(10.0),
+                            justify_content: JustifyContent::Center,
+                            align_content: AlignContent::Center,
+                            ..Default::default()
+                        })
+                        .with_children(|parent| {
+                            let font = asset_server.load(FONT_PATH_NOTOSANS_BOLD);
+                            parent.spawn((
+                                Text::new("Game Result"),
+                                TextFont::from_font(font),
+                                TextLayout::new_with_justify(JustifyText::Center),
+                                TextShadow::default(),
+                                TextColor(Color::WHITE.with_alpha(0.0)),
+                                TranslatableText("result".into()),
+                                ResizableFont::Vertical {
+                                    base: 1280.0,
+                                    size: 84.0,
+                                },
+                                Node::default(),
+                                Visibility::Hidden,
+                                UI::ResultText,
+                            ));
+                        });
+
+                    parent
+                        .spawn((
+                            Node {
+                                left: Val::Percent(7.0),
+                                width: Val::Percent(100.0),
+                                height: Val::Percent(20.0),
+                                flex_direction: FlexDirection::Column,
+                                justify_content: JustifyContent::Center,
+                                align_content: AlignContent::Center,
+                                align_items: AlignItems::Center,
+                                ..Default::default()
+                            },
+                            BackgroundColor(Color::WHITE.with_alpha(0.0)),
+                            BorderRadius::all(Val::Percent(10.0)),
+                            Visibility::Hidden,
+                            UI::ResultModal,
+                        ))
+                        .with_children(|parent| {
+                            parent.spawn(Node {
+                                height: Val::Percent(10.0),
+                                ..Default::default()
+                            });
+
+                            parent
+                                .spawn(Node {
+                                    width: Val::Percent(80.0),
+                                    height: Val::Percent(30.0),
+                                    flex_direction: FlexDirection::Row,
+                                    justify_content: JustifyContent::Center,
+                                    align_content: AlignContent::Center,
+                                    align_items: AlignItems::Center,
+                                    ..Default::default()
+                                })
+                                .with_children(|parent| {
+                                    parent
+                                        .spawn(Node {
+                                            width: Val::Percent(50.0),
+                                            height: Val::Percent(100.0),
+                                            justify_content: JustifyContent::Start,
+                                            align_content: AlignContent::Center,
+                                            ..Default::default()
+                                        })
+                                        .with_children(|parent| {
+                                            let texture = asset_server.load(FONT_PATH_TIME);
+                                            parent.spawn((
+                                                ImageNode::new(texture)
+                                                    .with_color(Color::WHITE.with_alpha(0.0)),
+                                                Node {
+                                                    height: Val::Percent(100.0),
+                                                    aspect_ratio: Some(256.0 / 96.0),
+                                                    ..Default::default()
+                                                },
+                                                Visibility::Hidden,
+                                                UI::ResultImgFont,
+                                            ));
+                                        });
+
+                                    parent
+                                        .spawn(Node {
+                                            width: Val::Percent(50.0),
+                                            height: Val::Percent(74.0),
+                                            justify_content: JustifyContent::Start,
+                                            align_content: AlignContent::Center,
+                                            ..Default::default()
+                                        })
+                                        .with_children(|parent| {
+                                            let font = asset_server.load(FONT_PATH_NOTOSANS_BOLD);
+                                            parent.spawn((
+                                                Text::new("%M:%S"),
+                                                TextFont::from_font(font),
+                                                TextLayout::new_with_justify(JustifyText::Center),
+                                                TextColor::BLACK,
+                                                ResizableFont::vertical(1280.0, 54.0),
+                                                Node::default(),
+                                                Visibility::Hidden,
+                                                UI::PlayTime,
+                                            ));
+                                        });
+                                });
+
+                            parent.spawn(Node {
+                                height: Val::Percent(1.0),
+                                ..Default::default()
+                            });
+
+                            parent
+                                .spawn(Node {
+                                    width: Val::Percent(80.0),
+                                    height: Val::Percent(30.0),
+                                    justify_content: JustifyContent::Center,
+                                    align_content: AlignContent::Center,
+                                    align_items: AlignItems::Center,
+                                    ..Default::default()
+                                })
+                                .with_children(|parent| {
+                                    parent
+                                        .spawn(Node {
+                                            width: Val::Percent(50.0),
+                                            height: Val::Percent(100.0),
+                                            justify_content: JustifyContent::Start,
+                                            align_content: AlignContent::Center,
+                                            ..Default::default()
+                                        })
+                                        .with_children(|parent| {
+                                            let texture = asset_server.load(FONT_PATH_SCORE);
+                                            parent.spawn((
+                                                ImageNode::new(texture)
+                                                    .with_color(Color::WHITE.with_alpha(0.0)),
+                                                Node {
+                                                    height: Val::Percent(100.0),
+                                                    aspect_ratio: Some(256.0 / 80.0),
+                                                    ..Default::default()
+                                                },
+                                                Visibility::Hidden,
+                                                UI::ResultImgFont,
+                                            ));
+                                        });
+
+                                    parent
+                                        .spawn(Node {
+                                            width: Val::Percent(50.0),
+                                            height: Val::Percent(74.0),
+                                            justify_content: JustifyContent::Start,
+                                            align_content: AlignContent::Center,
+                                            ..Default::default()
+                                        })
+                                        .with_children(|parent| {
+                                            let font = asset_server.load(FONT_PATH_NOTOSANS_BOLD);
+                                            parent.spawn((
+                                                Text::new("0"),
+                                                TextFont::from_font(font),
+                                                TextLayout::new_with_justify(JustifyText::Center),
+                                                TextColor::BLACK,
+                                                ResizableFont::vertical(1280.0, 54.0),
+                                                Node::default(),
+                                                Visibility::Hidden,
+                                                UI::GameScore,
+                                            ));
+                                        });
+                                });
+                        });
 
                     parent.spawn(Node {
-                        height: Val::Percent(85.0),
+                        height: Val::Percent(65.0),
                         ..Default::default()
                     });
                 });
@@ -194,7 +347,7 @@ fn spawn_result_ui_entities(
                                 ..Default::default()
                             },
                             BorderRadius::all(Val::Percent(10.0)),
-                            BackgroundColor(RESTART_BTN_COLOR),
+                            BackgroundColor(RESTART_BTN_COLOR.with_alpha(0.0)),
                             Visibility::Hidden,
                             UI::RestartButton,
                             Button,
@@ -231,7 +384,7 @@ fn spawn_result_ui_entities(
                                 ..Default::default()
                             },
                             BorderRadius::all(Val::Percent(10.0)),
-                            BackgroundColor(EXIT_BTN_COLOR),
+                            BackgroundColor(EXIT_BTN_COLOR.with_alpha(0.0)),
                             Visibility::Hidden,
                             UI::ResultExitButton,
                             Button,

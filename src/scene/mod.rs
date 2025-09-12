@@ -49,6 +49,8 @@ const FONT_PATH_PAUSE: &str = "fonts/ImgFont_Pause.sprite";
 const FONT_PATH_NUM_1: &str = "fonts/ImgFont_1.sprite";
 const FONT_PATH_NUM_2: &str = "fonts/ImgFont_2.sprite";
 const FONT_PATH_NUM_3: &str = "fonts/ImgFont_3.sprite";
+const FONT_PATH_TIME: &str = "fonts/ImgFont_Time.sprite";
+const FONT_PATH_SCORE: &str = "fonts/ImgFont_Score.sprite";
 const FONT_PATH_NUMBER: &str = "fonts/ImgFont_Number.sprite";
 const ATLAS_PATH_NUMBER: &str = "fonts/ImgFont_Number.atlas";
 const ANIM_PATH_HIKARI_CAFE_IDLE: &str = "animations/Hikari_Cafe_Idle.anim";
@@ -355,10 +357,13 @@ pub enum UI {
     ResumeCount2,
     ResumeCount3,
 
-    ResultLabel,
-    RankModal,
+    ResultText,
+    ResultImgFont,
+    ResultModal,
     RestartButton,
     ResultExitButton,
+    PlayTime,
+    GameScore,
 }
 
 #[derive(Component)]
@@ -481,6 +486,32 @@ impl Default for SceneTimer {
     }
 }
 
+#[derive(Default, Resource)]
+pub struct PlayTime {
+    play_time_ms: u128,
+}
+
+impl PlayTime {
+    pub fn tick(&mut self, time: &Time) {
+        self.play_time_ms = self.play_time_ms.saturating_add(time.delta().as_millis());
+    }
+
+    pub fn millis(&self) -> u128 {
+        self.play_time_ms
+    }
+}
+
+#[derive(Default, Resource)]
+pub struct Attacked {
+    count: u32,
+}
+
+impl Attacked {
+    pub fn add(&mut self) {
+        self.count = self.count.saturating_add(1);
+    }
+}
+
 #[derive(Resource)]
 pub struct InputDelay {
     remaining: f32,
@@ -525,9 +556,14 @@ pub struct ForwardMovement {
 }
 
 impl ForwardMovement {
-    pub fn on_advanced(&mut self, elapsed: f32) {
+    pub fn accel(&mut self, elapsed: f32) {
         let amount = ACCELERATION * elapsed;
         self.velocity = (self.velocity + amount).min(MAX_SPEED);
+    }
+
+    pub fn decel(&mut self, elapsed: f32) {
+        let amount = ACCELERATION * elapsed;
+        self.velocity = (self.velocity - amount).max(0.0);
     }
 
     pub fn reset(&mut self) {

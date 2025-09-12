@@ -27,6 +27,7 @@ impl Plugin for StatePlugin {
             .add_systems(
                 Update,
                 (
+                    update_play_time,
                     update_input_delay,
                     update_player_state,
                     update_score,
@@ -130,6 +131,10 @@ fn handle_pause_input(
 }
 
 // --- UPDATE SYSTEMS ---
+
+fn update_play_time(mut timer: ResMut<PlayTime>, time: Res<Time>) {
+    timer.tick(&time);
+}
 
 fn update_input_delay(mut delay: ResMut<InputDelay>, time: Res<Time>) {
     delay.on_advanced(time.delta_secs());
@@ -380,6 +385,7 @@ fn check_for_collisions(
     mut commands: Commands,
     mut fuel: ResMut<TrainFuel>,
     mut state: ResMut<CurrentState>,
+    mut attacked: ResMut<Attacked>,
     mut forward_move: ResMut<ForwardMovement>,
     mut player_query: Query<(&Collider, &Transform), With<Player>>,
     object_query: Query<(Entity, &Object, &Collider, &Transform)>,
@@ -393,6 +399,7 @@ fn check_for_collisions(
                 (CurrentState::Idle, Object::Barricade) => {
                     fuel.sub(BARRICADE_AMOUNT);
                     forward_move.reset();
+                    attacked.add();
                     *state = CurrentState::Attacked {
                         remaining: ATTACKED_DURATION,
                     };
@@ -400,6 +407,7 @@ fn check_for_collisions(
                 (CurrentState::Idle, Object::Stone) => {
                     fuel.sub(STONE_AMOUNT);
                     forward_move.reset();
+                    attacked.add();
                     *state = CurrentState::Attacked {
                         remaining: ATTACKED_DURATION,
                     };
@@ -579,5 +587,5 @@ fn update_player_effect_recursive(
 }
 
 pub fn update_player_speed(mut forward_move: ResMut<ForwardMovement>, time: Res<Time>) {
-    forward_move.on_advanced(time.delta_secs());
+    forward_move.accel(time.delta_secs());
 }

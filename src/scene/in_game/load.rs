@@ -41,6 +41,12 @@ fn load_in_game_assets(mut commands: Commands, asset_server: Res<AssetServer>) {
     let texture: Handle<Image> = asset_server.load(FONT_PATH_NUMBER);
     loading_assets.handles.push(texture.into());
 
+    let texture: Handle<Image> = asset_server.load(FONT_PATH_TIME);
+    loading_assets.handles.push(texture.into());
+
+    let texture: Handle<Image> = asset_server.load(FONT_PATH_SCORE);
+    loading_assets.handles.push(texture.into());
+
     let texture: Handle<Image> = asset_server.load(FONT_PATH_PAUSE);
     loading_assets.handles.push(texture.into());
 

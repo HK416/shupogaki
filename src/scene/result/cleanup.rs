@@ -24,6 +24,8 @@ fn debug_label(mut next_state: ResMut<NextState<GameState>>) {
 }
 
 fn remove_resource(mut commands: Commands) {
+    commands.remove_resource::<Attacked>();
+    commands.remove_resource::<PlayTime>();
     commands.remove_resource::<TrainFuel>();
     commands.remove_resource::<InputDelay>();
     commands.remove_resource::<CurrentLane>();

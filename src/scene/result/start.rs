@@ -61,7 +61,7 @@ fn spawn_camera_and_light(
                 shadows_enabled: true,
                 ..Default::default()
             },
-            Transform::from_xyz(8.0, 12.0, 10.0).looking_at(Vec3::ZERO, Vec3::Y),
+            Transform::from_xyz(8.0, 12.0, 0.0).looking_at(Vec3::ZERO, Vec3::Y),
             ResultStateRoot,
         ));
     }

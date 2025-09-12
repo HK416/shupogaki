@@ -35,7 +35,7 @@ impl Plugin for StatePlugin {
         )
         .add_systems(
             PostUpdate,
-            spawn_grounds.run_if(in_state(GameState::FinishedInGame)),
+            (spawn_grounds, update_player_speed).run_if(in_state(GameState::FinishedInGame)),
         );
     }
 }
@@ -160,4 +160,8 @@ fn spawn_grounds(
         let model = asset_server.load(MODEL_PATH_PLANE_0);
         commands.spawn((SpawnModel(model), transform, InGameStateRoot, Ground));
     }
+}
+
+pub fn update_player_speed(mut forward_move: ResMut<ForwardMovement>, time: Res<Time>) {
+    forward_move.decel(time.delta_secs());
 }

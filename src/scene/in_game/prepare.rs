@@ -60,6 +60,8 @@ fn start_timer(mut commands: Commands) {
 }
 
 fn insert_resource(mut commands: Commands) {
+    commands.insert_resource(Attacked::default());
+    commands.insert_resource(PlayTime::default());
     commands.insert_resource(TrainFuel::default());
     commands.insert_resource(InputDelay::default());
     commands.insert_resource(CurrentLane::default());

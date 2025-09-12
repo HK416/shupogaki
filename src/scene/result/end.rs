@@ -12,7 +12,12 @@ impl Plugin for StatePlugin {
         app.add_systems(OnEnter(GameState::EndResult), debug_label)
             .add_systems(
                 Update,
-                (fade_in_label, fade_in_animation, handle_button_system)
+                (
+                    fade_in_text,
+                    fade_in_img_font,
+                    fade_in_animation,
+                    handle_button_system,
+                )
                     .run_if(in_state(GameState::EndResult)),
             );
     }
@@ -26,7 +31,7 @@ fn debug_label() {
 
 // --- UPDATE SYSTEMS ---
 
-fn fade_in_label(
+fn fade_in_text(
     mut commands: Commands,
     mut query: Query<(Entity, &mut TextColor, &mut FadeInAnimation)>,
     time: Res<Time>,
@@ -42,9 +47,29 @@ fn fade_in_label(
     }
 }
 
+fn fade_in_img_font(
+    mut commands: Commands,
+    mut query: Query<(Entity, &mut ImageNode, &mut FadeInAnimation)>,
+    time: Res<Time>,
+) {
+    for (entity, mut node, mut fade_out) in query.iter_mut() {
+        fade_out.tick(time.delta_secs());
+        if fade_out.is_expired() {
+            node.color = node.color.with_alpha(1.0);
+            commands.entity(entity).remove::<FadeInAnimation>();
+        } else {
+            node.color = node.color.with_alpha(fade_out.color().alpha());
+        }
+    }
+}
+
+#[allow(clippy::type_complexity)]
 fn fade_in_animation(
     mut commands: Commands,
-    mut query: Query<(Entity, &mut BackgroundColor, &mut FadeInAnimation), Without<Text>>,
+    mut query: Query<
+        (Entity, &mut BackgroundColor, &mut FadeInAnimation),
+        (Without<Text>, Without<ImageNode>),
+    >,
     time: Res<Time>,
 ) {
     for (entity, mut color, mut fade_out) in query.iter_mut() {
