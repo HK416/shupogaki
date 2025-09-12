@@ -1,11 +1,15 @@
 use bevy::{
     asset::{AssetLoader, LoadContext, io::Reader},
+    pbr::ExtendedMaterial,
     prelude::*,
     tasks::ConditionalSendFuture,
 };
 use serde::Deserialize;
 
-use crate::asset::Float4;
+use crate::{
+    asset::Float4,
+    shader::face_mouth::{FacialExpressionExtension, FacialExpressionUniform},
+};
 
 /// Represents the blend mode for a material, mapping to Bevy's `AlphaMode`.
 #[derive(Debug, Deserialize, Clone)]
@@ -66,6 +70,9 @@ pub struct SerializableMaterial {
     pub double_sided: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub blend_mode: Option<BlendMode>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mouth_altas: Option<String>,
 }
 
 /// An error that can occur when loading a `.material` asset.
@@ -160,5 +167,93 @@ impl AssetLoader for MaterialAssetLoader {
 
     fn extensions(&self) -> &[&str] {
         &["material"]
+    }
+}
+
+#[derive(Default)]
+pub struct FaceMouthMaterialAssetLoader;
+
+impl AssetLoader for FaceMouthMaterialAssetLoader {
+    type Asset = ExtendedMaterial<StandardMaterial, FacialExpressionExtension>;
+    type Settings = ();
+    type Error = MaterialLoaderError;
+
+    fn load(
+        &self,
+        reader: &mut dyn Reader,
+        _settings: &Self::Settings,
+        load_context: &mut LoadContext,
+    ) -> impl ConditionalSendFuture<Output = Result<Self::Asset, Self::Error>> {
+        info!("asset load: {}", &load_context.asset_path());
+        Box::pin(async move {
+            // Read the raw bytes from the asset file.
+            let mut bytes = Vec::new();
+            reader.read_to_end(&mut bytes).await?;
+
+            // TODO: 데이터 복호화 (Data Decryption)
+            // TODO: 데이터 압축 해제 (Data Decompression)
+
+            // Deserialize the bytes from JSON into a `SerializableMaterial`.
+            let serializable: SerializableMaterial = serde_json::from_slice(&bytes)?;
+
+            let base_color = serializable
+                .base_color
+                .as_ref()
+                .map(|v| Color::srgba(v.x, v.y, v.z, v.w))
+                .unwrap_or(Color::WHITE);
+
+            // Load the base color texture as a dependency.
+            // The material file specifies texture names without extensions or full paths.
+            // We construct the full asset path here to load our custom `.texture` format.
+            let base_color_texture = serializable
+                .base_color_texture
+                .as_ref()
+                .map(|name| load_context.load(format!("textures/{}.texture", name)));
+
+            let emissive_color_texture = serializable
+                .emissive_color_texture
+                .as_ref()
+                .map(|name| load_context.load(format!("textures/{}.texture", name)));
+
+            let mouth_atlas = serializable
+                .mouth_altas
+                .as_ref()
+                .map(|name| load_context.load(format!("textures/{}.texture", name)))
+                .unwrap();
+
+            // Create the final `StandardMaterial` asset using the loaded data.
+            // Default values are used if properties are not specified in the file.
+            Ok(ExtendedMaterial {
+                base: StandardMaterial {
+                    base_color,
+                    base_color_texture,
+                    metallic: serializable
+                        .metallic
+                        .map(|v| v.clamp(0.0, 1.0))
+                        .unwrap_or(0.0),
+                    perceptual_roughness: serializable
+                        .roughness
+                        .map(|v| v.clamp(0.089, 1.0))
+                        .unwrap_or(0.5),
+                    reflectance: serializable.reflectance.unwrap_or(0.5),
+                    emissive: serializable
+                        .emissive_color
+                        .map(|v| LinearRgba::new(v.x, v.y, v.z, v.w))
+                        .unwrap_or(LinearRgba::BLACK),
+                    emissive_texture: emissive_color_texture,
+                    unlit: serializable.unlit.unwrap_or(false),
+                    double_sided: serializable.double_sided.unwrap_or(false),
+                    alpha_mode: serializable
+                        .blend_mode
+                        .map(|m| m.into())
+                        .unwrap_or(AlphaMode::Opaque),
+                    ..Default::default()
+                },
+                extension: FacialExpressionExtension {
+                    mouth_atlas,
+                    uniform: FacialExpressionUniform::default(),
+                },
+            })
+        })
     }
 }

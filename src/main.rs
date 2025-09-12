@@ -7,17 +7,22 @@ mod asset;
 mod collider;
 mod gizmo;
 mod scene;
+mod shader;
 
 // Import necessary Bevy modules.
 use bevy::{
     asset::AssetMetaCheck,
     log::{Level, LogPlugin},
+    pbr::ExtendedMaterial,
     prelude::*,
 };
 use bevy_tweening::TweeningPlugin;
 
 // Import local modules for asset handling and game scenes.
-use crate::{asset::spawner::CustomAssetPlugin, scene::GameState};
+use crate::{
+    asset::spawner::CustomAssetPlugin, scene::GameState,
+    shader::face_mouth::FacialExpressionExtension,
+};
 
 // --- MAIN FUNCTION ---
 // This is the entry point of the application.
@@ -50,6 +55,9 @@ fn main() {
                 }),
             TweeningPlugin,
         ))
+        .add_plugins(MaterialPlugin::<
+            ExtendedMaterial<StandardMaterial, FacialExpressionExtension>,
+        >::default())
         .add_plugins(CustomAssetPlugin)
         .add_plugins(gizmo::GizmoPlugin)
         .add_plugins(scene::StatePlugin)

@@ -2,12 +2,16 @@ use std::collections::HashMap;
 
 use bevy::{
     asset::{AssetLoader, LoadContext, io::Reader},
+    pbr::ExtendedMaterial,
     prelude::*,
     tasks::ConditionalSendFuture,
 };
 use serde::Deserialize;
 
-use crate::asset::{Float4x4, mesh::MeshAsset};
+use crate::{
+    asset::{Float4x4, mesh::MeshAsset},
+    shader::face_mouth::FacialExpressionExtension,
+};
 
 /// A serializable representation of a model's hierarchy, designed for loading from a file.
 #[derive(Debug, Deserialize, Clone)]
@@ -31,6 +35,11 @@ pub struct SerializableModelNode {
     pub children: Vec<SerializableModelNode>,
 }
 
+pub enum MaterialHandle {
+    Standard(Handle<StandardMaterial>),
+    FacialExpression(Handle<ExtendedMaterial<StandardMaterial, FacialExpressionExtension>>),
+}
+
 /// A custom model asset that holds the model hierarchy and handles to its dependencies.
 ///
 /// This asset is the result of loading a `.hierarchy` file. It contains the deserialized
@@ -43,7 +52,7 @@ pub struct ModelAsset {
     /// A map of mesh names to their loaded `MeshAsset` handles.
     pub meshes: HashMap<String, Handle<MeshAsset>>,
     /// A map of material names to their loaded `StandardMaterial` handles.
-    pub materials: HashMap<String, Handle<StandardMaterial>>,
+    pub materials: HashMap<String, MaterialHandle>,
 }
 
 /// An error that can occur when loading a `.hierarchy` asset.
@@ -112,7 +121,7 @@ impl AssetLoader for ModelAssetLoader {
 fn collect_assets_recursive(
     node: &SerializableModelNode,
     meshes: &mut HashMap<String, Handle<MeshAsset>>,
-    materials: &mut HashMap<String, Handle<StandardMaterial>>,
+    materials: &mut HashMap<String, MaterialHandle>,
     load_context: &mut LoadContext,
 ) {
     // If the node has a mesh, load the corresponding `.mesh` asset.
@@ -124,8 +133,19 @@ fn collect_assets_recursive(
 
     // Load all materials associated with the node.
     for material_uri in &node.materials {
-        let material_path = format!("materials/{}.material", material_uri);
-        let handle: Handle<StandardMaterial> = load_context.load(material_path);
+        let handle: MaterialHandle = match material_uri.contains("EyeMouth") {
+            true => {
+                let material_path = format!("materials/{}.material", material_uri);
+                let handle: Handle<ExtendedMaterial<StandardMaterial, FacialExpressionExtension>> =
+                    load_context.load(material_path);
+                MaterialHandle::FacialExpression(handle)
+            }
+            false => {
+                let material_path = format!("materials/{}.material", material_uri);
+                let handle: Handle<StandardMaterial> = load_context.load(material_path);
+                MaterialHandle::Standard(handle)
+            }
+        };
         materials.insert(material_uri.clone(), handle);
     }
 

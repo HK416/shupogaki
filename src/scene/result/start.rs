@@ -1,7 +1,10 @@
 // Import necessary Bevy modules.
-use bevy::prelude::*;
+use bevy::{pbr::ExtendedMaterial, prelude::*};
 
-use crate::asset::animation::AnimationClipHandle;
+use crate::{
+    asset::animation::AnimationClipHandle,
+    shader::face_mouth::{EyeMouth, FacialExpressionExtension},
+};
 
 use super::*;
 
@@ -28,7 +31,7 @@ impl Plugin for StatePlugin {
         .add_systems(OnExit(GameState::StartResult), end_timer)
         .add_systems(
             Update,
-            update_scene_timer.run_if(in_state(GameState::StartResult)),
+            (update_scene_timer, set_mouth_expression).run_if(in_state(GameState::StartResult)),
         );
     }
 }
@@ -116,5 +119,21 @@ fn update_scene_timer(
     timer.tick(time.delta_secs());
     if timer.elapsed_time >= SCENE_DURATION {
         next_state.set(GameState::Start2End);
+    }
+}
+
+fn set_mouth_expression(
+    mut materials: ResMut<Assets<ExtendedMaterial<StandardMaterial, FacialExpressionExtension>>>,
+    query: Query<&EyeMouth>,
+    timer: ResMut<SceneTimer>,
+) {
+    for mouth in query.iter() {
+        if let Some(material) = materials.get_mut(&mouth.0) {
+            if timer.elapsed_time < SCENE_DURATION * 0.5 {
+                material.extension.uniform.index.x = 2;
+            } else {
+                material.extension.uniform.index.x = 3;
+            }
+        }
     }
 }

@@ -9,6 +9,7 @@ use crate::collider::Collider;
 pub struct GizmoPlugin;
 
 impl Plugin for GizmoPlugin {
+    #[allow(unused_variables)]
     fn build(&self, app: &mut App) {
         #[cfg(not(feature = "no-debuging-gizmo"))]
         app.add_systems(PostUpdate, (update_gizmo_config, draw_collider_gizmos));

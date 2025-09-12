@@ -69,6 +69,7 @@ fn setup_locale(mut commands: Commands) {
     }
 
     // For non-web builds, use the default language.
+    #[allow(unreachable_code)]
     commands.insert_resource(CurrentLocale::default());
     info!("Use default language: {}", Locale::default());
 }

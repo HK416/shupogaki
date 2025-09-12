@@ -6,15 +6,18 @@ use bevy::{
     render::mesh::skinning::{SkinnedMesh, SkinnedMeshInverseBindposes},
 };
 
-use crate::asset::{
-    animation::AnimationAssetLoader,
-    locale::{CurrentLocale, LocalizationAssets, LocalizationData, LocalizationDataLoader},
-    material::MaterialAssetLoader,
-    mesh::{MeshAsset, MeshAssetLoader},
-    model::{ModelAsset, ModelAssetLoader, SerializableModelNode},
-    sprite::SpriteAssetLoader,
-    texture::TexelAssetLoader,
-    texture_atlas::TextureAtlasAssetLoader,
+use crate::{
+    asset::{
+        animation::AnimationAssetLoader,
+        locale::{CurrentLocale, LocalizationAssets, LocalizationData, LocalizationDataLoader},
+        material::{FaceMouthMaterialAssetLoader, MaterialAssetLoader},
+        mesh::{MeshAsset, MeshAssetLoader},
+        model::{MaterialHandle, ModelAsset, ModelAssetLoader, SerializableModelNode},
+        sprite::SpriteAssetLoader,
+        texture::TexelAssetLoader,
+        texture_atlas::TextureAtlasAssetLoader,
+    },
+    shader::face_mouth::EyeMouth,
 };
 
 /// A plugin that adds the custom asset loaders and the model spawning system.
@@ -29,6 +32,7 @@ impl Plugin for CustomAssetPlugin {
             .register_asset_loader(ModelAssetLoader)
             .register_asset_loader(MeshAssetLoader)
             .register_asset_loader(MaterialAssetLoader)
+            .register_asset_loader(FaceMouthMaterialAssetLoader)
             .register_asset_loader(TextureAtlasAssetLoader)
             .register_asset_loader(TexelAssetLoader)
             .register_asset_loader(SpriteAssetLoader)
@@ -130,10 +134,14 @@ fn spawn_model_system(
             continue;
         }
 
-        let all_materials_loaded = model_asset
-            .materials
-            .values()
-            .all(|handle| asset_server.is_loaded_with_dependencies(handle.id()));
+        let all_materials_loaded = model_asset.materials.values().all(|handle| match handle {
+            MaterialHandle::Standard(handle) => {
+                asset_server.is_loaded_with_dependencies(handle.id())
+            }
+            MaterialHandle::FacialExpression(handle) => {
+                asset_server.is_loaded_with_dependencies(handle.id())
+            }
+        });
         if !all_materials_loaded {
             continue;
         }
@@ -249,12 +257,21 @@ fn add_render_components_recursive(
                 model_asset.materials.get(material_uri),
             );
             if let (Some(submesh), Some(material_handle)) = pair {
-                let mut render_entity_commands = commands.spawn((
-                    Mesh3d(submesh.clone()),
-                    MeshMaterial3d(material_handle.clone()),
-                    Transform::IDENTITY,
-                    Visibility::Inherited,
-                ));
+                let mut render_entity_commands = match material_handle {
+                    MaterialHandle::Standard(handle) => commands.spawn((
+                        Mesh3d(submesh.clone()),
+                        MeshMaterial3d(handle.clone()),
+                        Transform::IDENTITY,
+                        Visibility::Inherited,
+                    )),
+                    MaterialHandle::FacialExpression(handle) => commands.spawn((
+                        Mesh3d(submesh.clone()),
+                        MeshMaterial3d(handle.clone()),
+                        Transform::IDENTITY,
+                        Visibility::Inherited,
+                        EyeMouth(handle.clone()),
+                    )),
+                };
 
                 if let Some(skinned_mesh_component) = skinned_mesh_component.as_ref() {
                     render_entity_commands.insert(skinned_mesh_component.clone());

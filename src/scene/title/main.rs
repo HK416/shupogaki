@@ -1,7 +1,10 @@
 // Import necessary Bevy modules.
-use bevy::prelude::*;
+use bevy::{pbr::ExtendedMaterial, prelude::*};
 
-use crate::asset::animation::AnimationClipHandle;
+use crate::{
+    asset::animation::AnimationClipHandle,
+    shader::face_mouth::{EyeMouth, FacialExpressionExtension},
+};
 
 use super::*;
 
@@ -19,6 +22,7 @@ impl Plugin for StatePlugin {
                 show_interfaces,
                 spawn_camera_and_light,
                 play_animation,
+                setup_mouth_expression,
             ),
         )
         .add_systems(OnExit(GameState::Title), hide_interfaces)
@@ -100,6 +104,17 @@ fn play_animation(
             .entity(entity)
             .insert((AnimationGraphHandle(graphs.add(graph)), player))
             .remove::<AnimationClipHandle>();
+    }
+}
+
+fn setup_mouth_expression(
+    mut materials: ResMut<Assets<ExtendedMaterial<StandardMaterial, FacialExpressionExtension>>>,
+    query: Query<&EyeMouth>,
+) {
+    for mouth in query.iter() {
+        if let Some(material) = materials.get_mut(&mouth.0) {
+            material.extension.uniform.index.x = 0;
+        }
     }
 }
 

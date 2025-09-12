@@ -117,4 +117,6 @@ $RECYCLE.BIN/
 
 ### Assets ###
 # Ignore assets directory to avoid committing large binary files.
-assets/
+assets/*
+!assets/shaders
+!assets/shaders/*
