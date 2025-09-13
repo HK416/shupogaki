@@ -1,4 +1,8 @@
-use bevy::prelude::*;
+use bevy::{
+    asset::{AssetLoader, LoadContext, io::Reader},
+    prelude::*,
+    tasks::ConditionalSendFuture,
+};
 
 #[derive(Resource)]
 pub struct SystemVolume {
@@ -28,5 +32,43 @@ impl Default for SystemVolume {
             effect: 204,
             voice: 204,
         }
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum SoundLoaderError {
+    #[error("Failed to load asset for the following reason:{0}")]
+    IO(#[from] std::io::Error),
+}
+
+#[derive(Default)]
+pub struct SoundAssetLoader;
+
+impl AssetLoader for SoundAssetLoader {
+    type Asset = AudioSource;
+    type Settings = ();
+    type Error = SoundLoaderError;
+
+    fn load(
+        &self,
+        reader: &mut dyn Reader,
+        _settings: &Self::Settings,
+        _load_context: &mut LoadContext,
+    ) -> impl ConditionalSendFuture<Output = Result<Self::Asset, Self::Error>> {
+        Box::pin(async move {
+            let mut bytes = Vec::new();
+            reader.read_to_end(&mut bytes).await?;
+
+            // TODO: 데이터 복호화
+            // TODO: 데이터 압축 해제
+
+            Ok(AudioSource {
+                bytes: bytes.into(),
+            })
+        })
+    }
+
+    fn extensions(&self) -> &[&str] {
+        &["sound"]
     }
 }

@@ -1,7 +1,7 @@
 // Import necessary Bevy modules.
-use bevy::{ecs::relationship::RelatedSpawnerCommands, prelude::*};
+use bevy::{audio::Volume, ecs::relationship::RelatedSpawnerCommands, prelude::*};
 
-use crate::asset::spawner::TranslatableText;
+use crate::asset::{sound::SystemVolume, spawner::TranslatableText};
 
 use super::*;
 
@@ -15,7 +15,7 @@ impl Plugin for StatePlugin {
             // Register systems to run when entering the `GameState::Initialize` state.
             .add_systems(
                 OnEnter(GameState::Initialize),
-                (debug_label, spawn_entities),
+                (debug_label, play_loading_sound, spawn_entities),
             )
             // Register a cleanup system to run when exiting the `GameState::Initialize` state.
             .add_systems(OnExit(GameState::Initialize), remove_resource)
@@ -37,6 +37,18 @@ impl Plugin for StatePlugin {
 /// Prints a debug message to the console indicating the current game state.
 fn debug_label() {
     info!("Current State: Initialize");
+}
+
+fn play_loading_sound(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    system_volume: Res<SystemVolume>,
+) {
+    commands.spawn((
+        AudioPlayer::new(asset_server.load(SOUND_PATH_UI_LOADING)),
+        PlaybackSettings::DESPAWN.with_volume(Volume::Linear(system_volume.effect_percentage())),
+        EffectSound,
+    ));
 }
 
 /// Spawns persistent UI entities, such as the options modal, that will be used across different scenes.

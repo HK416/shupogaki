@@ -31,6 +31,28 @@ fn debug_label() {
 fn load_in_game_assets(mut commands: Commands, asset_server: Res<AssetServer>) {
     let mut loading_assets = InGameAssets::default();
 
+    // --- Sound Loading ---
+    let sound: Handle<AudioSource> = asset_server.load(SOUND_PATH_UI_START);
+    loading_assets.handles.push(sound.into());
+
+    let sound: Handle<AudioSource> = asset_server.load(SOUND_PATH_UI_FINISH);
+    loading_assets.handles.push(sound.into());
+
+    let sound: Handle<AudioSource> = asset_server.load(SOUND_PATH_SFX_TRAIN_START);
+    loading_assets.handles.push(sound.into());
+
+    let sound: Handle<AudioSource> = asset_server.load(SOUND_PATH_SFX_TRAIN_LOOP_1);
+    loading_assets.handles.push(sound.into());
+
+    let sound: Handle<AudioSource> = asset_server.load(SOUND_PATH_SFX_TRAIN_LOOP_2);
+    loading_assets.handles.push(sound.into());
+
+    let sound: Handle<AudioSource> = asset_server.load(SOUND_PATH_SFX_TRAIN_END);
+    loading_assets.handles.push(sound.into());
+
+    let sound: Handle<AudioSource> = asset_server.load(SOUND_PATH_SFX_TRAIN_LANDING);
+    loading_assets.handles.push(sound.into());
+
     // --- Texture Loading ---
     let texture: Handle<Image> = asset_server.load(FONT_PATH_START);
     loading_assets.handles.push(texture.into());

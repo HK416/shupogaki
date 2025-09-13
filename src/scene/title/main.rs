@@ -1,8 +1,8 @@
 // Import necessary Bevy modules.
-use bevy::{pbr::ExtendedMaterial, prelude::*};
+use bevy::{audio::Volume, pbr::ExtendedMaterial, prelude::*};
 
 use crate::{
-    asset::animation::AnimationClipHandle,
+    asset::{animation::AnimationClipHandle, sound::SystemVolume},
     shader::face_mouth::{EyeMouth, FacialExpressionExtension},
 };
 
@@ -22,13 +22,14 @@ impl Plugin for StatePlugin {
                 show_interfaces,
                 spawn_camera_and_light,
                 play_animation,
+                setup_background_sound,
                 setup_mouth_expression,
             ),
         )
         .add_systems(OnExit(GameState::Title), hide_interfaces)
         .add_systems(
             Update,
-            title_button_systems.run_if(in_state(GameState::Title)),
+            (title_button_systems).run_if(in_state(GameState::Title)),
         );
     }
 }
@@ -107,6 +108,22 @@ fn play_animation(
     }
 }
 
+fn setup_background_sound(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    system_volume: Res<SystemVolume>,
+    query: Query<(), With<BackgroundSound>>,
+) {
+    if query.single().is_err() {
+        commands.spawn((
+            AudioPlayer::new(asset_server.load(SOUND_PATH_BACKGROUND)),
+            PlaybackSettings::LOOP
+                .with_volume(Volume::Linear(system_volume.background_percentage())),
+            BackgroundSound,
+        ));
+    }
+}
+
 fn setup_mouth_expression(
     mut materials: ResMut<Assets<ExtendedMaterial<StandardMaterial, FacialExpressionExtension>>>,
     query: Query<&EyeMouth>,
@@ -133,6 +150,9 @@ fn hide_interfaces(mut query: Query<(&UI, &mut Visibility)>) {
 
 #[allow(clippy::type_complexity)]
 fn title_button_systems(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    system_volume: Res<SystemVolume>,
     mut next_state: ResMut<NextState<GameState>>,
     mut interaction_query: Query<
         (&UI, &Interaction, &mut TextColor),
@@ -143,9 +163,11 @@ fn title_button_systems(
         match (ui, interaction) {
             (UI::StartButton, Interaction::Hovered) => {
                 *text_color = TextColor(Color::WHITE.darker(0.3));
+                play_button_sound_when_hovered(&mut commands, &asset_server, &system_volume);
             }
             (UI::StartButton, Interaction::Pressed) => {
                 *text_color = TextColor(Color::WHITE.darker(0.5));
+                play_button_sound_when_pressed(&mut commands, &asset_server, &system_volume);
                 next_state.set(GameState::Title2InGame);
             }
             (UI::StartButton, Interaction::None) => {
@@ -153,9 +175,11 @@ fn title_button_systems(
             }
             (UI::OptionButton, Interaction::Hovered) => {
                 *text_color = TextColor(Color::WHITE.darker(0.3));
+                play_button_sound_when_hovered(&mut commands, &asset_server, &system_volume);
             }
             (UI::OptionButton, Interaction::Pressed) => {
                 *text_color = TextColor(Color::WHITE.darker(0.5));
+                play_button_sound_when_pressed(&mut commands, &asset_server, &system_volume);
                 next_state.set(GameState::Option);
             }
             (UI::OptionButton, Interaction::None) => {
@@ -163,9 +187,11 @@ fn title_button_systems(
             }
             (UI::RankButton, Interaction::Hovered) => {
                 *text_color = TextColor(Color::WHITE.darker(0.3));
+                play_button_sound_when_hovered(&mut commands, &asset_server, &system_volume);
             }
             (UI::RankButton, Interaction::Pressed) => {
                 *text_color = TextColor(Color::WHITE.darker(0.5));
+                play_button_sound_when_pressed(&mut commands, &asset_server, &system_volume);
             }
             (UI::RankButton, Interaction::None) => {
                 *text_color = TextColor(Color::WHITE);
@@ -173,4 +199,28 @@ fn title_button_systems(
             _ => { /* empty */ }
         }
     }
+}
+
+fn play_button_sound_when_hovered(
+    commands: &mut Commands,
+    asset_server: &AssetServer,
+    system_volume: &SystemVolume,
+) {
+    commands.spawn((
+        AudioPlayer::new(asset_server.load(SOUND_PATH_UI_LOADING)),
+        PlaybackSettings::DESPAWN.with_volume(Volume::Linear(system_volume.effect_percentage())),
+        EffectSound,
+    ));
+}
+
+fn play_button_sound_when_pressed(
+    commands: &mut Commands,
+    asset_server: &AssetServer,
+    system_volume: &SystemVolume,
+) {
+    commands.spawn((
+        AudioPlayer::new(asset_server.load(SOUND_PATH_UI_BUTTON_TOUCH)),
+        PlaybackSettings::DESPAWN.with_volume(Volume::Linear(system_volume.effect_percentage())),
+        EffectSound,
+    ));
 }

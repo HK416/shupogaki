@@ -1,8 +1,9 @@
 // Import necessary Bevy modules.
-use bevy::{prelude::*, render::view::NoFrustumCulling};
+use bevy::{audio::Volume, prelude::*, render::view::NoFrustumCulling};
 
 use crate::asset::{
     animation::AnimationClipHandle,
+    sound::SystemVolume,
     spawner::{SpawnModel, TranslatableText},
 };
 
@@ -14,21 +15,24 @@ pub struct StatePlugin;
 
 impl Plugin for StatePlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(OnEnter(GameState::InitTitle), (debug_label, spawn_entities))
-            .add_systems(
-                OnExit(GameState::InitTitle),
-                (remove_resource, remove_entities),
+        app.add_systems(
+            OnEnter(GameState::InitTitle),
+            (debug_label, play_loading_sound, spawn_entities),
+        )
+        .add_systems(
+            OnExit(GameState::InitTitle),
+            (remove_resource, remove_entities),
+        )
+        .add_systems(
+            Update,
+            (
+                disable_frustum_culling,
+                handle_spawn_request,
+                check_loading_progress,
+                update_loading_bar,
             )
-            .add_systems(
-                Update,
-                (
-                    disable_frustum_culling,
-                    handle_spawn_request,
-                    check_loading_progress,
-                    update_loading_bar,
-                )
-                    .run_if(in_state(GameState::InitTitle)),
-            );
+                .run_if(in_state(GameState::InitTitle)),
+        );
     }
 }
 
@@ -36,6 +40,18 @@ impl Plugin for StatePlugin {
 
 fn debug_label() {
     info!("Current State: InitTitle");
+}
+
+fn play_loading_sound(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    system_volume: Res<SystemVolume>,
+) {
+    commands.spawn((
+        AudioPlayer::new(asset_server.load(SOUND_PATH_UI_LOADING)),
+        PlaybackSettings::DESPAWN.with_volume(Volume::Linear(system_volume.effect_percentage())),
+        EffectSound,
+    ));
 }
 
 fn spawn_entities(mut commands: Commands, asset_server: Res<AssetServer>) {

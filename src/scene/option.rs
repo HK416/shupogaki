@@ -1,5 +1,5 @@
 // Import necessary Bevy modules.
-use bevy::prelude::*;
+use bevy::{audio::Volume, prelude::*};
 
 use crate::asset::{
     locale::{CurrentLocale, Locale},
@@ -30,8 +30,11 @@ impl Plugin for StatePlugin {
                     update_slider_visual,
                     slider_interaction_system,
                     update_current_volume,
-                    update_current_locale,
-                    update_okay_button, // Note: This function handles the "Back" button.
+                    update_loacle_button,
+                    update_back_button, // Note: This function handles the "Back" button.
+                    control_background_volume,
+                    control_effect_volume,
+                    control_voice_volume,
                 )
                     .run_if(in_state(GameState::Option)),
             );
@@ -218,49 +221,60 @@ fn slider_interaction_system(
     }
 }
 
-/// Manages the language selection buttons.
-/// It updates their visual state (hover, pressed, active) and changes the `CurrentLocale` resource upon selection.
-fn update_current_locale(
+#[allow(clippy::type_complexity)]
+fn update_loacle_button(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    system_volume: Res<SystemVolume>,
     mut current_locale: ResMut<CurrentLocale>,
-    mut interaction_query: Query<(&UI, &Interaction, &mut BackgroundColor)>,
+    mut set: ParamSet<(
+        Query<(&UI, &mut BackgroundColor), With<Button>>,
+        Query<(&UI, &Interaction, &mut BackgroundColor), (Changed<Interaction>, With<Button>)>,
+    )>,
 ) {
-    for (&ui, &interaction, mut color) in interaction_query.iter_mut() {
+    for (&ui, &interaction, mut color) in set.p1().iter_mut() {
         match (ui, interaction, current_locale.0) {
             // Handle the 'English' button.
             (UI::LanguageEn, _, Locale::En) => {
-                *color = BackgroundColor(LANGUAGE_BTN_COLOR.darker(0.5))
+                *color = BackgroundColor(LANGUAGE_BTN_COLOR.darker(0.5));
             } // Active state
             (UI::LanguageEn, Interaction::Hovered, _) => {
-                *color = BackgroundColor(LANGUAGE_BTN_COLOR.darker(0.3))
+                *color = BackgroundColor(LANGUAGE_BTN_COLOR.darker(0.3));
+                play_button_sound_when_hovered(&mut commands, &asset_server, &system_volume);
             }
             (UI::LanguageEn, Interaction::Pressed, _) => {
                 *color = BackgroundColor(LANGUAGE_BTN_COLOR.darker(0.5));
+                play_button_sound_when_pressed(&mut commands, &asset_server, &system_volume);
                 current_locale.0 = Locale::En;
             }
             (UI::LanguageEn, Interaction::None, _) => *color = BackgroundColor(LANGUAGE_BTN_COLOR),
 
             // Handle the 'Japanese' button.
             (UI::LanguageJa, _, Locale::Ja) => {
-                *color = BackgroundColor(LANGUAGE_BTN_COLOR.darker(0.5))
+                *color = BackgroundColor(LANGUAGE_BTN_COLOR.darker(0.5));
             } // Active state
             (UI::LanguageJa, Interaction::Hovered, _) => {
-                *color = BackgroundColor(LANGUAGE_BTN_COLOR.darker(0.3))
+                *color = BackgroundColor(LANGUAGE_BTN_COLOR.darker(0.3));
+                play_button_sound_when_hovered(&mut commands, &asset_server, &system_volume);
             }
             (UI::LanguageJa, Interaction::Pressed, _) => {
                 *color = BackgroundColor(LANGUAGE_BTN_COLOR.darker(0.5));
+                play_button_sound_when_pressed(&mut commands, &asset_server, &system_volume);
                 current_locale.0 = Locale::Ja;
             }
             (UI::LanguageJa, Interaction::None, _) => *color = BackgroundColor(LANGUAGE_BTN_COLOR),
 
             // Handle the 'Korean' button.
             (UI::LanguageKo, _, Locale::Ko) => {
-                *color = BackgroundColor(LANGUAGE_BTN_COLOR.darker(0.5))
+                *color = BackgroundColor(LANGUAGE_BTN_COLOR.darker(0.5));
             } // Active state
             (UI::LanguageKo, Interaction::Hovered, _) => {
-                *color = BackgroundColor(LANGUAGE_BTN_COLOR.darker(0.3))
+                *color = BackgroundColor(LANGUAGE_BTN_COLOR.darker(0.3));
+                play_button_sound_when_hovered(&mut commands, &asset_server, &system_volume);
             }
             (UI::LanguageKo, Interaction::Pressed, _) => {
                 *color = BackgroundColor(LANGUAGE_BTN_COLOR.darker(0.5));
+                play_button_sound_when_pressed(&mut commands, &asset_server, &system_volume);
                 current_locale.0 = Locale::Ko;
             }
             (UI::LanguageKo, Interaction::None, _) => *color = BackgroundColor(LANGUAGE_BTN_COLOR),
@@ -268,22 +282,43 @@ fn update_current_locale(
             _ => { /* empty */ }
         }
     }
+
+    for (&ui, mut color) in set.p0().iter_mut() {
+        match (ui, current_locale.0) {
+            (UI::LanguageEn, Locale::En)
+            | (UI::LanguageJa, Locale::Ja)
+            | (UI::LanguageKo, Locale::Ko) => { /* empty */ }
+            (UI::LanguageEn, _) | (UI::LanguageJa, _) | (UI::LanguageKo, _) => {
+                *color = BackgroundColor(LANGUAGE_BTN_COLOR)
+            }
+            _ => { /* empty */ }
+        }
+    }
 }
 
 /// Handles interactions with the 'Back' button.
 /// It provides visual feedback and transitions back to the `Title` state when pressed.
-fn update_okay_button(
+#[allow(clippy::type_complexity)]
+fn update_back_button(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    system_volume: Res<SystemVolume>,
     in_game_query: Query<(), With<InGameStateRoot>>,
     mut next_state: ResMut<NextState<GameState>>,
-    mut interaction_query: Query<(&UI, &Interaction, &mut BackgroundColor)>,
+    mut interaction_query: Query<
+        (&UI, &Interaction, &mut BackgroundColor),
+        (Changed<Interaction>, With<Button>),
+    >,
 ) {
     for (&ui, &interaction, mut color) in interaction_query.iter_mut() {
         match (ui, interaction) {
             (UI::BackButton, Interaction::Hovered) => {
-                *color = BackgroundColor(EXIT_BTN_COLOR.darker(0.1));
+                *color = BackgroundColor(BACK_BTN_COLOR.darker(0.1));
+                play_button_sound_when_hovered(&mut commands, &asset_server, &system_volume);
             }
             (UI::BackButton, Interaction::Pressed) => {
-                *color = BackgroundColor(EXIT_BTN_COLOR.darker(0.2));
+                *color = BackgroundColor(BACK_BTN_COLOR.darker(0.2));
+                play_button_sound_when_returned(&mut commands, &asset_server, &system_volume);
                 // Return to the previous screen.
                 if in_game_query.is_empty() {
                     next_state.set(GameState::Title);
@@ -292,9 +327,72 @@ fn update_okay_button(
                 }
             }
             (UI::BackButton, Interaction::None) => {
-                *color = BackgroundColor(EXIT_BTN_COLOR);
+                *color = BackgroundColor(BACK_BTN_COLOR);
             }
             _ => { /* empty */ }
         }
     }
+}
+
+fn control_background_volume(
+    system_volume: Res<SystemVolume>,
+    mut query: Query<&mut AudioSink, With<BackgroundSound>>,
+) {
+    if let Ok(mut sink) = query.single_mut() {
+        sink.set_volume(Volume::Linear(system_volume.background_percentage()));
+    }
+}
+
+fn control_effect_volume(
+    system_volume: Res<SystemVolume>,
+    mut query: Query<&mut AudioSink, With<EffectSound>>,
+) {
+    for mut sink in query.iter_mut() {
+        sink.set_volume(Volume::Linear(system_volume.effect_percentage()));
+    }
+}
+
+fn control_voice_volume(
+    system_volume: Res<SystemVolume>,
+    mut query: Query<&mut AudioSink, With<VoiceSound>>,
+) {
+    for mut sink in query.iter_mut() {
+        sink.set_volume(Volume::Linear(system_volume.voice_percentage()));
+    }
+}
+
+fn play_button_sound_when_hovered(
+    commands: &mut Commands,
+    asset_server: &AssetServer,
+    system_volume: &SystemVolume,
+) {
+    commands.spawn((
+        AudioPlayer::new(asset_server.load(SOUND_PATH_UI_LOADING)),
+        PlaybackSettings::DESPAWN.with_volume(Volume::Linear(system_volume.effect_percentage())),
+        EffectSound,
+    ));
+}
+
+fn play_button_sound_when_pressed(
+    commands: &mut Commands,
+    asset_server: &AssetServer,
+    system_volume: &SystemVolume,
+) {
+    commands.spawn((
+        AudioPlayer::new(asset_server.load(SOUND_PATH_UI_BUTTON_TOUCH)),
+        PlaybackSettings::DESPAWN.with_volume(Volume::Linear(system_volume.effect_percentage())),
+        EffectSound,
+    ));
+}
+
+fn play_button_sound_when_returned(
+    commands: &mut Commands,
+    asset_server: &AssetServer,
+    system_volume: &SystemVolume,
+) {
+    commands.spawn((
+        AudioPlayer::new(asset_server.load(SOUND_PATH_UI_BUTTON_BACK)),
+        PlaybackSettings::DESPAWN.with_volume(Volume::Linear(system_volume.effect_percentage())),
+        EffectSound,
+    ));
 }

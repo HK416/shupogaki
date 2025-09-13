@@ -1,8 +1,10 @@
 use std::time::Duration;
 
 // Import necessary Bevy modules.
-use bevy::prelude::*;
+use bevy::{audio::Volume, prelude::*};
 use bevy_tweening::{Animator, Tween, lens::UiPositionLens};
+
+use crate::asset::sound::SystemVolume;
 
 use super::*;
 
@@ -14,7 +16,12 @@ impl Plugin for StatePlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(
             OnEnter(GameState::StartInGame),
-            (debug_label, play_ui_animation, show_in_game_interface),
+            (
+                debug_label,
+                play_start_sound,
+                play_ui_animation,
+                show_in_game_interface,
+            ),
         );
     }
 }
@@ -35,6 +42,18 @@ fn show_in_game_interface(mut query: Query<(&mut Visibility, &UI)>) {
             _ => { /* empty */ }
         }
     }
+}
+
+fn play_start_sound(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    system_volume: Res<SystemVolume>,
+) {
+    commands.spawn((
+        AudioPlayer::new(asset_server.load(SOUND_PATH_UI_START)),
+        PlaybackSettings::DESPAWN.with_volume(Volume::Linear(system_volume.effect_percentage())),
+        EffectSound,
+    ));
 }
 
 fn play_ui_animation(mut commands: Commands, query: Query<(Entity, &UI)>) {

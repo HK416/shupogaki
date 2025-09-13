@@ -1,8 +1,8 @@
 // Import necessary Bevy modules.
-use bevy::{pbr::ExtendedMaterial, prelude::*, render::camera::ScalingMode};
+use bevy::{audio::Volume, pbr::ExtendedMaterial, prelude::*, render::camera::ScalingMode};
 
 use crate::{
-    asset::animation::AnimationClipHandle,
+    asset::{animation::AnimationClipHandle, sound::SystemVolume},
     shader::face_mouth::{EyeMouth, FacialExpressionExtension},
 };
 
@@ -23,6 +23,7 @@ impl Plugin for StatePlugin {
             (
                 debug_label,
                 start_timer,
+                play_train_sound,
                 insert_resource,
                 show_entities,
                 spawn_camera_and_light,
@@ -63,6 +64,19 @@ fn start_timer(mut commands: Commands) {
     commands.insert_resource(SceneTimer::default());
 }
 
+fn play_train_sound(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    system_volume: Res<SystemVolume>,
+) {
+    commands.spawn((
+        AudioPlayer::new(asset_server.load(SOUND_PATH_SFX_TRAIN_START)),
+        PlaybackSettings::DESPAWN.with_volume(Volume::Linear(system_volume.effect_percentage())),
+        TrainSoundStart,
+        EffectSound,
+    ));
+}
+
 fn insert_resource(mut commands: Commands) {
     commands.insert_resource(Attacked::default());
     commands.insert_resource(PlayTime::default());
@@ -72,6 +86,7 @@ fn insert_resource(mut commands: Commands) {
     commands.insert_resource(CurrentScore::default());
     commands.insert_resource(ForwardMovement::default());
     commands.insert_resource(VerticalMovement::default());
+    commands.insert_resource(IsPlayerJumping::default());
     commands.insert_resource(CurrentState::default());
     commands.insert_resource(RetiredGrounds::default());
     commands.insert_resource(ObjectSpawner::default());

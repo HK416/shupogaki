@@ -85,6 +85,19 @@ fn load_necessary_assets(mut commands: Commands, asset_server: Res<AssetServer>)
     let mut loading_assets = SystemAssets::default();
     let mut localizations = LocalizationAssets::default();
 
+    // --- Sound Loading ---
+    let sound: Handle<AudioSource> = asset_server.load(SOUND_PATH_BACKGROUND);
+    loading_assets.handles.push(sound.into());
+
+    let sound: Handle<AudioSource> = asset_server.load(SOUND_PATH_UI_BUTTON_BACK);
+    loading_assets.handles.push(sound.into());
+
+    let sound: Handle<AudioSource> = asset_server.load(SOUND_PATH_UI_BUTTON_TOUCH);
+    loading_assets.handles.push(sound.into());
+
+    let sound: Handle<AudioSource> = asset_server.load(SOUND_PATH_UI_LOADING);
+    loading_assets.handles.push(sound.into());
+
     // --- Locale Loading ---
     // Load localization data for each supported language.
     let handle: Handle<LocalizationData> = asset_server.load(LOCALE_PATH_EN);

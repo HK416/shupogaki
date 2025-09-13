@@ -53,6 +53,17 @@ const FONT_PATH_TIME: &str = "fonts/ImgFont_Time.sprite";
 const FONT_PATH_SCORE: &str = "fonts/ImgFont_Score.sprite";
 const FONT_PATH_NUMBER: &str = "fonts/ImgFont_Number.sprite";
 const ATLAS_PATH_NUMBER: &str = "fonts/ImgFont_Number.atlas";
+const SOUND_PATH_BACKGROUND: &str = "sounds/Theme_253_Game.sound";
+const SOUND_PATH_UI_START: &str = "sounds/UI_Start.sound";
+const SOUND_PATH_UI_FINISH: &str = "sounds/UI_Finish.sound";
+const SOUND_PATH_UI_BUTTON_BACK: &str = "sounds/UI_Button_Back.sound";
+const SOUND_PATH_UI_BUTTON_TOUCH: &str = "sounds/UI_Button_Touch.sound";
+const SOUND_PATH_UI_LOADING: &str = "sounds/UI_Loading.sound";
+const SOUND_PATH_SFX_TRAIN_START: &str = "sounds/SFX_Train_Start.sound";
+const SOUND_PATH_SFX_TRAIN_LOOP_1: &str = "sounds/SFX_Train_Loop_01.sound";
+const SOUND_PATH_SFX_TRAIN_LOOP_2: &str = "sounds/SFX_Train_Loop_02.sound";
+const SOUND_PATH_SFX_TRAIN_END: &str = "sounds/SFX_Train_End.sound";
+const SOUND_PATH_SFX_TRAIN_LANDING: &str = "sounds/SFX_Train_Landing.sound";
 const ANIM_PATH_HIKARI_CAFE_IDLE: &str = "animations/Hikari_Cafe_Idle.anim";
 const ANIM_PATH_HIKARI_IN_GAME: &str = "animations/Hikari_InGame.anim";
 const ANIM_PATH_HIKARI_VICTORY_START: &str = "animations/Hikari_Victory_Start_Interaction.anim";
@@ -234,6 +245,24 @@ pub enum GameState {
 }
 
 // --- COMPONENTS ---
+
+#[derive(Component)]
+pub struct BackgroundSound;
+
+#[derive(Component)]
+pub struct EffectSound;
+
+#[derive(Component)]
+pub struct VoiceSound;
+
+#[derive(Component)]
+pub struct TrainSoundStart;
+
+#[derive(Component)]
+pub struct TrainSoundLoop1;
+
+#[derive(Component)]
+pub struct TrainSoundLoop2;
 
 #[derive(Component)]
 pub struct Ground;
@@ -569,6 +598,10 @@ impl ForwardMovement {
     pub fn reset(&mut self) {
         self.velocity = MIN_SPEED;
     }
+
+    pub fn percentage(&self) -> f32 {
+        (self.velocity - MIN_SPEED) / (MAX_SPEED - MIN_SPEED)
+    }
 }
 
 impl Default for ForwardMovement {
@@ -657,6 +690,32 @@ impl Default for TrainFuel {
         Self {
             remaining: FUEL_LIMITS,
         }
+    }
+}
+
+#[derive(Debug, Default, Clone, Copy, Resource)]
+pub struct IsPlayerJumping {
+    prev: bool,
+    curr: bool,
+}
+
+impl IsPlayerJumping {
+    pub fn jump(&mut self) {
+        self.prev = self.curr;
+        self.curr = true;
+    }
+
+    pub fn reset(&mut self) {
+        self.prev = self.curr;
+        self.curr = false;
+    }
+
+    pub fn get(&self) -> bool {
+        self.curr
+    }
+
+    pub fn changed(&self) -> bool {
+        self.prev != self.curr
     }
 }
 

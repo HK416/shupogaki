@@ -15,7 +15,13 @@ impl Plugin for StatePlugin {
         app.add_systems(OnEnter(GameState::Resume), (debug_label, start_timer))
             .add_systems(
                 OnExit(GameState::Resume),
-                (end_timer, hide_interface, resume_animation),
+                (
+                    end_timer,
+                    hide_interface,
+                    resume_animation,
+                    resume_effect_sounds,
+                    resume_voice_sounds,
+                ),
             )
             .add_systems(
                 Update,
@@ -54,6 +60,18 @@ fn hide_interface(mut query: Query<(&UI, &mut Visibility)>) {
 fn resume_animation(mut query: Query<&mut AnimationPlayer>) {
     for mut player in query.iter_mut() {
         player.resume_all();
+    }
+}
+
+fn resume_effect_sounds(mut query: Query<&mut AudioSink, With<EffectSound>>) {
+    for sink in query.iter_mut() {
+        sink.play();
+    }
+}
+
+fn resume_voice_sounds(mut query: Query<&mut AudioSink, With<VoiceSound>>) {
+    for sink in query.iter_mut() {
+        sink.play();
     }
 }
 

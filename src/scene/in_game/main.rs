@@ -1,6 +1,8 @@
 // Import necessary Bevy modules.
-use bevy::prelude::*;
+use bevy::{audio::Volume, prelude::*};
 use bevy_tweening::{Animator, TweenCompleted};
+
+use crate::asset::sound::SystemVolume;
 
 use super::*;
 
@@ -39,6 +41,9 @@ impl Plugin for StatePlugin {
                     fade_in_out_animation,
                     cleanup_ui_animation,
                     button_system,
+                    play_train_sound,
+                    update_train_sound,
+                    update_train_volume,
                 )
                     .run_if(in_state(GameState::InGame)),
             )
@@ -101,6 +106,7 @@ pub fn handle_player_input(
     mut lane: ResMut<CurrentLane>,
     mut delay: ResMut<InputDelay>,
     mut vert_move: ResMut<VerticalMovement>,
+    mut is_jumping: ResMut<IsPlayerJumping>,
     player_query: Query<&Transform, With<Player>>,
 ) {
     if let Ok(transform) = player_query.single() {
@@ -117,6 +123,7 @@ pub fn handle_player_input(
         let is_grounded = transform.translation.y <= 0.0;
         if is_grounded && keyboard_input.pressed(KeyCode::Space) {
             vert_move.jump();
+            is_jumping.jump();
         }
     }
 }
@@ -178,6 +185,7 @@ fn update_train_fuel(
 fn update_player_position(
     lane: Res<CurrentLane>,
     mut vert_move: ResMut<VerticalMovement>,
+    mut is_jumping: ResMut<IsPlayerJumping>,
     mut player_query: Query<&mut Transform, With<Player>>,
     time: Res<Time>,
 ) {
@@ -192,6 +200,7 @@ fn update_player_position(
         if transform.translation.y <= 0.0 {
             transform.translation.y = 0.0;
             vert_move.reset();
+            is_jumping.reset();
         }
     }
 }
@@ -268,6 +277,9 @@ fn cleanup_ui_animation(
 
 #[allow(clippy::type_complexity)]
 fn button_system(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    system_volume: ResMut<SystemVolume>,
     mut query: Query<
         (&UI, &Interaction, &mut BackgroundColor),
         (Changed<Interaction>, With<Button>),
@@ -278,9 +290,11 @@ fn button_system(
         match (*ui, *interaction) {
             (UI::PauseButton, Interaction::Hovered) => {
                 color.0 = PAUSE_BTN_COLOR.darker(0.25);
+                play_button_sound_when_hovered(&mut commands, &asset_server, &system_volume);
             }
             (UI::PauseButton, Interaction::Pressed) => {
                 color.0 = PAUSE_BTN_COLOR.darker(0.5);
+                play_button_sound_when_pressed(&mut commands, &asset_server, &system_volume);
                 next_state.set(GameState::Pause);
             }
             (UI::PauseButton, Interaction::None) => {
@@ -288,6 +302,95 @@ fn button_system(
             }
             _ => { /* empty */ }
         }
+    }
+}
+
+fn play_train_sound(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    system_volume: Res<SystemVolume>,
+    forward_move: Res<ForwardMovement>,
+    removed: RemovedComponents<TrainSoundStart>,
+) {
+    if !removed.is_empty() {
+        let t = forward_move.percentage();
+
+        let volume = system_volume.effect_percentage() * (1.0 - t);
+        commands.spawn((
+            AudioPlayer::new(asset_server.load(SOUND_PATH_SFX_TRAIN_LOOP_1)),
+            PlaybackSettings::LOOP.with_volume(Volume::Linear(volume)),
+            TrainSoundLoop1,
+            EffectSound,
+        ));
+
+        let volume = system_volume.effect_percentage() * t;
+        commands.spawn((
+            AudioPlayer::new(asset_server.load(SOUND_PATH_SFX_TRAIN_LOOP_2)),
+            PlaybackSettings::LOOP.with_volume(Volume::Linear(volume)),
+            TrainSoundLoop2,
+            EffectSound,
+        ));
+    }
+}
+
+fn update_train_sound(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    system_volume: Res<SystemVolume>,
+    is_jumping: Res<IsPlayerJumping>,
+    mut set: ParamSet<(
+        Query<&mut AudioSink, With<TrainSoundLoop1>>,
+        Query<&mut AudioSink, With<TrainSoundLoop2>>,
+    )>,
+) {
+    if !is_jumping.changed() {
+        return;
+    }
+
+    if is_jumping.get() {
+        if let Ok(mut sink) = set.p0().single_mut() {
+            sink.mute();
+        }
+
+        if let Ok(mut sink) = set.p1().single_mut() {
+            sink.mute();
+        }
+    } else {
+        if let Ok(mut sink) = set.p0().single_mut() {
+            sink.unmute();
+        }
+
+        if let Ok(mut sink) = set.p1().single_mut() {
+            sink.unmute();
+        }
+
+        commands.spawn((
+            AudioPlayer::new(asset_server.load(SOUND_PATH_SFX_TRAIN_LANDING)),
+            PlaybackSettings::DESPAWN
+                .with_volume(Volume::Linear(system_volume.effect_percentage())),
+            EffectSound,
+        ));
+    }
+}
+
+fn update_train_volume(
+    system_volume: Res<SystemVolume>,
+    forward_move: Res<ForwardMovement>,
+    mut set: ParamSet<(
+        Query<&mut AudioSink, With<TrainSoundLoop1>>,
+        Query<&mut AudioSink, With<TrainSoundLoop2>>,
+    )>,
+) {
+    if let Ok(mut sink) = set.p0().single_mut() {
+        let t = forward_move.percentage();
+        let volume = system_volume.effect_percentage() * (1.0 - t);
+        sink.set_volume(Volume::Linear(volume));
+    }
+
+    if let Ok(mut sink) = set.p1().single_mut() {
+        let t = forward_move.percentage();
+        let volume = system_volume.effect_percentage() * t;
+        sink.set_volume(Volume::Linear(volume));
     }
 }
 
@@ -588,4 +691,28 @@ fn update_player_effect_recursive(
 
 pub fn update_player_speed(mut forward_move: ResMut<ForwardMovement>, time: Res<Time>) {
     forward_move.accel(time.delta_secs());
+}
+
+fn play_button_sound_when_hovered(
+    commands: &mut Commands,
+    asset_server: &AssetServer,
+    system_volume: &SystemVolume,
+) {
+    commands.spawn((
+        AudioPlayer::new(asset_server.load(SOUND_PATH_UI_LOADING)),
+        PlaybackSettings::DESPAWN.with_volume(Volume::Linear(system_volume.effect_percentage())),
+        EffectSound,
+    ));
+}
+
+fn play_button_sound_when_pressed(
+    commands: &mut Commands,
+    asset_server: &AssetServer,
+    system_volume: &SystemVolume,
+) {
+    commands.spawn((
+        AudioPlayer::new(asset_server.load(SOUND_PATH_UI_BUTTON_TOUCH)),
+        PlaybackSettings::DESPAWN.with_volume(Volume::Linear(system_volume.effect_percentage())),
+        EffectSound,
+    ));
 }

@@ -13,6 +13,7 @@ use crate::{
         material::{FaceMouthMaterialAssetLoader, MaterialAssetLoader},
         mesh::{MeshAsset, MeshAssetLoader},
         model::{MaterialHandle, ModelAsset, ModelAssetLoader, SerializableModelNode},
+        sound::SoundAssetLoader,
         sprite::SpriteAssetLoader,
         texture::TexelAssetLoader,
         texture_atlas::TextureAtlasAssetLoader,
@@ -38,6 +39,7 @@ impl Plugin for CustomAssetPlugin {
             .register_asset_loader(SpriteAssetLoader)
             .register_asset_loader(AnimationAssetLoader)
             .register_asset_loader(LocalizationDataLoader)
+            .register_asset_loader(SoundAssetLoader)
             .add_systems(
                 Update,
                 (

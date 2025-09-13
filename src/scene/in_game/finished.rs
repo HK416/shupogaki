@@ -1,5 +1,7 @@
 // Import necessary Bevy modules.
-use bevy::prelude::*;
+use bevy::{audio::Volume, prelude::*};
+
+use crate::asset::sound::SystemVolume;
 
 use super::*;
 
@@ -19,6 +21,7 @@ impl Plugin for StatePlugin {
                 start_timer,
                 show_in_game_interface,
                 play_ui_animation,
+                play_finish_sound,
             ),
         )
         .add_systems(OnExit(GameState::FinishedInGame), end_timer)
@@ -70,6 +73,18 @@ fn play_ui_animation(mut commands: Commands, query: Query<(Entity, &UI)>) {
             _ => { /* empty */ }
         }
     }
+}
+
+fn play_finish_sound(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    system_volume: Res<SystemVolume>,
+) {
+    commands.spawn((
+        AudioPlayer::new(asset_server.load(SOUND_PATH_UI_FINISH)),
+        PlaybackSettings::DESPAWN.with_volume(Volume::Linear(system_volume.effect_percentage())),
+        EffectSound,
+    ));
 }
 
 // --- CLEANUP SYSTEMS ---

@@ -1,8 +1,10 @@
 use std::time::Duration;
 
 // Import necessary Bevy modules.
-use bevy::prelude::*;
+use bevy::{audio::Volume, prelude::*};
 use bevy_tweening::{Animator, Tween, TweenCompleted, lens::UiPositionLens};
+
+use crate::asset::sound::SystemVolume;
 
 use super::*;
 
@@ -17,7 +19,12 @@ impl Plugin for StatePlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(
             OnEnter(GameState::WrapUpInGame),
-            (debug_label, start_timer, play_ui_animation),
+            (
+                debug_label,
+                switch_train_sounds,
+                start_timer,
+                play_ui_animation,
+            ),
         )
         .add_systems(
             OnExit(GameState::WrapUpInGame),
@@ -53,6 +60,30 @@ impl Plugin for StatePlugin {
 
 fn debug_label() {
     info!("Current State: WrapupInGame");
+}
+
+fn switch_train_sounds(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    system_volume: Res<SystemVolume>,
+    mut set: ParamSet<(
+        Query<Entity, With<TrainSoundLoop1>>,
+        Query<Entity, With<TrainSoundLoop2>>,
+    )>,
+) {
+    if let Ok(entity) = set.p0().single() {
+        commands.entity(entity).despawn();
+    }
+
+    if let Ok(entity) = set.p1().single() {
+        commands.entity(entity).despawn();
+    }
+
+    commands.spawn((
+        AudioPlayer::new(asset_server.load(SOUND_PATH_SFX_TRAIN_END)),
+        PlaybackSettings::DESPAWN.with_volume(Volume::Linear(system_volume.effect_percentage())),
+        EffectSound,
+    ));
 }
 
 fn start_timer(mut commands: Commands) {
