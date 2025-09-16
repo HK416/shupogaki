@@ -1,8 +1,7 @@
-use std::collections::HashMap;
-
 use bevy::{
     asset::{AssetLoader, LoadContext, io::Reader},
     pbr::ExtendedMaterial,
+    platform::collections::HashMap,
     prelude::*,
     tasks::ConditionalSendFuture,
 };

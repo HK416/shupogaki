@@ -6,13 +6,9 @@ mod result;
 mod setup;
 mod title;
 
-use std::{
-    collections::{HashMap, VecDeque},
-    f32::consts::PI,
-    ops::RangeInclusive,
-};
+use std::{collections::VecDeque, f32::consts::PI, ops::RangeInclusive};
 
-use bevy::{prelude::*, window::WindowResized};
+use bevy::{platform::collections::HashMap, prelude::*, window::WindowResized};
 use lazy_static::lazy_static;
 use rand::{
     Rng,
@@ -53,7 +49,7 @@ const FONT_PATH_TIME: &str = "fonts/ImgFont_Time.sprite";
 const FONT_PATH_SCORE: &str = "fonts/ImgFont_Score.sprite";
 const FONT_PATH_NUMBER: &str = "fonts/ImgFont_Number.sprite";
 const ATLAS_PATH_NUMBER: &str = "fonts/ImgFont_Number.atlas";
-const SOUND_PATH_BACKGROUND: &str = "sounds/Theme_253_Game.ogg";
+const SOUND_PATH_BACKGROUND: &str = "sounds/Theme_253_Game.sound";
 const SOUND_PATH_UI_START: &str = "sounds/UI_Start.sound";
 const SOUND_PATH_UI_FINISH: &str = "sounds/UI_Finish.sound";
 const SOUND_PATH_UI_BUTTON_BACK: &str = "sounds/UI_Button_Back.sound";
@@ -217,6 +213,7 @@ const FUEL_POOR_GAUGE_COLOR: Color = Color::srgb(0.8, 0.2, 0.2);
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash, States)]
 pub enum GameState {
+    Error,
     Option,
     Pause,
     Resume,
@@ -499,6 +496,9 @@ impl ResizableFont {
 
 // --- RESOURCES ---
 
+#[derive(Default, Resource, Deref, DerefMut)]
+pub struct Counter(pub u32);
+
 #[derive(Resource)]
 pub struct SceneTimer {
     elapsed_time: f32,
@@ -507,6 +507,10 @@ pub struct SceneTimer {
 impl SceneTimer {
     pub fn tick(&mut self, elapsed: f32) {
         self.elapsed_time += elapsed;
+    }
+
+    pub fn reset(&mut self) {
+        self.elapsed_time = 0.0;
     }
 }
 
@@ -751,13 +755,24 @@ impl CurrentState {
 
 #[derive(Default, Resource)]
 pub struct RetiredGrounds {
-    transforms: VecDeque<Transform>,
+    entities: VecDeque<Entity>,
+}
+
+impl RetiredGrounds {
+    pub fn push(&mut self, entity: Entity) {
+        self.entities.push_back(entity);
+    }
+
+    pub fn pop(&mut self) -> Option<Entity> {
+        self.entities.pop_front()
+    }
 }
 
 #[derive(Resource)]
 pub struct ObjectSpawner {
     distance: f32,
     next_obj: Object,
+    retired: HashMap<Object, VecDeque<Entity>>,
 }
 
 impl ObjectSpawner {
@@ -781,40 +796,103 @@ impl ObjectSpawner {
                     let index = BARRICADE_WEIGHTS.sample(&mut rng);
                     let locations = &BARRICADE_LOCATIONS[index];
                     for &lane_x in locations {
-                        commands.spawn((
-                            SpawnModel(model.clone()),
-                            Transform::from_xyz(lane_x, 0.0, SPAWN_LOCATION + delta),
-                            InGameStateRoot,
-                            self.next_obj,
-                            collider,
-                        ));
+                        let recycle = self
+                            .retired
+                            .get_mut(&self.next_obj)
+                            .map(|entities| entities.pop_front())
+                            .flatten();
+
+                        match recycle {
+                            Some(entity) => {
+                                info!("Recycle Barricade entity");
+                                commands
+                                    .entity(entity)
+                                    .insert(Transform::from_xyz(
+                                        lane_x,
+                                        0.0,
+                                        SPAWN_LOCATION + delta,
+                                    ))
+                                    .insert(self.next_obj);
+                            }
+                            None => {
+                                commands.spawn((
+                                    SpawnModel(model.clone()),
+                                    Transform::from_xyz(lane_x, 0.0, SPAWN_LOCATION + delta),
+                                    InGameStateRoot,
+                                    self.next_obj,
+                                    collider,
+                                ));
+                            }
+                        }
                     }
                 }
                 Object::Stone => {
                     let index = STONE_WEIGHTS.sample(&mut rng);
                     let locations = &STONE_LOCATIONS[index];
                     for &lane_x in locations {
-                        commands.spawn((
-                            SpawnModel(model.clone()),
-                            Transform::from_xyz(lane_x, 0.0, SPAWN_LOCATION + delta),
-                            InGameStateRoot,
-                            self.next_obj,
-                            collider,
-                        ));
+                        let recycle = self
+                            .retired
+                            .get_mut(&self.next_obj)
+                            .map(|entities| entities.pop_front())
+                            .flatten();
+
+                        match recycle {
+                            Some(entity) => {
+                                info!("Recycle Stone entity");
+                                commands
+                                    .entity(entity)
+                                    .insert(Transform::from_xyz(
+                                        lane_x,
+                                        0.0,
+                                        SPAWN_LOCATION + delta,
+                                    ))
+                                    .insert(self.next_obj);
+                            }
+                            None => {
+                                commands.spawn((
+                                    SpawnModel(model.clone()),
+                                    Transform::from_xyz(lane_x, 0.0, SPAWN_LOCATION + delta),
+                                    InGameStateRoot,
+                                    self.next_obj,
+                                    collider,
+                                ));
+                            }
+                        }
                     }
                 }
                 Object::Fuel => {
                     let index = FUEL_WEIGHTS.sample(&mut rng);
                     let locations = &FUEL_LOCATIONS[index];
                     for &lane_x in locations {
-                        commands.spawn((
-                            SpawnModel(model.clone()),
-                            Transform::from_xyz(lane_x, 0.5, SPAWN_LOCATION + delta),
-                            RotateAnimation::from_rotation_y(120f32.to_radians()),
-                            InGameStateRoot,
-                            self.next_obj,
-                            collider,
-                        ));
+                        let recycle = self
+                            .retired
+                            .get_mut(&self.next_obj)
+                            .map(|entities| entities.pop_front())
+                            .flatten();
+
+                        match recycle {
+                            Some(entity) => {
+                                info!("Recycle Fuel entity");
+                                commands
+                                    .entity(entity)
+                                    .insert(Transform::from_xyz(
+                                        lane_x,
+                                        0.5,
+                                        SPAWN_LOCATION + delta,
+                                    ))
+                                    .insert(self.next_obj);
+                            }
+                            None => {
+                                commands.spawn((
+                                    SpawnModel(model.clone()),
+                                    Transform::from_xyz(lane_x, 0.5, SPAWN_LOCATION + delta),
+                                    RotateAnimation::from_rotation_y(120f32.to_radians()),
+                                    InGameStateRoot,
+                                    self.next_obj,
+                                    collider,
+                                ));
+                            }
+                        }
                     }
                 }
             }
@@ -827,6 +905,16 @@ impl ObjectSpawner {
             self.next_obj = next_obj;
         }
     }
+
+    pub fn drain(&mut self, commands: &mut Commands, entity: Entity, obj: Object) {
+        self.retired
+            .entry(obj)
+            .and_modify(|entities| {
+                entities.push_back(entity);
+            })
+            .or_insert(VecDeque::from_iter([entity]));
+        commands.entity(entity).remove::<Object>();
+    }
 }
 
 impl Default for ObjectSpawner {
@@ -834,17 +922,8 @@ impl Default for ObjectSpawner {
         Self {
             distance: 0.0,
             next_obj: Object::default(),
+            retired: HashMap::default(),
         }
-    }
-}
-
-impl RetiredGrounds {
-    pub fn push(&mut self, transform: Transform) {
-        self.transforms.push_back(transform);
-    }
-
-    pub fn pop(&mut self) -> Option<Transform> {
-        self.transforms.pop_front()
     }
 }
 

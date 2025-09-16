@@ -8,6 +8,11 @@ use crate::asset::{
 
 use super::*;
 
+// --- CONSTANTS ---
+
+const TIMEOUT: f32 = 5.0;
+const MAX_RETRY_COUNT: u32 = 5;
+
 // --- PLUGIN ---
 
 pub struct StatePlugin;
@@ -24,12 +29,19 @@ impl Plugin for StatePlugin {
                     setup_system_volume,
                     load_necessary_assets,
                     setup_loading_screen,
+                    init_asset_load_timeout_retry,
                 ),
             )
+            .add_systems(OnExit(GameState::Setup), cleanup_asset_load_timeout_retry)
             // Register systems to run every frame while in the `GameState::Setup` state.
             .add_systems(
                 Update,
-                (check_loading_progress, update_loading_bar).run_if(in_state(GameState::Setup)),
+                (
+                    check_loading_progress,
+                    update_loading_progress,
+                    check_and_retry_asset_load_timeout,
+                )
+                    .run_if(in_state(GameState::Setup)),
             );
     }
 }
@@ -82,6 +94,10 @@ fn setup_system_volume(mut commands: Commands) {
 /// Begins loading essential assets required for the game to start,
 /// such as localization files and fonts. These assets are tracked for the loading screen.
 fn load_necessary_assets(mut commands: Commands, asset_server: Res<AssetServer>) {
+    load_assets(&mut commands, &asset_server);
+}
+
+fn load_assets(commands: &mut Commands, asset_server: &AssetServer) {
     let mut loading_assets = SystemAssets::default();
     let mut localizations = LocalizationAssets::default();
 
@@ -206,6 +222,18 @@ fn setup_loading_screen(mut commands: Commands, asset_server: Res<AssetServer>) 
     commands.insert_resource(ClearColor(Color::BLACK));
 }
 
+fn init_asset_load_timeout_retry(mut commands: Commands) {
+    commands.insert_resource(SceneTimer::default());
+    commands.insert_resource(Counter::default());
+}
+
+// --- CLEANUP SYSTEMS ---
+
+fn cleanup_asset_load_timeout_retry(mut commands: Commands) {
+    commands.remove_resource::<SceneTimer>();
+    commands.remove_resource::<Counter>();
+}
+
 // --- UPDATE SYSTEMS ---
 
 /// Checks the loading status of all assets tracked in `SystemAssets`.
@@ -228,7 +256,7 @@ fn check_loading_progress(
 }
 
 /// Updates the width of the loading bar UI element based on the current asset loading progress.
-fn update_loading_bar(
+fn update_loading_progress(
     asset_server: Res<AssetServer>,
     loading_assets: Res<SystemAssets>,
     mut query: Query<&mut Node, With<LoadingBar>>,
@@ -251,5 +279,27 @@ fn update_loading_bar(
 
         // Update the width of the loading bar node.
         node.width = Val::Percent(progress * 100.0);
+    }
+}
+
+fn check_and_retry_asset_load_timeout(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    mut next_state: ResMut<NextState<GameState>>,
+    mut counter: ResMut<Counter>,
+    mut scene_timer: ResMut<SceneTimer>,
+    time: Res<Time>,
+) {
+    scene_timer.tick(time.delta_secs());
+    if scene_timer.elapsed_time >= TIMEOUT {
+        scene_timer.reset();
+
+        **counter += 1;
+        if **counter > MAX_RETRY_COUNT {
+            error!("Asset load request timed out.");
+            next_state.set(GameState::Error);
+        } else {
+            load_assets(&mut commands, &asset_server);
+        }
     }
 }

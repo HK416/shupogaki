@@ -1,7 +1,6 @@
-use std::collections::HashMap;
-
 use bevy::{
     animation::{AnimationTarget, AnimationTargetId},
+    platform::collections::HashMap,
     prelude::*,
     render::mesh::skinning::{SkinnedMesh, SkinnedMeshInverseBindposes},
 };

@@ -201,18 +201,16 @@ fn update_player_state(mut state: ResMut<CurrentState>, time: Res<Time>) {
 }
 
 fn update_ground_position(
-    mut commands: Commands,
-    current: Res<ForwardMovement>,
-    mut query: Query<(Entity, &mut Transform), With<Ground>>,
+    forward_move: Res<ForwardMovement>,
+    mut ground_entities: Query<(Entity, &mut Transform), With<Ground>>,
     mut retired: ResMut<RetiredGrounds>,
     time: Res<Time>,
 ) {
-    for (entity, mut transform) in query.iter_mut() {
-        transform.translation.z -= current.velocity * time.delta_secs();
+    for (entity, mut transform) in ground_entities.iter_mut() {
+        transform.translation.z -= forward_move.velocity * time.delta_secs();
 
         if transform.translation.z <= DESPAWN_LOCATION {
-            retired.push(*transform);
-            commands.entity(entity).despawn();
+            retired.push(entity);
         }
     }
 }
@@ -349,15 +347,15 @@ fn update_toy_trains(
     }
 }
 
-fn spawn_grounds(
-    mut commands: Commands,
-    mut retired: ResMut<RetiredGrounds>,
-    asset_server: Res<AssetServer>,
-) {
-    while let Some(mut transform) = retired.pop() {
-        transform.translation.z += SPAWN_LOCATION - DESPAWN_LOCATION;
-        let model = asset_server.load(MODEL_PATH_PLANE_0);
-        commands.spawn((SpawnModel(model), transform, InGameStateRoot, Ground));
+fn spawn_grounds(mut commands: Commands, mut retired: ResMut<RetiredGrounds>) {
+    while let Some(entity) = retired.pop() {
+        commands
+            .entity(entity)
+            .entry::<Transform>()
+            .and_modify(|mut transform| {
+                transform.translation.z += SPAWN_LOCATION - DESPAWN_LOCATION;
+            })
+            .or_insert(Transform::from_xyz(0.0, 0.0, SPAWN_LOCATION));
     }
 }
 
