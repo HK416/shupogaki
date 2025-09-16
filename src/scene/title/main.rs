@@ -1,6 +1,9 @@
 // Import necessary Bevy modules.
 use bevy::{audio::Volume, pbr::ExtendedMaterial, prelude::*};
 
+#[cfg(target_arch = "wasm32")]
+use crate::web::WebBgmAudioManager;
+
 use crate::{
     asset::{animation::AnimationClipHandle, sound::SystemVolume},
     shader::face_mouth::{EyeMouth, FacialExpressionExtension},
@@ -108,6 +111,7 @@ fn play_animation(
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn setup_background_sound(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
@@ -121,6 +125,26 @@ fn setup_background_sound(
                 .with_volume(Volume::Linear(system_volume.background_percentage())),
             BackgroundSound,
         ));
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+fn setup_background_sound(
+    asset_server: Res<AssetServer>,
+    sound_assets: Res<Assets<AudioSource>>,
+    system_volume: Res<SystemVolume>,
+    web_bgm: NonSend<WebBgmAudioManager>,
+    mut is_play: Local<bool>,
+) {
+    if !*is_play {
+        let handle = asset_server.load(SOUND_PATH_BACKGROUND);
+        if let Some(source) = sound_assets.get(&handle) {
+            web_bgm.play_from_bytes(
+                source,
+                Volume::Linear(system_volume.background_percentage()),
+            );
+            *is_play = true;
+        }
     }
 }
 

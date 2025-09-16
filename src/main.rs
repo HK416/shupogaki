@@ -8,6 +8,7 @@ mod collider;
 mod gizmo;
 mod scene;
 mod shader;
+mod web;
 
 // Import necessary Bevy modules.
 use bevy::{
@@ -54,6 +55,8 @@ fn main() {
                     ..Default::default()
                 }),
             TweeningPlugin,
+            #[cfg(target_arch = "wasm32")]
+            web::WebBgmPlugin,
         ))
         .add_plugins(MaterialPlugin::<
             ExtendedMaterial<StandardMaterial, FacialExpressionExtension>,

@@ -53,7 +53,7 @@ const FONT_PATH_TIME: &str = "fonts/ImgFont_Time.sprite";
 const FONT_PATH_SCORE: &str = "fonts/ImgFont_Score.sprite";
 const FONT_PATH_NUMBER: &str = "fonts/ImgFont_Number.sprite";
 const ATLAS_PATH_NUMBER: &str = "fonts/ImgFont_Number.atlas";
-const SOUND_PATH_BACKGROUND: &str = "sounds/Theme_253_Game.sound";
+const SOUND_PATH_BACKGROUND: &str = "sounds/Theme_253_Game.ogg";
 const SOUND_PATH_UI_START: &str = "sounds/UI_Start.sound";
 const SOUND_PATH_UI_FINISH: &str = "sounds/UI_Finish.sound";
 const SOUND_PATH_UI_BUTTON_BACK: &str = "sounds/UI_Button_Back.sound";
@@ -246,6 +246,7 @@ pub enum GameState {
 
 // --- COMPONENTS ---
 
+#[cfg(not(target_arch = "wasm32"))]
 #[derive(Component)]
 pub struct BackgroundSound;
 

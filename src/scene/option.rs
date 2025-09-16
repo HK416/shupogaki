@@ -1,6 +1,9 @@
 // Import necessary Bevy modules.
 use bevy::{audio::Volume, prelude::*};
 
+#[cfg(target_arch = "wasm32")]
+use crate::web::WebBgmAudioManager;
+
 use crate::asset::{
     locale::{CurrentLocale, Locale},
     sound::SystemVolume,
@@ -334,6 +337,7 @@ fn update_back_button(
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn control_background_volume(
     system_volume: Res<SystemVolume>,
     mut query: Query<&mut AudioSink, With<BackgroundSound>>,
@@ -341,6 +345,14 @@ fn control_background_volume(
     if let Ok(mut sink) = query.single_mut() {
         sink.set_volume(Volume::Linear(system_volume.background_percentage()));
     }
+}
+
+#[cfg(target_arch = "wasm32")]
+fn control_background_volume(
+    system_volume: Res<SystemVolume>,
+    web_bgm: NonSend<WebBgmAudioManager>,
+) {
+    web_bgm.set_volume(Volume::Linear(system_volume.background_percentage()));
 }
 
 fn control_effect_volume(

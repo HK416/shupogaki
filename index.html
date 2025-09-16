@@ -10,41 +10,65 @@
             justify-content: center;
             align-items: center;
             height: 100vh;
-            background-color: #6F8FAF; /* 캔버스 바깥 배경색 */
+            background-color: #6F8FAF;
             overflow: hidden;
         }
         .canvas-container {
-            /* 기존 스타일 유지 */
             width: 150vmin;
             height: 150vmin;
             display: flex;
             justify-content: center;
             align-items: center;
-            position: relative; /* 오버레이 위치 기준을 위해 추가 */
+            position: relative;
         }
         canvas {
-            /* 기존 스타일 유지 */
             max-width: 100%;
             max-height: 100%;
             display: block;
         }
-        /* --- 추가된 스타일 --- */
         #start-overlay {
             position: absolute;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
-            background-color: rgba(0, 0, 0, 0.7);
+            background-color: rgba(0, 0, 0, 0.8);
             display: flex;
             justify-content: center;
             align-items: center;
             color: white;
-            font-size: 3em;
-            font-family: sans-serif;
+            font-family: sans-serif, "Malgun Gothic", "Meiryo", "sans-serif";
             cursor: pointer;
-            z-index: 10; /* 캔버스 위에 표시되도록 z-index 추가 */
+            z-index: 10;
             text-align: center;
+            padding: 2em;
+            box-sizing: border-box; /* 패딩이 크기를 넘지 않도록 설정 */
+        }
+        .overlay-content {
+            display: flex;
+            flex-direction: column;
+            gap: 1em; /* 항목 간 간격 */
+            max-width: 800px;
+        }
+        .overlay-content h1 {
+            font-size: 2.5em;
+            margin: 0;
+        }
+        .overlay-content p {
+            font-size: 1.2em;
+            line-height: 1.6;
+            margin: 0;
+        }
+        .start-prompt {
+            font-size: 1.5em !important;
+            font-weight: bold;
+            color: #ffdd57; /* 눈에 띄는 색상 */
+            margin-top: 1em !important;
+        }
+        .disclaimer {
+            font-size: 0.8em !important;
+            color: rgba(255, 255, 255, 0.7); /* 흐린 색상 */
+            margin-top: 2em !important;
         }
         </style>
     </head>
@@ -52,17 +76,57 @@
         <div class="canvas-container"></div>
         
         <div id="start-overlay">
-            <p>Click to Start</p>
+            <div class="overlay-content">
+                <h1 id="text-title"></h1>
+                <p id="text-body"></p>
+                <p id="text-sub-body"></p>
+                <p id="text-start" class="start-prompt"></p>
+                <p id="text-disclaimer" class="disclaimer"></p>
+            </div>
         </div>
 
         <script type="module">
-            // Bevy 앱 초기화 로직은 그대로 사용
             import init from './shupogaki.js';
 
             const startOverlay = document.getElementById('start-overlay');
             const container = document.querySelector('.canvas-container');
 
-            // Bevy 앱을 실행하는 기존 함수
+            // --- 다국어 텍스트 설정 로직 ---
+            const translations = {
+                ko: {
+                    title: "안내",
+                    body: "이 게임은 \'Blue Archive\'의 2차 창작물입니다.",
+                    subBody: "원저작권자인 Nexon Games의 권리를 최우선으로 존중하며, 요청 시 비공개 또는 삭제처리할 예정입니다.",
+                    start: "- 클릭하여 게임을 시작하기 -",
+                    disclaimer: "면책 조항: 플레이에 지장을 주는 문제가 생길 수 있으며, 공지 없이 서비스가 중단되거나 사용자 데이터가 삭제될 수 있습니다."
+                },
+                ja: {
+                    title: "ご案内",
+                    body: "このゲームは『ブルーアーカイブ』の二次創作作品です。",
+                    subBody: "原著作権者であるNexon Gamesの権利を最優先に尊重し、ご要請があった場合には非公開または削除いたします。",
+                    start: "- クリックしてゲームを開始 -",
+                    disclaimer: "免責事項：プレイに支障をきたす問題が発生する可能性があり、予告なくサービスが中断されたり、ユーザーデータが削除されたりすることがあります。"
+                },
+                en: {
+                    title: "Notice",
+                    body: "This game is an unofficial fan-made work based on \'Blue Archive\'.",
+                    subBody: "The rights of the original copyright holder, Nexon Games, are respected with the highest priority, and this content will be made private or deleted upon request.",
+                    start: "- Click to Start the Game -",
+                    disclaimer: "Disclaimer: Issues that impede gameplay may occur, and the service may be suspended or user data deleted without notice."
+                }
+            };
+
+            // 브라우저 언어 감지 및 텍스트 적용
+            const userLang = navigator.language.split('-')[0]; // 'ko-KR' -> 'ko'
+            const lang = translations[userLang] ? userLang : 'en'; // 지원 언어 없으면 영어로
+            
+            document.getElementById('text-title').textContent = translations[lang].title;
+            document.getElementById('text-body').textContent = translations[lang].body;
+            document.getElementById('text-sub-body').textContent = translations[lang].subBody;
+            document.getElementById('text-start').textContent = translations[lang].start;
+            document.getElementById('text-disclaimer').textContent = translations[lang].disclaimer;
+            
+            // Bevy 앱 실행 함수 
             async function runBevyApp() {
                 await init();
                 const canvas = document.querySelector('canvas');
@@ -88,9 +152,8 @@
                 }
             }
 
-            // 오버레이 클릭 시 오디오를 활성화하고 게임을 시작하는 새 함수
+            // 오디오 활성화 및 게임 시작 함수 
             const unlockAudioAndStartGame = async () => {
-                // 1. 오디오 잠금 해제
                 const audioContext = new (window.AudioContext || window.webkitAudioContext)();
                 if (audioContext.state === 'suspended') {
                     await audioContext.resume();
@@ -99,15 +162,11 @@
                 source.buffer = audioContext.createBuffer(1, 1, 22050);
                 source.connect(audioContext.destination);
                 source.start(0);
-                
-                // 2. 오버레이 숨기기
                 startOverlay.style.display = 'none';
-
-                // 3. 기존 Bevy 앱 실행 함수 호출
                 await runBevyApp();
             };
 
-            // 오버레이에 클릭 이벤트 리스너 추가 (한 번만 실행)
+            // 클릭 이벤트 리스너 
             startOverlay.addEventListener('click', unlockAudioAndStartGame, { once: true });
         </script>
     </body>
