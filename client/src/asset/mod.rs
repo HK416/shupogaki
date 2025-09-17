@@ -9,8 +9,11 @@ pub mod sprite;
 pub mod texture;
 pub mod texture_atlas;
 
+use aes_gcm::{Aes256Gcm, Key, KeyInit, Nonce, aead::Aead};
+use anyhow::anyhow;
 use bevy::prelude::*;
 use serde::Deserialize;
+use static_assertions::const_assert_eq;
 
 #[derive(Debug, Deserialize, Clone, Copy)]
 pub struct UInt2 {
@@ -141,4 +144,37 @@ impl From<Float4x4> for Mat4 {
             Vec4::new(val.m30, val.m31, val.m32, val.m33),
         )
     }
+}
+
+// -- CRYPT KEYS ---
+const OBFUSCATED_KEY: &[u8] =
+    include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/assets/key.bin"));
+const MASK: &[u8] = include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/assets/mask.bin"));
+
+const_assert_eq!(OBFUSCATED_KEY.len(), 32);
+const_assert_eq!(MASK.len(), 32);
+
+#[inline(never)]
+pub fn reconstruct_key() -> [u8; 32] {
+    let mut key = [0u8; 32];
+    for i in 0..32 {
+        key[i] = OBFUSCATED_KEY[i] ^ MASK[i];
+    }
+    key
+}
+
+pub fn decrypt_bytes(encrypted_data: &[u8], key: &[u8]) -> anyhow::Result<Vec<u8>> {
+    let key = Key::<Aes256Gcm>::from_slice(key);
+    let cipher = Aes256Gcm::new(key);
+    if encrypted_data.len() < 12 {
+        warn!("Encrypted data is too short to contain a nonce.");
+        return Err(anyhow!("Encrypted data is too short to contain a nonce."));
+    }
+
+    let nonce = Nonce::from_slice(&encrypted_data[0..12]);
+    let ciphertext = &encrypted_data[12..];
+    let decrypted_data = cipher
+        .decrypt(nonce, ciphertext)
+        .map_err(|e| anyhow!("Decryption failed: {}", e))?;
+    Ok(decrypted_data)
 }

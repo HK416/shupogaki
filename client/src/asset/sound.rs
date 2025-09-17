@@ -4,6 +4,8 @@ use bevy::{
     tasks::ConditionalSendFuture,
 };
 
+use super::*;
+
 #[derive(Resource)]
 pub struct SystemVolume {
     pub background: u8,
@@ -39,6 +41,8 @@ impl Default for SystemVolume {
 pub enum SoundLoaderError {
     #[error("Failed to load asset for the following reason:{0}")]
     IO(#[from] std::io::Error),
+    #[error("Failed to decrypt asset for the following reason:{0}")]
+    Crypt(#[from] anyhow::Error),
 }
 
 #[derive(Default)]
@@ -59,11 +63,11 @@ impl AssetLoader for SoundAssetLoader {
             let mut bytes = Vec::new();
             reader.read_to_end(&mut bytes).await?;
 
-            // TODO: 데이터 복호화
-            // TODO: 데이터 압축 해제
+            let key = reconstruct_key();
+            let decrypted_data = decrypt_bytes(&bytes, &key)?;
 
             Ok(AudioSource {
-                bytes: bytes.into(),
+                bytes: decrypted_data.into(),
             })
         })
     }

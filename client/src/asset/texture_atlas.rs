@@ -7,6 +7,8 @@ use serde::Deserialize;
 
 use crate::asset::{Atlas, UInt2};
 
+use super::*;
+
 /// Represents the serializable structure of a `.atlas` file.
 /// This is used to deserialize the JSON data into a format that can be
 /// used to construct a `TextureAtlasLayout`.
@@ -26,6 +28,8 @@ pub enum TextureAtlasLoaderError {
     /// A JSON deserialization error occurred.
     #[error("Failed to decode asset for the following reason:{0}")]
     Json(#[from] serde_json::Error),
+    #[error("Failed to decrypt asset for the following reason:{0}")]
+    Crypt(#[from] anyhow::Error),
 }
 
 #[derive(Default)]
@@ -48,11 +52,11 @@ impl AssetLoader for TextureAtlasAssetLoader {
             let mut bytes = Vec::new();
             reader.read_to_end(&mut bytes).await?;
 
-            // TODO: 데이터 복호화 (Data Decryption)
-            // TODO: 데이터 압축 해제 (Data Decompression)
+            let key = reconstruct_key();
+            let decrypted_data = decrypt_bytes(&bytes, &key)?;
 
             // Deserialize the JSON bytes into our serializable format.
-            let serializable: SerializableTextureAtlas = serde_json::from_slice(&bytes)?;
+            let serializable: SerializableTextureAtlas = serde_json::from_slice(&decrypted_data)?;
 
             // Create a new, empty `TextureAtlasLayout` with the specified dimensions.
             let mut atlas_layout = TextureAtlasLayout::new_empty(serializable.size.into());

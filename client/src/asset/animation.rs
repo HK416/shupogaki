@@ -8,6 +8,8 @@ use serde::Deserialize;
 
 use crate::asset::{Float3, Float4};
 
+use super::*;
+
 /// A component that holds a handle to an animation clip.
 /// This is used to trigger the animation playback once the model is loaded.
 #[derive(Component)]
@@ -56,6 +58,8 @@ pub enum AnimationLoaderError {
     /// A JSON deserialization error occurred.
     #[error("Failed to decode asset for the following reason:{0}")]
     Json(#[from] serde_json::Error),
+    #[error("Failed to decrypt asset for the following reason:{0}")]
+    Crypt(#[from] anyhow::Error),
 }
 
 /// A loader for `.anim` assets.
@@ -79,11 +83,11 @@ impl AssetLoader for AnimationAssetLoader {
             let mut bytes = Vec::new();
             reader.read_to_end(&mut bytes).await?;
 
-            // TODO: 데이터 복호화 (Data Decryption)
-            // TODO: 데이터 압축 해제 (Data Decompression)
+            let key = reconstruct_key();
+            let decrypted_data = decrypt_bytes(&bytes, &key)?;
 
             // Deserialize the bytes from JSON into a `SerializableAnimation`.
-            let serializable: SerializableAnimation = serde_json::from_slice(&bytes)?;
+            let serializable: SerializableAnimation = serde_json::from_slice(&decrypted_data)?;
 
             // Convert the serializable format into a Bevy `AnimationClip`.
             Ok(create_animation_clip(&serializable))

@@ -8,6 +8,8 @@ use serde::Deserialize;
 
 use crate::asset::{Float2, Float3, Float4, Float4x4, UInt4};
 
+use super::*;
+
 /// A serializable representation of a mesh, designed for loading from a file.
 ///
 /// This struct contains all the raw vertex data for a mesh, including skinning information.
@@ -96,6 +98,8 @@ pub enum MeshLoaderError {
     /// A JSON deserialization error occurred.
     #[error("Failed to decode asset for the following reason:{0}")]
     Json(#[from] serde_json::Error),
+    #[error("Failed to decrypt asset for the following reason:{0}")]
+    Crypt(#[from] anyhow::Error),
 }
 
 /// A loader for `.mesh` assets.
@@ -119,11 +123,11 @@ impl AssetLoader for MeshAssetLoader {
             let mut bytes = Vec::new();
             reader.read_to_end(&mut bytes).await?;
 
-            // TODO: 데이터 복호화 (Data Decryption)
-            // TODO: 데이터 압축 해제 (Data Decompression)
+            let key = reconstruct_key();
+            let decrypted_data = decrypt_bytes(&bytes, &key)?;
 
             // Deserialize the bytes from JSON into a `SerializableMesh`.
-            let serializable: SerializableMesh = serde_json::from_slice(&bytes)?;
+            let serializable: SerializableMesh = serde_json::from_slice(&decrypted_data)?;
 
             // Create a base Bevy `Mesh` and insert all the vertex attributes from the serializable data.
             // This base mesh contains the vertex data for all submeshes.

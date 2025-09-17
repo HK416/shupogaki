@@ -12,6 +12,8 @@ use crate::{
     shader::face_mouth::FacialExpressionExtension,
 };
 
+use super::*;
+
 /// A serializable representation of a model's hierarchy, designed for loading from a file.
 #[derive(Debug, Deserialize, Clone)]
 pub struct SerializableModel {
@@ -63,6 +65,8 @@ pub enum ModelLoaderError {
     /// A JSON deserialization error occurred.
     #[error("Failed to decode asset for the following reason:{0}")]
     Json(#[from] serde_json::Error),
+    #[error("Failed to decrypt asset for the following reason:{0}")]
+    Crypt(#[from] anyhow::Error),
 }
 
 /// A loader for `.hierarchy` assets.
@@ -86,11 +90,11 @@ impl AssetLoader for ModelAssetLoader {
             let mut bytes = Vec::new();
             reader.read_to_end(&mut bytes).await?;
 
-            // TODO: 복호화 (Decryption)
-            // TODO: 압축 해제 (Decompression)
+            let key = reconstruct_key();
+            let decrypted_data = decrypt_bytes(&bytes, &key)?;
 
             // Deserialize the bytes from JSON into a `SerializableModel`.
-            let serializable: SerializableModel = serde_json::from_slice(&bytes)?;
+            let serializable: SerializableModel = serde_json::from_slice(&decrypted_data)?;
 
             // Recursively traverse the model hierarchy to find all mesh and material dependencies.
             let mut meshes_to_load = HashMap::default();

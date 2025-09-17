@@ -11,6 +11,8 @@ use crate::{
     shader::face_mouth::{FacialExpressionExtension, FacialExpressionUniform},
 };
 
+use super::*;
+
 /// Represents the blend mode for a material, mapping to Bevy's `AlphaMode`.
 #[derive(Debug, Deserialize, Clone)]
 pub enum BlendMode {
@@ -84,6 +86,8 @@ pub enum MaterialLoaderError {
     /// A JSON deserialization error occurred.
     #[error("Failed to decode asset for the following reason:{0}")]
     Json(#[from] serde_json::Error),
+    #[error("Failed to decrypt asset for the following reason:{0}")]
+    Crypt(#[from] anyhow::Error),
 }
 
 /// A loader for `.material` assets.
@@ -110,11 +114,11 @@ impl AssetLoader for MaterialAssetLoader {
             let mut bytes = Vec::new();
             reader.read_to_end(&mut bytes).await?;
 
-            // TODO: 데이터 복호화 (Data Decryption)
-            // TODO: 데이터 압축 해제 (Data Decompression)
+            let key = reconstruct_key();
+            let decrypted_data = decrypt_bytes(&bytes, &key)?;
 
             // Deserialize the bytes from JSON into a `SerializableMaterial`.
-            let serializable: SerializableMaterial = serde_json::from_slice(&bytes)?;
+            let serializable: SerializableMaterial = serde_json::from_slice(&decrypted_data)?;
 
             let base_color = serializable
                 .base_color
@@ -190,11 +194,11 @@ impl AssetLoader for FaceMouthMaterialAssetLoader {
             let mut bytes = Vec::new();
             reader.read_to_end(&mut bytes).await?;
 
-            // TODO: 데이터 복호화 (Data Decryption)
-            // TODO: 데이터 압축 해제 (Data Decompression)
+            let key = reconstruct_key();
+            let decrypted_data = decrypt_bytes(&bytes, &key)?;
 
             // Deserialize the bytes from JSON into a `SerializableMaterial`.
-            let serializable: SerializableMaterial = serde_json::from_slice(&bytes)?;
+            let serializable: SerializableMaterial = serde_json::from_slice(&decrypted_data)?;
 
             let base_color = serializable
                 .base_color

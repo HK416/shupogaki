@@ -2,14 +2,16 @@ use std::io::Cursor;
 
 use bevy::{
     asset::{AssetLoader, LoadContext, RenderAssetUsages, io::Reader},
-    image::ImageSampler,
     prelude::*,
     render::render_resource::{Extent3d, TextureDimension, TextureFormat},
     tasks::ConditionalSendFuture,
 };
 
+use super::*;
+
+/// An error that can occur when loading a texel data.
 #[derive(Debug, thiserror::Error)]
-pub enum SpriteLoaderError {
+pub enum TexelLoaderError {
     /// An I/O error occurred.
     #[error("Failed to load asset for the following reason:{0}")]
     IO(#[from] std::io::Error),
@@ -18,16 +20,18 @@ pub enum SpriteLoaderError {
     Json(#[from] serde_json::Error),
     #[error("Failed to decode asset for the following reason:{0}")]
     Decode(#[from] image::ImageError),
+    #[error("Failed to decrypt asset for the following reason:{0}")]
+    Crypt(#[from] anyhow::Error),
 }
 
-/// A loader for sprite assets.
+/// A loader for texel assets.
 #[derive(Default)]
-pub struct SpriteAssetLoader;
+pub struct TexelAssetLoader;
 
-impl AssetLoader for SpriteAssetLoader {
+impl AssetLoader for TexelAssetLoader {
     type Asset = Image;
     type Settings = ();
-    type Error = SpriteLoaderError;
+    type Error = TexelLoaderError;
 
     fn load(
         &self,
@@ -41,11 +45,11 @@ impl AssetLoader for SpriteAssetLoader {
             let mut bytes = Vec::new();
             reader.read_to_end(&mut bytes).await?;
 
-            // TODO: 데이터 복호화
-            // TODO: 데이터 압축 해제
+            let key = reconstruct_key();
+            let decrypted_data = decrypt_bytes(&bytes, &key)?;
 
             // Decode the image data using the `image` crate and create a Bevy `Image` asset.
-            let mut reader = image::ImageReader::new(Cursor::new(bytes));
+            let mut reader = image::ImageReader::new(Cursor::new(decrypted_data));
             reader.set_format(image::ImageFormat::Png);
 
             let image = reader.decode()?;
@@ -59,16 +63,11 @@ impl AssetLoader for SpriteAssetLoader {
             let format = TextureFormat::Rgba8UnormSrgb;
             let asset_usage = RenderAssetUsages::RENDER_WORLD;
 
-            let mut image_asset = Image::new(size, dimension, data, format, asset_usage);
-            // Set the sampler to `Nearest` for a pixelated look, which is common for sprites.
-            // This prevents blurring when scaling the image.
-            image_asset.sampler = ImageSampler::nearest();
-
-            Ok(image_asset)
+            Ok(Image::new(size, dimension, data, format, asset_usage))
         })
     }
 
     fn extensions(&self) -> &[&str] {
-        &["sprite"]
+        &["texture"]
     }
 }

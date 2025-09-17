@@ -1,0 +1,169 @@
+{
+    "directories": {
+        "animations": {
+            "target_files": [
+                "Hikari_Cafe_Idle.anim",
+                "Hikari_InGame.anim",
+                "Hikari_Victory_End_Interaction.anim",
+                "Hikari_Victory_Start_Interaction.anim",
+                "Nozomi_Cafe_Idle.anim",
+                "Nozomi_InGame.anim",
+                "Nozomi_Victory_End_Interaction.anim",
+                "Nozomi_Victory_Start_Interaction.anim"
+            ]
+        },
+        "fonts": {
+            "files": [
+                "NotoSans-Bold.otf"
+            ],
+            "target_files": [
+                "ImgFont_1.sprite",
+                "ImgFont_2.sprite",
+                "ImgFont_3.sprite",
+                "ImgFont_Exit.sprite",
+                "ImgFont_Finish.sprite",
+                "ImgFont_Number.atlas",
+                "ImgFont_Number.sprite",
+                "ImgFont_Pause.sprite",
+                "ImgFont_Resume.sprite",
+                "ImgFont_Score.sprite",
+                "ImgFont_Start.sprite",
+                "ImgFont_Time.sprite"
+            ]
+        },
+        "locale": {
+            "files": [
+                "en.json",
+                "ja.json",
+                "ko.json"
+            ]
+        },
+        "materials": {
+            "target_files": [
+                "Barricade.material",
+                "CH0242_Body.material",
+                "CH0242_Eyebrow.material",
+                "CH0242_EyeMouth.material",
+                "CH0242_Face.material",
+                "CH0242_Hair.material",
+                "CH0242_Halo.material",
+                "CH0243_Body.material",
+                "CH0243_Eyebrow.material",
+                "CH0243_EyeMouth.material",
+                "CH0243_Face.material",
+                "CH0243_Hair.material",
+                "CH0243_Halo.material",
+                "Fence_0.material",
+                "Fuel.material",
+                "OL_Fuel.material",
+                "Plane_0.material",
+                "Plane_999.material",
+                "Signlight_0.material",
+                "Signlight_1.material",
+                "Stone_0.material",
+                "Stone_1.material",
+                "ToyTrain.material"
+            ]
+        },
+        "meshes": {
+            "target_files": [
+                "Barricade.mesh",
+                "CH0242_Body.mesh",
+                "CH0242_Halo.mesh",
+                "CH0243_Body.mesh",
+                "CH0243_Halo.mesh",
+                "Fence_0.mesh",
+                "Fuel.mesh",
+                "OL_Fuel.mesh",
+                "Plane_0.mesh",
+                "Signlight_0.mesh",
+                "Signlight_1.mesh",
+                "Stone_0.mesh",
+                "Stone_1.mesh",
+                "Stone_2.mesh",
+                "ToyTrain00.mesh",
+                "ToyTrain01.mesh",
+                "ToyTrain02.mesh"
+            ]
+        },
+        "models": {
+            "target_files": [
+                "Barricade.hierarchy",
+                "Fuel.hierarchy",
+                "Hikari.hierarchy",
+                "Nozomi.hierarchy",
+                "Plane_0.hierarchy",
+                "Plane_999.hierarchy",
+                "Stone.hierarchy",
+                "ToyTrain00.hierarchy",
+                "ToyTrain01.hierarchy",
+                "ToyTrain02.hierarchy"
+            ]
+        },
+        "shaders": {
+            "files": [
+                "face_mouth.wgsl"
+            ]
+        },
+        "sounds": {
+            "target_files": [
+                "Hikari_Title.sound",
+                "Nozomi_Title.sound",
+                "SFX_DoorBell_00.sound",
+                "SFX_Train_End.sound",
+                "SFX_Train_Landing.sound",
+                "SFX_Train_Loop_01.sound",
+                "SFX_Train_Loop_02.sound",
+                "SFX_Train_Start.sound",
+                "Theme_253_Game.sound",
+                "UI_Button_Back.sound",
+                "UI_Button_Touch.sound",
+                "UI_Finish.sound",
+                "UI_Loading.sound",
+                "UI_Start.sound",
+                "VO_Damaged_00.sound",
+                "VO_Damaged_01.sound",
+                "VO_Damaged_02.sound",
+                "VO_Damaged_03.sound",
+                "VO_Damaged_04.sound",
+                "VO_Damaged_05.sound",
+                "VO_Healing_00.sound",
+                "VO_Healing_01.sound",
+                "VO_Healing_02.sound",
+                "VO_Healing_03.sound",
+                "VO_Result_00.sound",
+                "VO_Result_01.sound",
+                "VO_Result_02.sound",
+                "VO_Result_03.sound",
+                "VO_Start_00.sound",
+                "VO_Start_01.sound",
+                "VO_Start_02.sound",
+                "VO_Start_03.sound"
+            ]
+        },
+        "textures": {
+            "target_files": [
+                "CH0242_Body.texture",
+                "CH0242_EyeMouth.texture",
+                "CH0242_Face.texture",
+                "CH0242_Hair.texture",
+                "CH0242_Halo.texture",
+                "CH0243_Body.texture",
+                "CH0243_EyeMouth.texture",
+                "CH0243_Face.texture",
+                "CH0243_Hair.texture",
+                "CH0243_Halo.texture",
+                "Fuel.texture",
+                "Hikari_Mouth.texture",
+                "Nozomi_Mouth.texture",
+                "Plane_0.texture",
+                "Plane_999.texture",
+                "Stone_0.texture",
+                "Stone_1.texture",
+                "ToyTrain.texture",
+                "Train_Icon.sprite",
+                "trainroof_atlas.texture"
+            ]
+        }
+    }
+}
