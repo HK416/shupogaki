@@ -31,8 +31,8 @@ impl Plugin for StatePlugin {
         )
         .add_systems(OnExit(GameState::Title), hide_interfaces)
         .add_systems(
-            Update,
-            (title_button_systems).run_if(in_state(GameState::Title)),
+            PreUpdate,
+            title_button_systems.run_if(in_state(GameState::Title)),
         );
     }
 }

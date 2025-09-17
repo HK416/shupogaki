@@ -1,6 +1,7 @@
 // Import necessary Bevy modules.
 use bevy::{audio::Volume, prelude::*};
 use bevy_tweening::{Animator, TweenCompleted};
+use rand::seq::IndexedRandom;
 
 use crate::asset::sound::SystemVolume;
 
@@ -319,6 +320,7 @@ fn play_train_sound(
             AudioPlayer::new(asset_server.load(SOUND_PATH_SFX_TRAIN_LOOP_1)),
             PlaybackSettings::LOOP.with_volume(Volume::Linear(volume)),
             TrainSoundLoop1,
+            InGameStateRoot,
             EffectSound,
         ));
 
@@ -327,6 +329,7 @@ fn play_train_sound(
             AudioPlayer::new(asset_server.load(SOUND_PATH_SFX_TRAIN_LOOP_2)),
             PlaybackSettings::LOOP.with_volume(Volume::Linear(volume)),
             TrainSoundLoop2,
+            InGameStateRoot,
             EffectSound,
         ));
     }
@@ -367,6 +370,7 @@ fn update_train_sound(
             AudioPlayer::new(asset_server.load(SOUND_PATH_SFX_TRAIN_LANDING)),
             PlaybackSettings::DESPAWN
                 .with_volume(Volume::Linear(system_volume.effect_percentage())),
+            InGameStateRoot,
             EffectSound,
         ));
     }
@@ -485,6 +489,8 @@ fn spawn_objects(
 
 fn check_for_collisions(
     mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    system_volume: Res<SystemVolume>,
     mut fuel: ResMut<TrainFuel>,
     mut state: ResMut<CurrentState>,
     mut attacked: ResMut<Attacked>,
@@ -499,6 +505,7 @@ fn check_for_collisions(
             info!("Collision detected!");
             match (*state, *object) {
                 (CurrentState::Idle, Object::Barricade) => {
+                    play_damaged_sound(&mut commands, &asset_server, &system_volume);
                     fuel.sub(BARRICADE_AMOUNT);
                     forward_move.reset();
                     attacked.add();
@@ -507,6 +514,7 @@ fn check_for_collisions(
                     };
                 }
                 (CurrentState::Idle, Object::Stone) => {
+                    play_damaged_sound(&mut commands, &asset_server, &system_volume);
                     fuel.sub(STONE_AMOUNT);
                     forward_move.reset();
                     attacked.add();
@@ -515,6 +523,7 @@ fn check_for_collisions(
                     };
                 }
                 (CurrentState::Idle, Object::Fuel) => {
+                    play_healing_sound(&mut commands, &asset_server, &system_volume);
                     fuel.add(FUEL_AMOUNT);
                     commands.entity(entity).despawn();
                 }
@@ -526,6 +535,44 @@ fn check_for_collisions(
             }
             break;
         }
+    }
+}
+
+fn play_damaged_sound(
+    commands: &mut Commands,
+    asset_server: &AssetServer,
+    system_volume: &SystemVolume,
+) {
+    if rand::random_ratio(1, 3) {
+        let path = SOUND_PATH_VO_DAMAGEDS
+            .choose(&mut rand::rng())
+            .copied()
+            .unwrap();
+        commands.spawn((
+            AudioPlayer::new(asset_server.load(path)),
+            PlaybackSettings::DESPAWN.with_volume(Volume::Linear(system_volume.voice_percentage())),
+            InGameStateRoot,
+            VoiceSound,
+        ));
+    }
+}
+
+fn play_healing_sound(
+    commands: &mut Commands,
+    asset_server: &AssetServer,
+    system_volume: &SystemVolume,
+) {
+    if rand::random_ratio(1, 3) {
+        let path = SOUND_PATH_VO_HEALINGS
+            .choose(&mut rand::rng())
+            .copied()
+            .unwrap();
+        commands.spawn((
+            AudioPlayer::new(asset_server.load(path)),
+            PlaybackSettings::DESPAWN.with_volume(Volume::Linear(system_volume.voice_percentage())),
+            InGameStateRoot,
+            VoiceSound,
+        ));
     }
 }
 

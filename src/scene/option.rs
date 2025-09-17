@@ -1,5 +1,6 @@
 // Import necessary Bevy modules.
 use bevy::{audio::Volume, prelude::*};
+use rand::seq::IndexedRandom;
 
 #[cfg(target_arch = "wasm32")]
 use crate::web::WebBgmAudioManager;
@@ -19,20 +20,31 @@ impl Plugin for StatePlugin {
     fn build(&self, app: &mut App) {
         app
             // Register systems to run when entering the `GameState::Option` state.
-            .add_systems(OnEnter(GameState::Option), (debug_label, show_interface))
+            .add_systems(
+                OnEnter(GameState::Option),
+                (debug_label, show_interface, init_slider_cursor_flag),
+            )
             // Register a cleanup system to run when exiting the `GameState::Option` state.
-            .add_systems(OnExit(GameState::Option), hide_state_ui)
+            .add_systems(
+                OnExit(GameState::Option),
+                (hide_state_ui, clear_slider_cursor_flag),
+            )
             .add_systems(
                 PreUpdate,
-                handle_player_input.run_if(in_state(GameState::Option)),
+                (
+                    handle_player_input,
+                    slider_interaction_system, // Update에서 PreUpdate로 이동
+                )
+                    .run_if(in_state(GameState::Option)),
             )
             // Register systems that run every frame while in the `GameState::Option` state.
             .add_systems(
                 Update,
                 (
                     update_slider_visual,
-                    slider_interaction_system,
                     update_current_volume,
+                    update_slider_cursor,
+                    slider_feedback_system,
                     update_loacle_button,
                     update_back_button, // Note: This function handles the "Back" button.
                     control_background_volume,
@@ -41,6 +53,27 @@ impl Plugin for StatePlugin {
                 )
                     .run_if(in_state(GameState::Option)),
             );
+    }
+}
+
+// --- RESOURCES ---
+
+#[derive(Default, Resource)]
+pub struct SelectedSliderCursor(Option<(UI, Entity)>);
+
+impl SelectedSliderCursor {
+    pub fn take(&mut self) -> Option<(UI, Entity)> {
+        self.0.take()
+    }
+
+    pub fn get(&self) -> Option<(UI, Entity)> {
+        self.0.clone()
+    }
+
+    pub fn set(&mut self, ui: UI, entity: Entity) {
+        if self.0.is_none() {
+            self.0 = Some((ui, entity))
+        }
     }
 }
 
@@ -76,6 +109,10 @@ fn show_interface(mut query: Query<(&UI, &mut Visibility)>) {
     }
 }
 
+fn init_slider_cursor_flag(mut commands: Commands) {
+    commands.insert_resource(SelectedSliderCursor::default());
+}
+
 // --- CLEANUP SYSTEMS ---
 
 /// Hides all UI elements of the option screen.
@@ -101,6 +138,10 @@ fn hide_state_ui(mut query: Query<(&UI, &mut Visibility)>) {
             _ => { /* Do nothing for other UI elements. */ }
         }
     }
+}
+
+fn clear_slider_cursor_flag(mut commands: Commands) {
+    commands.remove_resource::<SelectedSliderCursor>();
 }
 
 // --- PREUPDATE SYSTEMS ---
@@ -175,51 +216,84 @@ fn update_current_volume(system_volume: Res<SystemVolume>, mut query: Query<(&UI
     }
 }
 
-/// Handles the logic for dragging a volume slider handle.
-/// It calculates the new volume percentage based on cursor position, updates the handle's visual position,
-/// and modifies the `SystemVolume` resource.
 fn slider_interaction_system(
-    windows: Query<&Window>,
-    mouse_button: Res<ButtonInput<MouseButton>>,
-    mut system_volume: ResMut<SystemVolume>,
-    mut interaction_query: Query<(&UI, &Interaction, &ChildOf)>,
-    mut node_query: Query<&mut Node>,
+    interaction_query: Query<(&UI, &Interaction, &ChildOf), Changed<Interaction>>,
+    mut selected: ResMut<SelectedSliderCursor>,
 ) {
+    for (&ui, &interaction, child_of) in interaction_query.iter() {
+        match (ui, interaction) {
+            (UI::BgmVolumeCursor, Interaction::Pressed) => {
+                selected.set(UI::BgmVolumeCursor, child_of.parent());
+            }
+            (UI::SfxVolumeCursor, Interaction::Pressed) => {
+                selected.set(UI::SfxVolumeCursor, child_of.parent());
+            }
+            (UI::VoiceVolumeCursor, Interaction::Pressed) => {
+                selected.set(UI::VoiceVolumeCursor, child_of.parent());
+            }
+            _ => { /* empty */ }
+        }
+    }
+}
+
+fn update_slider_cursor(
+    windows: Query<&Window>,
+    mut node_query: Query<&mut Node>,
+    mut system_volume: ResMut<SystemVolume>,
+    selected: Res<SelectedSliderCursor>,
+) {
+    let Some((ui, entity)) = selected.get() else {
+        return;
+    };
     let Ok(window) = windows.single() else { return };
     let Some(cursor_position) = window.cursor_position() else {
         return;
     };
 
-    for (&ui, &interaction, child_of) in interaction_query.iter_mut() {
-        // Check if a slider handle is being pressed.
-        if interaction == Interaction::Pressed && mouse_button.pressed(MouseButton::Left) {
-            // Calculate the slider's dimensions and position.
-            let slider_width = window.width() * 0.5 * 0.4;
-            let slider_begin = window.width() * 0.5 - slider_width / 2.0;
-            let slider_end = window.width() * 0.5 + slider_width / 2.0;
+    let slider_width = window.width() * 0.5 * 0.4;
+    let slider_begin = window.width() * 0.5 - slider_width / 2.0;
+    let slider_end = window.width() * 0.5 + slider_width / 2.0;
 
-            // Clamp the cursor position to the slider's bounds.
-            let slider_pos = cursor_position.x.clamp(slider_begin, slider_end);
-            let percentage = (slider_pos - slider_begin) / slider_width;
+    let slider_pos = cursor_position.x.clamp(slider_begin, slider_end);
+    let percentage = (slider_pos - slider_begin) / slider_width;
 
-            // Update the slider handle's node position and the corresponding volume resource.
-            if let Ok(mut node) = node_query.get_mut(child_of.parent()) {
-                match ui {
-                    UI::BgmVolumeCursor => {
-                        node.left = Val::Percent(percentage * 100.0);
-                        system_volume.background = (percentage * 255.0).floor() as u8;
-                    }
-                    UI::SfxVolumeCursor => {
-                        node.left = Val::Percent(percentage * 100.0);
-                        system_volume.effect = (percentage * 255.0).floor() as u8;
-                    }
-                    UI::VoiceVolumeCursor => {
-                        node.left = Val::Percent(percentage * 100.0);
-                        system_volume.voice = (percentage * 255.0).floor() as u8;
-                    }
-                    _ => { /* empty */ }
-                }
-            };
+    if let Ok(mut node) = node_query.get_mut(entity) {
+        match ui {
+            UI::BgmVolumeCursor => {
+                node.left = Val::Percent(percentage * 100.0);
+                system_volume.background = (percentage * 255.0).floor() as u8;
+            }
+            UI::SfxVolumeCursor => {
+                node.left = Val::Percent(percentage * 100.0);
+                system_volume.effect = (percentage * 255.0).floor() as u8;
+            }
+            UI::VoiceVolumeCursor => {
+                node.left = Val::Percent(percentage * 100.0);
+                system_volume.voice = (percentage * 255.0).floor() as u8;
+            }
+            _ => { /* empty */ }
+        }
+    }
+}
+
+fn slider_feedback_system(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    system_volume: Res<SystemVolume>,
+    mouse_button: Res<ButtonInput<MouseButton>>,
+    mut selected: ResMut<SelectedSliderCursor>,
+) {
+    if mouse_button.just_released(MouseButton::Left)
+        && let Some((select, _)) = selected.take()
+    {
+        match select {
+            UI::SfxVolumeCursor => {
+                play_sfx_feedback_when_released(&mut commands, &asset_server, &system_volume);
+            }
+            UI::VoiceVolumeCursor => {
+                play_voice_feedback_when_released(&mut commands, &asset_server, &system_volume);
+            }
+            _ => { /* empty */ }
         }
     }
 }
@@ -406,5 +480,33 @@ fn play_button_sound_when_returned(
         AudioPlayer::new(asset_server.load(SOUND_PATH_UI_BUTTON_BACK)),
         PlaybackSettings::DESPAWN.with_volume(Volume::Linear(system_volume.effect_percentage())),
         EffectSound,
+    ));
+}
+
+fn play_sfx_feedback_when_released(
+    commands: &mut Commands,
+    asset_server: &AssetServer,
+    system_volume: &SystemVolume,
+) {
+    commands.spawn((
+        AudioPlayer::new(asset_server.load(SOUND_PATH_SFX_DOOR_BELL_00)),
+        PlaybackSettings::DESPAWN.with_volume(Volume::Linear(system_volume.effect_percentage())),
+        EffectSound,
+    ));
+}
+
+fn play_voice_feedback_when_released(
+    commands: &mut Commands,
+    asset_server: &AssetServer,
+    system_volume: &SystemVolume,
+) {
+    let path = SOUND_PATH_VO_TITLES
+        .choose(&mut rand::rng())
+        .copied()
+        .unwrap();
+    commands.spawn((
+        AudioPlayer::new(asset_server.load(path)),
+        PlaybackSettings::DESPAWN.with_volume(Volume::Linear(system_volume.voice_percentage())),
+        VoiceSound,
     ));
 }

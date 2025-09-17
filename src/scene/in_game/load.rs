@@ -56,10 +56,19 @@ fn load_assets(commands: &mut Commands, asset_server: &AssetServer) {
     let mut loading_assets = InGameAssets::default();
 
     // --- Sound Loading ---
+    let sound: Handle<AudioSource> = asset_server.load(SOUND_PATH_HIKARI_TITLE);
+    loading_assets.handles.push(sound.into());
+
+    let sound: Handle<AudioSource> = asset_server.load(SOUND_PATH_NOZOMI_TITLE);
+    loading_assets.handles.push(sound.into());
+
     let sound: Handle<AudioSource> = asset_server.load(SOUND_PATH_UI_START);
     loading_assets.handles.push(sound.into());
 
     let sound: Handle<AudioSource> = asset_server.load(SOUND_PATH_UI_FINISH);
+    loading_assets.handles.push(sound.into());
+
+    let sound: Handle<AudioSource> = asset_server.load(SOUND_PATH_SFX_DOOR_BELL_00);
     loading_assets.handles.push(sound.into());
 
     let sound: Handle<AudioSource> = asset_server.load(SOUND_PATH_SFX_TRAIN_START);
@@ -76,6 +85,21 @@ fn load_assets(commands: &mut Commands, asset_server: &AssetServer) {
 
     let sound: Handle<AudioSource> = asset_server.load(SOUND_PATH_SFX_TRAIN_LANDING);
     loading_assets.handles.push(sound.into());
+
+    for path in SOUND_PATH_VO_STARTS {
+        let sound: Handle<AudioSource> = asset_server.load(path);
+        loading_assets.handles.push(sound.into());
+    }
+
+    for path in SOUND_PATH_VO_DAMAGEDS {
+        let sound: Handle<AudioSource> = asset_server.load(path);
+        loading_assets.handles.push(sound.into());
+    }
+
+    for path in SOUND_PATH_VO_RESULTS {
+        let sound: Handle<AudioSource> = asset_server.load(path);
+        loading_assets.handles.push(sound.into());
+    }
 
     // --- Texture Loading ---
     let texture: Handle<Image> = asset_server.load(FONT_PATH_START);

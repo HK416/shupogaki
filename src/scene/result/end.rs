@@ -11,13 +11,12 @@ impl Plugin for StatePlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(OnEnter(GameState::EndResult), debug_label)
             .add_systems(
+                PreUpdate,
+                handle_button_system.run_if(in_state(GameState::EndResult)),
+            )
+            .add_systems(
                 Update,
-                (
-                    fade_in_text,
-                    fade_in_img_font,
-                    fade_in_animation,
-                    handle_button_system,
-                )
+                (fade_in_text, fade_in_img_font, fade_in_animation)
                     .run_if(in_state(GameState::EndResult)),
             );
     }

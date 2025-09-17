@@ -19,6 +19,7 @@ impl Plugin for StatePlugin {
             (
                 debug_label,
                 play_start_sound,
+                play_start_voice,
                 play_ui_animation,
                 show_in_game_interface,
             ),
@@ -52,7 +53,23 @@ fn play_start_sound(
     commands.spawn((
         AudioPlayer::new(asset_server.load(SOUND_PATH_UI_START)),
         PlaybackSettings::DESPAWN.with_volume(Volume::Linear(system_volume.effect_percentage())),
+        InGameStateRoot,
         EffectSound,
+    ));
+}
+
+fn play_start_voice(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    system_volume: Res<SystemVolume>,
+) {
+    let index = rand::random_range(0..NUM_SOUND_VO_START);
+    let path = SOUND_PATH_VO_STARTS[index];
+    commands.spawn((
+        AudioPlayer::new(asset_server.load(path)),
+        PlaybackSettings::DESPAWN.with_volume(Volume::Linear(system_volume.voice_percentage())),
+        InGameStateRoot,
+        VoiceSound,
     ));
 }
 

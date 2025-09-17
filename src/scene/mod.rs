@@ -49,17 +49,38 @@ const FONT_PATH_TIME: &str = "fonts/ImgFont_Time.sprite";
 const FONT_PATH_SCORE: &str = "fonts/ImgFont_Score.sprite";
 const FONT_PATH_NUMBER: &str = "fonts/ImgFont_Number.sprite";
 const ATLAS_PATH_NUMBER: &str = "fonts/ImgFont_Number.atlas";
+const SOUND_PATH_HIKARI_TITLE: &str = "sounds/Hikari_Title.sound";
+const SOUND_PATH_NOZOMI_TITLE: &str = "sounds/Nozomi_Title.sound";
 const SOUND_PATH_BACKGROUND: &str = "sounds/Theme_253_Game.sound";
 const SOUND_PATH_UI_START: &str = "sounds/UI_Start.sound";
 const SOUND_PATH_UI_FINISH: &str = "sounds/UI_Finish.sound";
 const SOUND_PATH_UI_BUTTON_BACK: &str = "sounds/UI_Button_Back.sound";
 const SOUND_PATH_UI_BUTTON_TOUCH: &str = "sounds/UI_Button_Touch.sound";
 const SOUND_PATH_UI_LOADING: &str = "sounds/UI_Loading.sound";
+const SOUND_PATH_SFX_DOOR_BELL_00: &str = "sounds/SFX_DoorBell_00.sound";
 const SOUND_PATH_SFX_TRAIN_START: &str = "sounds/SFX_Train_Start.sound";
 const SOUND_PATH_SFX_TRAIN_LOOP_1: &str = "sounds/SFX_Train_Loop_01.sound";
 const SOUND_PATH_SFX_TRAIN_LOOP_2: &str = "sounds/SFX_Train_Loop_02.sound";
 const SOUND_PATH_SFX_TRAIN_END: &str = "sounds/SFX_Train_End.sound";
 const SOUND_PATH_SFX_TRAIN_LANDING: &str = "sounds/SFX_Train_Landing.sound";
+const SOUND_PATH_VO_START_00: &str = "sounds/VO_Start_00.sound";
+const SOUND_PATH_VO_START_01: &str = "sounds/VO_Start_01.sound";
+const SOUND_PATH_VO_START_02: &str = "sounds/VO_Start_02.sound";
+const SOUND_PATH_VO_START_03: &str = "sounds/VO_Start_03.sound";
+const SOUND_PATH_VO_DAMAGED_00: &str = "sounds/VO_Damaged_00.sound";
+const SOUND_PATH_VO_DAMAGED_01: &str = "sounds/VO_Damaged_01.sound";
+const SOUND_PATH_VO_DAMAGED_02: &str = "sounds/VO_Damaged_02.sound";
+const SOUND_PATH_VO_DAMAGED_03: &str = "sounds/VO_Damaged_03.sound";
+const SOUND_PATH_VO_DAMAGED_04: &str = "sounds/VO_Damaged_04.sound";
+const SOUND_PATH_VO_DAMAGED_05: &str = "sounds/VO_Damaged_05.sound";
+const SOUND_PATH_VO_HEALING_00: &str = "sounds/VO_Healing_00.sound";
+const SOUND_PATH_VO_HEALING_01: &str = "sounds/VO_Healing_01.sound";
+const SOUND_PATH_VO_HEALING_02: &str = "sounds/VO_Healing_02.sound";
+const SOUND_PATH_VO_HEALING_03: &str = "sounds/VO_Healing_03.sound";
+const SOUND_PATH_VO_RESULT_00: &str = "sounds/VO_Result_00.sound";
+const SOUND_PATH_VO_RESULT_01: &str = "sounds/VO_Result_01.sound";
+const SOUND_PATH_VO_RESULT_02: &str = "sounds/VO_Result_02.sound";
+const SOUND_PATH_VO_RESULT_03: &str = "sounds/VO_Result_03.sound";
 const ANIM_PATH_HIKARI_CAFE_IDLE: &str = "animations/Hikari_Cafe_Idle.anim";
 const ANIM_PATH_HIKARI_IN_GAME: &str = "animations/Hikari_InGame.anim";
 const ANIM_PATH_HIKARI_VICTORY_START: &str = "animations/Hikari_Victory_Start_Interaction.anim";
@@ -79,6 +100,50 @@ const MODEL_PATH_FUEL: &str = "models/Fuel.hierarchy";
 const MODEL_PATH_HIKARI: &str = "models/Hikari.hierarchy";
 const MODEL_PATH_NOZOMI: &str = "models/Nozomi.hierarchy";
 const TEXTURE_PATH_TRAIN_ICON: &str = "textures/Train_Icon.sprite";
+
+const NUM_SOUND_VO_TITLE: usize = 2;
+const SOUND_PATH_VO_TITLES: [&str; NUM_SOUND_VO_TITLE] =
+    [SOUND_PATH_HIKARI_TITLE, SOUND_PATH_NOZOMI_TITLE];
+
+const NUM_SOUND_VO_START: usize = 4;
+const SOUND_PATH_VO_STARTS: [&str; NUM_SOUND_VO_START] = [
+    SOUND_PATH_VO_START_00,
+    SOUND_PATH_VO_START_01,
+    SOUND_PATH_VO_START_02,
+    SOUND_PATH_VO_START_03,
+];
+
+const NUM_SOUND_VO_DAMAGED: usize = 6;
+const SOUND_PATH_VO_DAMAGEDS: [&str; NUM_SOUND_VO_DAMAGED] = [
+    SOUND_PATH_VO_DAMAGED_00,
+    SOUND_PATH_VO_DAMAGED_01,
+    SOUND_PATH_VO_DAMAGED_02,
+    SOUND_PATH_VO_DAMAGED_03,
+    SOUND_PATH_VO_DAMAGED_04,
+    SOUND_PATH_VO_DAMAGED_05,
+];
+lazy_static! {
+    static ref SOUND_DAMAGED_WEIGHTS: WeightedIndex<u32> = {
+        const WEIGHTS: [u32; NUM_SOUND_VO_DAMAGED] = [5, 5, 5, 5, 1, 1];
+        WeightedIndex::new(WEIGHTS).unwrap()
+    };
+}
+
+const NUM_SOUND_VO_HEALINGS: usize = 4;
+const SOUND_PATH_VO_HEALINGS: [&str; NUM_SOUND_VO_HEALINGS] = [
+    SOUND_PATH_VO_HEALING_00,
+    SOUND_PATH_VO_HEALING_01,
+    SOUND_PATH_VO_HEALING_02,
+    SOUND_PATH_VO_HEALING_03,
+];
+
+const NUM_SOUND_VO_RESULTS: usize = 4;
+const SOUND_PATH_VO_RESULTS: [&str; NUM_SOUND_VO_RESULTS] = [
+    SOUND_PATH_VO_RESULT_00,
+    SOUND_PATH_VO_RESULT_01,
+    SOUND_PATH_VO_RESULT_02,
+    SOUND_PATH_VO_RESULT_03,
+];
 
 // --- CONSTANTS ---
 
@@ -120,22 +185,39 @@ lazy_static! {
     ]
     .into_iter()
     .collect();
-
     static ref OBJECT_COLLIDER: HashMap<Object, Collider> = [
-        (Object::Barricade, Collider::Aabb { offset: Vec3::new(0.0, 0.5, 0.0), size: Vec3::splat(1.0) }),
-        (Object::Stone, Collider::Sphere { offset: Vec3::splat(0.0), radius: 1.0 }),
-        (Object::Fuel, Collider::Aabb { offset: Vec3::new(0.0, 0.0, 0.0), size: Vec3::splat(0.5) }),
+        (
+            Object::Barricade,
+            Collider::Aabb {
+                offset: Vec3::new(0.0, 0.5, 0.0),
+                size: Vec3::splat(1.0)
+            }
+        ),
+        (
+            Object::Stone,
+            Collider::Sphere {
+                offset: Vec3::splat(0.0),
+                radius: 1.0
+            }
+        ),
+        (
+            Object::Fuel,
+            Collider::Aabb {
+                offset: Vec3::new(0.0, 0.0, 0.0),
+                size: Vec3::splat(0.5)
+            }
+        ),
     ]
     .into_iter()
     .collect();
-
     static ref SPAWN_WEIGHTS: WeightedIndex<u32> = {
         const WEIGHTS: [u32; NUM_OBJECTS] = [5, 5, 3];
         WeightedIndex::new(WEIGHTS).unwrap()
     };
+}
 
-    static ref OBJECT_LIST: [Object; NUM_OBJECTS] = [Object::Barricade, Object::Stone, Object::Fuel];
-
+const OBJECT_LIST: [Object; NUM_OBJECTS] = [Object::Barricade, Object::Stone, Object::Fuel];
+lazy_static! {
     static ref BARRICADE_WEIGHTS: WeightedIndex<u32> = {
         const WEIGHTS: [u32; NUM_BARRICADE_LOCATIONS] = [3, 3, 2, 3, 2, 2, 1];
         WeightedIndex::new(WEIGHTS).unwrap()

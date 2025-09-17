@@ -24,11 +24,11 @@ impl Plugin for StatePlugin {
         .add_systems(OnExit(GameState::Pause), (hide_title, hide_interface))
         .add_systems(
             PreUpdate,
-            handle_player_input.run_if(in_state(GameState::Pause)),
+            (handle_player_input, handle_button_system).run_if(in_state(GameState::Pause)),
         )
         .add_systems(
             Update,
-            (update_pause_title, handle_button_system).run_if(in_state(GameState::Pause)),
+            update_pause_title.run_if(in_state(GameState::Pause)),
         );
     }
 }
@@ -54,13 +54,15 @@ fn pause_animation(mut query: Query<&mut AnimationPlayer>) {
     }
 }
 
-fn pause_effect_sounds(mut query: Query<&mut AudioSink, With<EffectSound>>) {
+fn pause_effect_sounds(
+    mut query: Query<&mut AudioSink, (With<InGameStateRoot>, With<EffectSound>)>,
+) {
     for sink in query.iter_mut() {
         sink.pause();
     }
 }
 
-fn pause_voice_sounds(mut query: Query<&mut AudioSink, With<VoiceSound>>) {
+fn pause_voice_sounds(mut query: Query<&mut AudioSink, (With<InGameStateRoot>, With<VoiceSound>)>) {
     for sink in query.iter_mut() {
         sink.pause();
     }

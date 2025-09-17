@@ -63,13 +63,17 @@ fn resume_animation(mut query: Query<&mut AnimationPlayer>) {
     }
 }
 
-fn resume_effect_sounds(mut query: Query<&mut AudioSink, With<EffectSound>>) {
+fn resume_effect_sounds(
+    mut query: Query<&mut AudioSink, (With<InGameStateRoot>, With<EffectSound>)>,
+) {
     for sink in query.iter_mut() {
         sink.play();
     }
 }
 
-fn resume_voice_sounds(mut query: Query<&mut AudioSink, With<VoiceSound>>) {
+fn resume_voice_sounds(
+    mut query: Query<&mut AudioSink, (With<InGameStateRoot>, With<VoiceSound>)>,
+) {
     for sink in query.iter_mut() {
         sink.play();
     }

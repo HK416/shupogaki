@@ -72,6 +72,7 @@ fn play_train_sound(
     commands.spawn((
         AudioPlayer::new(asset_server.load(SOUND_PATH_SFX_TRAIN_START)),
         PlaybackSettings::DESPAWN.with_volume(Volume::Linear(system_volume.effect_percentage())),
+        InGameStateRoot,
         TrainSoundStart,
         EffectSound,
     ));

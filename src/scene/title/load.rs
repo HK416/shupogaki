@@ -85,6 +85,16 @@ fn load_assets(commands: &mut Commands, asset_server: &AssetServer) {
     let clip: Handle<AnimationClip> = asset_server.load(ANIM_PATH_NOZOMI_CAFE_IDLE);
     loading_assets.handles.push(clip.into());
 
+    // --- Sound Loading ----
+    let sound: Handle<AudioSource> = asset_server.load(SOUND_PATH_HIKARI_TITLE);
+    loading_assets.handles.push(sound.into());
+
+    let sound: Handle<AudioSource> = asset_server.load(SOUND_PATH_NOZOMI_TITLE);
+    loading_assets.handles.push(sound.into());
+
+    let sound: Handle<AudioSource> = asset_server.load(SOUND_PATH_SFX_DOOR_BELL_00);
+    loading_assets.handles.push(sound.into());
+
     commands.insert_resource(loading_assets);
 }
 

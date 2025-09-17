@@ -1,8 +1,9 @@
 // Import necessary Bevy modules.
-use bevy::{pbr::ExtendedMaterial, prelude::*};
+use bevy::{audio::Volume, pbr::ExtendedMaterial, prelude::*};
+use rand::seq::IndexedRandom;
 
 use crate::{
-    asset::animation::AnimationClipHandle,
+    asset::{animation::AnimationClipHandle, sound::SystemVolume},
     shader::face_mouth::{EyeMouth, FacialExpressionExtension},
 };
 
@@ -26,6 +27,7 @@ impl Plugin for StatePlugin {
                 show_entities,
                 spawn_camera_and_light,
                 play_animation,
+                play_result_sound,
             ),
         )
         .add_systems(OnExit(GameState::StartResult), end_timer)
@@ -101,6 +103,22 @@ fn play_animation(
             .insert((AnimationGraphHandle(graphs.add(graph)), player))
             .remove::<AnimationClipHandle>();
     }
+}
+
+fn play_result_sound(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    system_volume: Res<SystemVolume>,
+) {
+    let path = SOUND_PATH_VO_RESULTS
+        .choose(&mut rand::rng())
+        .copied()
+        .unwrap();
+    commands.spawn((
+        AudioPlayer::new(asset_server.load(path)),
+        PlaybackSettings::DESPAWN.with_volume(Volume::Linear(system_volume.voice_percentage())),
+        VoiceSound,
+    ));
 }
 
 // --- CLEANUP SYSTEMS ---
