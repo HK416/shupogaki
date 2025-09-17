@@ -23,6 +23,7 @@ impl Plugin for StatePlugin {
                         handle_player
                     },
                     handle_player_input,
+                    handle_player_input_for_moblie,
                     handle_pause_input,
                 )
                     .run_if(in_state(GameState::InGame)),
@@ -102,6 +103,7 @@ pub fn handle_player(
         fuel.remaining = 0.0;
     }
 }
+
 pub fn handle_player_input(
     keyboard_input: Res<ButtonInput<KeyCode>>,
     mut lane: ResMut<CurrentLane>,
@@ -125,6 +127,52 @@ pub fn handle_player_input(
         if is_grounded && keyboard_input.pressed(KeyCode::Space) {
             vert_move.jump();
             is_jumping.jump();
+        }
+    }
+}
+
+pub fn handle_player_input_for_moblie(
+    windows: Query<&Window>,
+    touches: Res<Touches>,
+    mut lane: ResMut<CurrentLane>,
+    mut delay: ResMut<InputDelay>,
+    mut vert_move: ResMut<VerticalMovement>,
+    mut is_jumping: ResMut<IsPlayerJumping>,
+    player_query: Query<&Transform, With<Player>>,
+) {
+    let Ok(window) = windows.single() else { return };
+    let window_width = window.width();
+    let window_height = window.height();
+
+    let Ok(transform) = player_query.single() else {
+        return;
+    };
+    let is_grounded = transform.translation.y <= 0.0;
+
+    for touch in touches.iter_just_pressed() {
+        let position = touch.position();
+        let p_vertical = position.y / window_height;
+        let p_horizontal = position.x / window_width;
+        match (p_vertical, p_horizontal) {
+            (0.3..=0.7, 0.0..=0.3) => {
+                if delay.is_expired() {
+                    lane.index = lane.index.saturating_sub(1);
+                    delay.reset();
+                }
+            }
+            (0.0..=1.0, 0.3..=0.7) => {
+                if is_grounded {
+                    vert_move.jump();
+                    is_jumping.jump();
+                }
+            }
+            (0.3..=0.7, 0.7..=1.0) => {
+                if delay.is_expired() {
+                    lane.index = lane.index.saturating_add(1).min(MAX_LANE_INDEX);
+                    delay.reset();
+                }
+            }
+            _ => { /* empty */ }
         }
     }
 }

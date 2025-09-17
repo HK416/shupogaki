@@ -33,7 +33,8 @@ impl Plugin for StatePlugin {
                 PreUpdate,
                 (
                     handle_player_input,
-                    slider_interaction_system, // Update에서 PreUpdate로 이동
+                    slider_interaction_system,
+                    slider_interaction_system_for_moblie,
                 )
                     .run_if(in_state(GameState::Option)),
             )
@@ -44,7 +45,9 @@ impl Plugin for StatePlugin {
                     update_slider_visual,
                     update_current_volume,
                     update_slider_cursor,
+                    update_slider_cursor_for_moblie,
                     slider_feedback_system,
+                    slider_feedback_system_for_moblie,
                     update_loacle_button,
                     update_back_button, // Note: This function handles the "Back" button.
                     control_background_volume,
@@ -59,20 +62,20 @@ impl Plugin for StatePlugin {
 // --- RESOURCES ---
 
 #[derive(Default, Resource)]
-pub struct SelectedSliderCursor(Option<(UI, Entity)>);
+pub struct SelectedSliderCursor(Option<(UI, Entity, u64)>);
 
 impl SelectedSliderCursor {
-    pub fn take(&mut self) -> Option<(UI, Entity)> {
+    pub fn take(&mut self) -> Option<(UI, Entity, u64)> {
         self.0.take()
     }
 
-    pub fn get(&self) -> Option<(UI, Entity)> {
+    pub fn get(&self) -> Option<(UI, Entity, u64)> {
         self.0.clone()
     }
 
-    pub fn set(&mut self, ui: UI, entity: Entity) {
+    pub fn set(&mut self, ui: UI, entity: Entity, id: u64) {
         if self.0.is_none() {
-            self.0 = Some((ui, entity))
+            self.0 = Some((ui, entity, id))
         }
     }
 }
@@ -160,6 +163,49 @@ fn handle_player_input(
     }
 }
 
+fn slider_interaction_system(
+    interaction_query: Query<(&UI, &Interaction, &ChildOf), Changed<Interaction>>,
+    mut selected: ResMut<SelectedSliderCursor>,
+) {
+    for (&ui, &interaction, child_of) in interaction_query.iter() {
+        match (ui, interaction) {
+            (UI::BgmVolumeCursor, Interaction::Pressed) => {
+                selected.set(UI::BgmVolumeCursor, child_of.parent(), 0);
+            }
+            (UI::SfxVolumeCursor, Interaction::Pressed) => {
+                selected.set(UI::SfxVolumeCursor, child_of.parent(), 0);
+            }
+            (UI::VoiceVolumeCursor, Interaction::Pressed) => {
+                selected.set(UI::VoiceVolumeCursor, child_of.parent(), 0);
+            }
+            _ => { /* empty */ }
+        }
+    }
+}
+
+fn slider_interaction_system_for_moblie(
+    touches: Res<Touches>,
+    interaction_query: Query<(&UI, &Interaction, &ChildOf), Changed<Interaction>>,
+    mut selected: ResMut<SelectedSliderCursor>,
+) {
+    if let Some(touch) = touches.iter_just_pressed().last() {
+        for (&ui, &interaction, child_of) in interaction_query.iter() {
+            match (ui, interaction) {
+                (UI::BgmVolumeCursor, Interaction::Pressed) => {
+                    selected.set(UI::BgmVolumeCursor, child_of.parent(), touch.id());
+                }
+                (UI::SfxVolumeCursor, Interaction::Pressed) => {
+                    selected.set(UI::SfxVolumeCursor, child_of.parent(), touch.id());
+                }
+                (UI::VoiceVolumeCursor, Interaction::Pressed) => {
+                    selected.set(UI::VoiceVolumeCursor, child_of.parent(), touch.id());
+                }
+                _ => { /* empty */ }
+            }
+        }
+    }
+}
+
 // --- UPDATE SYSTEMS ---
 
 /// Provides visual feedback for volume slider handles based on their interaction state (hovered, pressed).
@@ -216,33 +262,13 @@ fn update_current_volume(system_volume: Res<SystemVolume>, mut query: Query<(&UI
     }
 }
 
-fn slider_interaction_system(
-    interaction_query: Query<(&UI, &Interaction, &ChildOf), Changed<Interaction>>,
-    mut selected: ResMut<SelectedSliderCursor>,
-) {
-    for (&ui, &interaction, child_of) in interaction_query.iter() {
-        match (ui, interaction) {
-            (UI::BgmVolumeCursor, Interaction::Pressed) => {
-                selected.set(UI::BgmVolumeCursor, child_of.parent());
-            }
-            (UI::SfxVolumeCursor, Interaction::Pressed) => {
-                selected.set(UI::SfxVolumeCursor, child_of.parent());
-            }
-            (UI::VoiceVolumeCursor, Interaction::Pressed) => {
-                selected.set(UI::VoiceVolumeCursor, child_of.parent());
-            }
-            _ => { /* empty */ }
-        }
-    }
-}
-
 fn update_slider_cursor(
     windows: Query<&Window>,
     mut node_query: Query<&mut Node>,
     mut system_volume: ResMut<SystemVolume>,
     selected: Res<SelectedSliderCursor>,
 ) {
-    let Some((ui, entity)) = selected.get() else {
+    let Some((ui, entity, _id)) = selected.get() else {
         return;
     };
     let Ok(window) = windows.single() else { return };
@@ -276,6 +302,47 @@ fn update_slider_cursor(
     }
 }
 
+fn update_slider_cursor_for_moblie(
+    windows: Query<&Window>,
+    touches: Res<Touches>,
+    mut node_query: Query<&mut Node>,
+    mut system_volume: ResMut<SystemVolume>,
+    selected: Res<SelectedSliderCursor>,
+) {
+    let Some((ui, entity, id)) = selected.get() else {
+        return;
+    };
+    let Ok(window) = windows.single() else { return };
+    let Some(touch) = touches.get_pressed(id) else {
+        return;
+    };
+
+    let slider_width = window.width() * 0.5 * 0.4;
+    let slider_begin = window.width() * 0.5 - slider_width / 2.0;
+    let slider_end = window.width() * 0.5 + slider_width / 2.0;
+
+    let slider_pos = touch.position().x.clamp(slider_begin, slider_end);
+    let percentage = (slider_pos - slider_begin) / slider_width;
+
+    if let Ok(mut node) = node_query.get_mut(entity) {
+        match ui {
+            UI::BgmVolumeCursor => {
+                node.left = Val::Percent(percentage * 100.0);
+                system_volume.background = (percentage * 255.0).floor() as u8;
+            }
+            UI::SfxVolumeCursor => {
+                node.left = Val::Percent(percentage * 100.0);
+                system_volume.effect = (percentage * 255.0).floor() as u8;
+            }
+            UI::VoiceVolumeCursor => {
+                node.left = Val::Percent(percentage * 100.0);
+                system_volume.voice = (percentage * 255.0).floor() as u8;
+            }
+            _ => { /* empty */ }
+        }
+    }
+}
+
 fn slider_feedback_system(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
@@ -284,7 +351,30 @@ fn slider_feedback_system(
     mut selected: ResMut<SelectedSliderCursor>,
 ) {
     if mouse_button.just_released(MouseButton::Left)
-        && let Some((select, _)) = selected.take()
+        && let Some((select, _, _)) = selected.take()
+    {
+        match select {
+            UI::SfxVolumeCursor => {
+                play_sfx_feedback_when_released(&mut commands, &asset_server, &system_volume);
+            }
+            UI::VoiceVolumeCursor => {
+                play_voice_feedback_when_released(&mut commands, &asset_server, &system_volume);
+            }
+            _ => { /* empty */ }
+        }
+    }
+}
+
+fn slider_feedback_system_for_moblie(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    system_volume: Res<SystemVolume>,
+    touches: Res<Touches>,
+    mut selected: ResMut<SelectedSliderCursor>,
+) {
+    if let Some((_, _, id)) = selected.get()
+        && touches.just_released(id)
+        && let Some((select, _, _)) = selected.take()
     {
         match select {
             UI::SfxVolumeCursor => {

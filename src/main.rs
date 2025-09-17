@@ -39,7 +39,7 @@ fn main() {
                         resolution: (1280.0, 720.0).into(),
                         resizable: false,
                         fit_canvas_to_parent: true,
-                        prevent_default_event_handling: false,
+                        prevent_default_event_handling: true,
                         desired_maximum_frame_latency: Some(NonZeroU32::new(3).unwrap()),
                         ..default()
                     }),
