@@ -147,6 +147,8 @@ const SOUND_PATH_VO_RESULTS: [&str; NUM_SOUND_VO_RESULTS] = [
 
 // --- CONSTANTS ---
 
+const MAX_RANK_LIST: usize = 100;
+
 const NUM_LANES: usize = 3;
 const MAX_LANE_INDEX: usize = NUM_LANES - 1;
 const LANE_LOCATIONS: [f32; NUM_LANES] = [-3.0, 0.25, 3.5];
@@ -299,11 +301,13 @@ pub enum GameState {
     Option,
     Pause,
     Resume,
+    Ranking,
     #[default]
     Setup,
     Initialize,
     LoadTitle,
     InitTitle,
+    InitRank,
     Title,
     Title2InGame,
     LoadInGame,
@@ -396,6 +400,9 @@ pub struct PauseTitle;
 pub struct SpawnRequest;
 
 #[derive(Component)]
+pub struct RankingStateRoot;
+
+#[derive(Component)]
 pub struct LoadingStateRoot;
 
 #[derive(Component)]
@@ -457,6 +464,9 @@ pub enum UI {
     PauseButton,
     Score,
     Fuel,
+
+    TitleLeaderBoard,
+    LeaderBoardBackButton,
 
     Pause,
     ResumeButton,
@@ -881,8 +891,7 @@ impl ObjectSpawner {
                         let recycle = self
                             .retired
                             .get_mut(&self.next_obj)
-                            .map(|entities| entities.pop_front())
-                            .flatten();
+                            .and_then(|entities| entities.pop_front());
 
                         match recycle {
                             Some(entity) => {
@@ -915,8 +924,7 @@ impl ObjectSpawner {
                         let recycle = self
                             .retired
                             .get_mut(&self.next_obj)
-                            .map(|entities| entities.pop_front())
-                            .flatten();
+                            .and_then(|entities| entities.pop_front());
 
                         match recycle {
                             Some(entity) => {
@@ -949,8 +957,7 @@ impl ObjectSpawner {
                         let recycle = self
                             .retired
                             .get_mut(&self.next_obj)
-                            .map(|entities| entities.pop_front())
-                            .flatten();
+                            .and_then(|entities| entities.pop_front());
 
                         match recycle {
                             Some(entity) => {

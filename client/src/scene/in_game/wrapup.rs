@@ -62,6 +62,7 @@ fn debug_label() {
     info!("Current State: WrapupInGame");
 }
 
+#[allow(clippy::type_complexity)]
 fn switch_train_sounds(
     mut commands: Commands,
     asset_server: Res<AssetServer>,

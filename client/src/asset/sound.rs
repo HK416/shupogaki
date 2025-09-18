@@ -1,7 +1,7 @@
 use bevy::{
     asset::{AssetLoader, LoadContext, io::Reader},
     prelude::*,
-    tasks::ConditionalSendFuture,
+    tasks::{AsyncComputeTaskPool, ConditionalSendFuture},
 };
 
 use super::*;
@@ -63,8 +63,13 @@ impl AssetLoader for SoundAssetLoader {
             let mut bytes = Vec::new();
             reader.read_to_end(&mut bytes).await?;
 
-            let key = reconstruct_key();
-            let decrypted_data = decrypt_bytes(&bytes, &key)?;
+            let pool = AsyncComputeTaskPool::get();
+            let decrypted_data = pool
+                .spawn(async move {
+                    let key = reconstruct_key();
+                    decrypt_bytes(&bytes, &key)
+                })
+                .await?;
 
             Ok(AudioSource {
                 bytes: decrypted_data.into(),

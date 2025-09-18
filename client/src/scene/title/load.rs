@@ -101,11 +101,15 @@ fn load_assets(commands: &mut Commands, asset_server: &AssetServer) {
 fn setup_loading_screen(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
-    camera_query: Query<(), With<Camera2d>>,
+    camera_query: Query<(), With<Camera3d>>,
 ) {
     if camera_query.single().is_err() {
-        // Spawn a 2D camera for the loading screen UI.
-        commands.spawn((Camera2d, LoadingStateRoot));
+        // Spawn a 3D camera for the loading screen UI.
+        commands.spawn((
+            Camera3d::default(),
+            Transform::from_xyz(0.0, -100.0, 0.0).looking_to(Vec3::NEG_Y, Vec3::Z),
+            LoadingStateRoot,
+        ));
 
         // Create the main UI container for the loading elements.
         commands

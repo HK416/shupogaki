@@ -22,6 +22,7 @@ static_assertions = "1.1"
 [dependencies]
 aes-gcm = "0.10"
 anyhow = "1.0"
+bevy_simple_scroll_view = "0.4"
 bevy_tweening = { version = "0.13", default-features = false, features = ["bevy_ui"] }
 image = { version = "0.25", default-features = false, features = ["png"] }
 lazy_static = "1.5"

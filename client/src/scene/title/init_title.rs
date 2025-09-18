@@ -19,17 +19,14 @@ impl Plugin for StatePlugin {
             OnEnter(GameState::InitTitle),
             (debug_label, play_loading_sound, spawn_entities),
         )
-        .add_systems(
-            OnExit(GameState::InitTitle),
-            (remove_resource, remove_entities),
-        )
+        .add_systems(OnExit(GameState::InitTitle), remove_resource)
         .add_systems(
             Update,
             (
                 disable_frustum_culling,
                 handle_spawn_request,
                 check_loading_progress,
-                update_loading_bar,
+                update_loading_progress,
             )
                 .run_if(in_state(GameState::InitTitle)),
         );
@@ -237,12 +234,6 @@ fn remove_resource(mut commands: Commands) {
     commands.remove_resource::<LoadingEntities>();
 }
 
-fn remove_entities(mut commands: Commands, query: Query<Entity, With<LoadingStateRoot>>) {
-    for entity in query.iter() {
-        commands.entity(entity).despawn();
-    }
-}
-
 // --- UPDATE SYSTEMS ---
 
 fn disable_frustum_culling(mut commands: Commands, query: Query<Entity, Added<Mesh3d>>) {
@@ -262,29 +253,24 @@ fn handle_spawn_request(mut commands: Commands, query: Query<Entity, Added<Spawn
 
 fn check_loading_progress(
     mut next_state: ResMut<NextState<GameState>>,
-    loading_entitis: Res<LoadingEntities>,
-    query: Query<(), With<SpawnRequest>>,
+    spawn_request_entities: Query<(), With<SpawnRequest>>,
+    model_spawn_entities: Query<(), With<SpawnModel>>,
 ) {
-    let all_loaded = loading_entitis
-        .handles
-        .iter()
-        .all(|entity| !query.contains(*entity));
-
-    if all_loaded {
-        next_state.set(GameState::Title);
+    if spawn_request_entities.is_empty() && model_spawn_entities.is_empty() {
+        next_state.set(GameState::InitRank);
     }
 }
 
-fn update_loading_bar(
+fn update_loading_progress(
     loading_entitis: Res<LoadingEntities>,
-    request_query: Query<(), With<SpawnRequest>>,
-    mut query: Query<&mut Node, With<LoadingBar>>,
+    spawn_request_entities: Query<(), With<SpawnRequest>>,
+    mut loading_bar_entities: Query<&mut Node, With<LoadingBar>>,
 ) {
-    if let Ok(mut node) = query.single_mut() {
+    if let Ok(mut node) = loading_bar_entities.single_mut() {
         let loaded_count = loading_entitis
             .handles
             .iter()
-            .filter(|&&entity| !request_query.contains(entity))
+            .filter(|&&entity| !spawn_request_entities.contains(entity))
             .count();
 
         let total_count = loading_entitis.handles.len();

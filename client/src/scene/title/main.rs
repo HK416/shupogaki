@@ -216,6 +216,7 @@ fn title_button_systems(
             (UI::RankButton, Interaction::Pressed) => {
                 *text_color = TextColor(Color::WHITE.darker(0.5));
                 play_button_sound_when_pressed(&mut commands, &asset_server, &system_volume);
+                next_state.set(GameState::Ranking);
             }
             (UI::RankButton, Interaction::None) => {
                 *text_color = TextColor(Color::WHITE);

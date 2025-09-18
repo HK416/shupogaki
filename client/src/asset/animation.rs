@@ -2,7 +2,7 @@ use bevy::{
     animation::{AnimationTargetId, animated_field},
     asset::{AssetLoader, LoadContext, io::Reader},
     prelude::*,
-    tasks::ConditionalSendFuture,
+    tasks::{AsyncComputeTaskPool, ConditionalSendFuture},
 };
 use serde::Deserialize;
 
@@ -83,8 +83,13 @@ impl AssetLoader for AnimationAssetLoader {
             let mut bytes = Vec::new();
             reader.read_to_end(&mut bytes).await?;
 
-            let key = reconstruct_key();
-            let decrypted_data = decrypt_bytes(&bytes, &key)?;
+            let pool = AsyncComputeTaskPool::get();
+            let decrypted_data = pool
+                .spawn(async move {
+                    let key = reconstruct_key();
+                    decrypt_bytes(&bytes, &key)
+                })
+                .await?;
 
             // Deserialize the bytes from JSON into a `SerializableAnimation`.
             let serializable: SerializableAnimation = serde_json::from_slice(&decrypted_data)?;

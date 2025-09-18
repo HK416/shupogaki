@@ -1,6 +1,8 @@
-mod init;
+mod init_rank;
+mod init_title;
 mod load;
 mod main;
+mod ranking;
 mod to_in_game;
 
 // Import necessary Bevy modules.
@@ -22,8 +24,10 @@ pub struct StatePlugin;
 impl Plugin for StatePlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(load::StatePlugin)
-            .add_plugins(init::StatePlugin)
+            .add_plugins(init_title::StatePlugin)
+            .add_plugins(init_rank::StatePlugin)
             .add_plugins(main::StatePlugin)
+            .add_plugins(ranking::StatePlugin)
             .add_plugins(to_in_game::StatePlugin);
     }
 }

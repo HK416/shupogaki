@@ -70,7 +70,7 @@ impl SelectedSliderCursor {
     }
 
     pub fn get(&self) -> Option<(UI, Entity, u64)> {
-        self.0.clone()
+        self.0
     }
 
     pub fn set(&mut self, ui: UI, entity: Entity, id: u64) {
