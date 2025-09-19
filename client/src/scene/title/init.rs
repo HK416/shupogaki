@@ -191,7 +191,7 @@ fn spawn_title_ui_entities(
 
             parent.spawn((Node {
                 width: Val::Percent(100.0),
-                height: Val::Percent(5.0),
+                height: Val::Percent(10.0),
                 ..Default::default()
             },));
 
@@ -205,25 +205,6 @@ fn spawn_title_ui_entities(
                 Node::default(),
                 Visibility::Hidden,
                 UI::OptionButton,
-                Button,
-            ));
-
-            parent.spawn((Node {
-                width: Val::Percent(100.0),
-                height: Val::Percent(5.0),
-                ..Default::default()
-            },));
-
-            parent.spawn((
-                Text::new("Ranking"),
-                TextFont::from_font(font.clone()),
-                TextLayout::new_with_justify(JustifyText::Center),
-                TextShadow::default(),
-                TranslatableText("ranking".to_string()),
-                ResizableFont::vertical(1280.0, 102.0),
-                Node::default(),
-                Visibility::Hidden,
-                UI::RankButton,
                 Button,
             ));
         })

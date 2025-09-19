@@ -450,8 +450,7 @@ pub enum UI {
 
     StartButton,
     OptionButton,
-    RankButton,
-
+    // RankButton,
     StartLabel,
     FinishLabel,
     PauseButton,
@@ -881,8 +880,7 @@ impl ObjectSpawner {
                         let recycle = self
                             .retired
                             .get_mut(&self.next_obj)
-                            .map(|entities| entities.pop_front())
-                            .flatten();
+                            .and_then(|entities| entities.pop_front());
 
                         match recycle {
                             Some(entity) => {
@@ -915,8 +913,7 @@ impl ObjectSpawner {
                         let recycle = self
                             .retired
                             .get_mut(&self.next_obj)
-                            .map(|entities| entities.pop_front())
-                            .flatten();
+                            .and_then(|entities| entities.pop_front());
 
                         match recycle {
                             Some(entity) => {
@@ -949,8 +946,7 @@ impl ObjectSpawner {
                         let recycle = self
                             .retired
                             .get_mut(&self.next_obj)
-                            .map(|entities| entities.pop_front())
-                            .flatten();
+                            .and_then(|entities| entities.pop_front());
 
                         match recycle {
                             Some(entity) => {

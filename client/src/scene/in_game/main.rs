@@ -383,6 +383,7 @@ fn play_train_sound(
     }
 }
 
+#[allow(clippy::type_complexity)]
 fn update_train_sound(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
@@ -424,6 +425,7 @@ fn update_train_sound(
     }
 }
 
+#[allow(clippy::type_complexity)]
 fn update_train_volume(
     system_volume: Res<SystemVolume>,
     forward_move: Res<ForwardMovement>,
@@ -535,6 +537,7 @@ fn spawn_objects(
     spawner.on_advanced(&mut commands, &asset_server, &current, time.delta_secs());
 }
 
+#[allow(clippy::too_many_arguments)]
 fn check_for_collisions(
     mut commands: Commands,
     asset_server: Res<AssetServer>,

@@ -52,9 +52,7 @@ fn show_entities(mut query: Query<&mut Visibility, (With<TitleStateRoot>, Withou
 fn show_interfaces(mut query: Query<(&UI, &mut Visibility)>) {
     for (&ui, mut visibility) in query.iter_mut() {
         match ui {
-            UI::StartButton | UI::OptionButton | UI::RankButton => {
-                *visibility = Visibility::Visible
-            }
+            UI::StartButton | UI::OptionButton => *visibility = Visibility::Visible,
             _ => { /* empty */ }
         }
     }
@@ -164,7 +162,7 @@ fn setup_mouth_expression(
 fn hide_interfaces(mut query: Query<(&UI, &mut Visibility)>) {
     for (&ui, mut visibility) in query.iter_mut() {
         match ui {
-            UI::StartButton | UI::OptionButton | UI::RankButton => *visibility = Visibility::Hidden,
+            UI::StartButton | UI::OptionButton => *visibility = Visibility::Hidden,
             _ => { /* empty */ }
         }
     }
@@ -207,17 +205,6 @@ fn title_button_systems(
                 next_state.set(GameState::Option);
             }
             (UI::OptionButton, Interaction::None) => {
-                *text_color = TextColor(Color::WHITE);
-            }
-            (UI::RankButton, Interaction::Hovered) => {
-                *text_color = TextColor(Color::WHITE.darker(0.3));
-                play_button_sound_when_hovered(&mut commands, &asset_server, &system_volume);
-            }
-            (UI::RankButton, Interaction::Pressed) => {
-                *text_color = TextColor(Color::WHITE.darker(0.5));
-                play_button_sound_when_pressed(&mut commands, &asset_server, &system_volume);
-            }
-            (UI::RankButton, Interaction::None) => {
                 *text_color = TextColor(Color::WHITE);
             }
             _ => { /* empty */ }
