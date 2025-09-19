@@ -1,13 +1,9 @@
 // Import necessary Bevy modules.
 use bevy::prelude::*;
 
-use crate::{
-    asset::{
-        config::Configuration,
-        locale::{CurrentLocale, Locale, LocalizationAssets, LocalizationData},
-        sound::SystemVolume,
-    },
-    net::{HttpClient, RankingStatus},
+use crate::asset::{
+    locale::{CurrentLocale, Locale, LocalizationAssets, LocalizationData},
+    sound::SystemVolume,
 };
 
 use super::*;
@@ -31,7 +27,6 @@ impl Plugin for StatePlugin {
                     debug_label,
                     setup_locale,
                     setup_system_volume,
-                    setup_ranking_server,
                     load_necessary_assets,
                     setup_loading_screen,
                     init_asset_load_timeout_retry,
@@ -96,11 +91,6 @@ fn setup_system_volume(mut commands: Commands) {
     commands.insert_resource(SystemVolume::default());
 }
 
-fn setup_ranking_server(mut commands: Commands) {
-    commands.insert_resource(HttpClient::default());
-    commands.insert_resource(RankingStatus::default());
-}
-
 /// Begins loading essential assets required for the game to start,
 /// such as localization files and fonts. These assets are tracked for the loading screen.
 fn load_necessary_assets(mut commands: Commands, asset_server: Res<AssetServer>) {
@@ -110,10 +100,6 @@ fn load_necessary_assets(mut commands: Commands, asset_server: Res<AssetServer>)
 fn load_assets(commands: &mut Commands, asset_server: &AssetServer) {
     let mut loading_assets = SystemAssets::default();
     let mut localizations = LocalizationAssets::default();
-
-    // --- Configuration Loading ---
-    let config: Handle<Configuration> = asset_server.load(CONFIG_PATH);
-    loading_assets.handles.push(config.into());
 
     // --- Sound Loading ---
     let sound: Handle<AudioSource> = asset_server.load(SOUND_PATH_BACKGROUND);

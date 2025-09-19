@@ -27,7 +27,6 @@ bevy_tweening = { version = "0.13", default-features = false, features = ["bevy_
 image = { version = "0.25", default-features = false, features = ["png"] }
 lazy_static = "1.5"
 rand = "0.9"
-reqwest = { version = "0.12", features = ["json"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 static_assertions = "1.1"

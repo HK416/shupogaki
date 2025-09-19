@@ -1,7 +1,4 @@
 {
-    "files": [
-        "config.json"
-    ],
     "directories": {
         "animations": {
             "target_files": [

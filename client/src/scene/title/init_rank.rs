@@ -1,5 +1,6 @@
 // Import necessary Bevy modules.
 use bevy::{audio::Volume, ecs::relationship::RelatedSpawnerCommands, prelude::*};
+use bevy_simple_scroll_view::{ScrollView, ScrollableContent};
 
 use crate::asset::{sound::SystemVolume, spawner::TranslatableText};
 
@@ -120,29 +121,17 @@ fn add_modal<'a>(parent: &mut RelatedSpawnerCommands<'a, ChildOf>, asset_server:
                 .spawn((
                     Node {
                         width: Val::Percent(84.0),
-                        height: Val::Percent(6.0),
-                        flex_direction: FlexDirection::Row,
+                        height: Val::Percent(76.0),
+                        flex_direction: FlexDirection::Column,
                         justify_content: JustifyContent::Center,
                         align_content: AlignContent::Center,
-                        align_items: AlignItems::Center,
                         ..Default::default()
                     },
-                    BackgroundColor(Color::BLACK.with_alpha(0.3)),
                     Visibility::Inherited,
                 ))
                 .with_children(|parent| {
-                    add_table_label(parent, asset_server);
+                    add_reader_board(parent, asset_server);
                 });
-
-            parent.spawn((
-                Node {
-                    width: Val::Percent(84.0),
-                    height: Val::Percent(70.0),
-                    ..Default::default()
-                },
-                Visibility::Inherited,
-                TitleLeaderBoard,
-            ));
 
             add_vertical_space(parent, 2.0);
 
@@ -182,6 +171,71 @@ fn add_modal<'a>(parent: &mut RelatedSpawnerCommands<'a, ChildOf>, asset_server:
         });
 
     add_horizontal_space(parent, 50.0);
+}
+
+fn add_reader_board<'a>(
+    parent: &mut RelatedSpawnerCommands<'a, ChildOf>,
+    asset_server: &AssetServer,
+) {
+    parent
+        .spawn((
+            Node {
+                width: Val::Percent(100.0),
+                height: Val::Percent(100.0),
+                flex_direction: FlexDirection::Column,
+                overflow: Overflow::scroll_y(),
+                ..Default::default()
+            },
+            ScrollView::default(),
+            Visibility::Inherited,
+        ))
+        .with_children(|parent| {
+            parent
+                .spawn(ScrollableContent::default())
+                .with_children(|parent| {
+                    parent
+                        .spawn((
+                            Node {
+                                width: Val::Percent(100.0),
+                                height: Val::Px(46.0),
+                                flex_direction: FlexDirection::Row,
+                                justify_content: JustifyContent::Center,
+                                align_content: AlignContent::Center,
+                                flex_shrink: 0.0,
+                                ..Default::default()
+                            },
+                            BackgroundColor(Color::BLACK.with_alpha(0.3)),
+                            Visibility::Inherited,
+                        ))
+                        .with_children(|parent| {
+                            add_table_label(parent, asset_server);
+                        });
+
+                    for i in 0..MAX_RANK_LIST {
+                        parent
+                            .spawn((
+                                Node {
+                                    width: Val::Percent(100.0),
+                                    height: Val::Px(46.0),
+                                    flex_direction: FlexDirection::Row,
+                                    justify_content: JustifyContent::Center,
+                                    align_content: AlignContent::Center,
+                                    flex_shrink: 0.0,
+                                    ..Default::default()
+                                },
+                                BackgroundColor(if i % 2 == 0 {
+                                    Color::WHITE
+                                } else {
+                                    Color::BLACK.with_alpha(0.2)
+                                }),
+                                Visibility::Inherited,
+                            ))
+                            .with_children(|parent| {
+                                add_table_element(parent, asset_server, (i + 1) as u32);
+                            });
+                    }
+                });
+        });
 }
 
 fn add_table_label<'a>(
@@ -269,6 +323,99 @@ fn add_table_label<'a>(
                 TextColor::BLACK,
                 ResizableFont::vertical(1280.0, 32.0),
                 TranslatableText("score".into()),
+                Node {
+                    justify_content: JustifyContent::Center,
+                    align_items: AlignItems::Center,
+                    ..Default::default()
+                },
+                Visibility::Inherited,
+            ));
+        });
+}
+
+fn add_table_element<'a>(
+    parent: &mut RelatedSpawnerCommands<'a, ChildOf>,
+    asset_server: &AssetServer,
+    n: u32,
+) {
+    let font = asset_server.load(FONT_PATH_NOTOSANS_BOLD);
+    parent
+        .spawn((
+            Node {
+                width: Val::Percent(15.0),
+                height: Val::Percent(90.0),
+                justify_content: JustifyContent::Center,
+                align_content: AlignContent::Center,
+                align_items: AlignItems::Center,
+                ..Default::default()
+            },
+            Visibility::Inherited,
+        ))
+        .with_children(|parent| {
+            parent.spawn((
+                Text::new(format!("{}", n)),
+                TextFont::from_font(font.clone()),
+                TextLayout::new_with_justify(JustifyText::Center),
+                TextColor::BLACK,
+                ResizableFont::vertical(1280.0, 28.0),
+                Node {
+                    justify_content: JustifyContent::Center,
+                    align_items: AlignItems::Center,
+                    ..Default::default()
+                },
+                Visibility::Inherited,
+            ));
+        });
+
+    add_horizontal_space(parent, 7.5);
+    parent
+        .spawn((
+            Node {
+                width: Val::Percent(30.0),
+                height: Val::Percent(90.0),
+                justify_content: JustifyContent::Center,
+                align_content: AlignContent::Center,
+                align_items: AlignItems::Center,
+                ..Default::default()
+            },
+            Visibility::Inherited,
+        ))
+        .with_children(|parent| {
+            parent.spawn((
+                Text::new("-"),
+                TextFont::from_font(font.clone()),
+                TextLayout::new_with_justify(JustifyText::Center),
+                TextColor::BLACK,
+                ResizableFont::vertical(1280.0, 28.0),
+                Node {
+                    justify_content: JustifyContent::Center,
+                    align_items: AlignItems::Center,
+                    ..Default::default()
+                },
+                Visibility::Inherited,
+            ));
+        });
+
+    add_horizontal_space(parent, 7.5);
+    parent
+        .spawn((
+            Node {
+                width: Val::Percent(30.0),
+                height: Val::Percent(90.0),
+                justify_content: JustifyContent::Center,
+                align_content: AlignContent::Center,
+                align_items: AlignItems::Center,
+                ..Default::default()
+            },
+            Visibility::Inherited,
+        ))
+        .with_children(|parent| {
+            parent.spawn((
+                Text::new("-"),
+                TextFont::from_font(font.clone()),
+                TextLayout::new_with_justify(JustifyText::Center),
+                TextColor::BLACK,
+                ResizableFont::vertical(1280.0, 28.0),
                 Node {
                     justify_content: JustifyContent::Center,
                     align_items: AlignItems::Center,

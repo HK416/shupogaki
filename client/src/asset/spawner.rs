@@ -8,7 +8,6 @@ use bevy::{
 use crate::{
     asset::{
         animation::AnimationAssetLoader,
-        config::{ConfigAssetLoader, Configuration},
         locale::{CurrentLocale, LocalizationAssets, LocalizationData, LocalizationDataLoader},
         material::{FaceMouthMaterialAssetLoader, MaterialAssetLoader},
         mesh::{MeshAsset, MeshAssetLoader},
@@ -28,7 +27,6 @@ impl Plugin for CustomAssetPlugin {
     fn build(&self, app: &mut App) {
         app.init_asset::<ModelAsset>()
             .init_asset::<MeshAsset>()
-            .init_asset::<Configuration>()
             .init_asset::<LocalizationData>()
             .init_resource::<CurrentLocale>()
             .register_asset_loader(ModelAssetLoader)
@@ -41,12 +39,11 @@ impl Plugin for CustomAssetPlugin {
             .register_asset_loader(AnimationAssetLoader)
             .register_asset_loader(LocalizationDataLoader)
             .register_asset_loader(SoundAssetLoader)
-            .register_asset_loader(ConfigAssetLoader)
             .add_systems(
                 Update,
                 (
                     spawn_model_system,
-                    changed_translation_system.run_if(resource_changed::<CurrentLocale>),
+                    changed_translation_system,
                     added_translation_system,
                 ),
             );
@@ -62,6 +59,10 @@ fn changed_translation_system(
     localization_data: Res<Assets<LocalizationData>>,
     mut query: Query<(&mut Text, &TranslatableText)>,
 ) {
+    if !locale.is_changed() {
+        return;
+    }
+
     if let Some(locale_data) = localization_assets.locale.get(&locale.0)
         && let Some(translations) = localization_data.get(locale_data.id())
     {

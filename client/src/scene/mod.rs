@@ -35,7 +35,6 @@ impl Plugin for StatePlugin {
 }
 
 // --- ASSET PATH ---
-const CONFIG_PATH: &str = "config.json";
 const LOCALE_PATH_EN: &str = "locale/en.json";
 const LOCALE_PATH_JA: &str = "locale/ja.json";
 const LOCALE_PATH_KO: &str = "locale/ko.json";
@@ -147,6 +146,8 @@ const SOUND_PATH_VO_RESULTS: [&str; NUM_SOUND_VO_RESULTS] = [
 ];
 
 // --- CONSTANTS ---
+
+const MAX_RANK_LIST: usize = 100;
 
 const NUM_LANES: usize = 3;
 const MAX_LANE_INDEX: usize = NUM_LANES - 1;
@@ -394,12 +395,6 @@ pub struct ScoreSpace100000s;
 /// A marker component for the pause menu title.
 #[derive(Component)]
 pub struct PauseTitle;
-
-#[derive(Component)]
-pub struct TitleLeaderBoard;
-
-#[derive(Component)]
-pub struct LeaderBoardEntry;
 
 #[derive(Component)]
 pub struct SpawnRequest;
