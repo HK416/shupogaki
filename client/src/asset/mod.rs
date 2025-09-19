@@ -1,4 +1,5 @@
 pub mod animation;
+pub mod config;
 pub mod locale;
 pub mod material;
 pub mod mesh;

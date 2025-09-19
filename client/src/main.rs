@@ -6,6 +6,7 @@
 mod asset;
 mod collider;
 mod gizmo;
+mod net;
 mod scene;
 mod shader;
 mod web;
