@@ -2,7 +2,7 @@ use bevy::{
     asset::{AssetLoader, LoadContext, RenderAssetUsages, io::Reader},
     prelude::*,
     render::mesh::{Indices, PrimitiveTopology, VertexAttributeValues},
-    tasks::{AsyncComputeTaskPool, ConditionalSendFuture},
+    tasks::ConditionalSendFuture,
 };
 use serde::Deserialize;
 
@@ -123,13 +123,8 @@ impl AssetLoader for MeshAssetLoader {
             let mut bytes = Vec::new();
             reader.read_to_end(&mut bytes).await?;
 
-            let pool = AsyncComputeTaskPool::get();
-            let decrypted_data = pool
-                .spawn(async move {
-                    let key = reconstruct_key();
-                    decrypt_bytes(&bytes, &key)
-                })
-                .await?;
+            let key = reconstruct_key();
+            let decrypted_data = decrypt_bytes(&bytes, &key)?;
 
             // Deserialize the bytes from JSON into a `SerializableMesh`.
             let serializable: SerializableMesh = serde_json::from_slice(&decrypted_data)?;

@@ -5,7 +5,7 @@ use bevy::{
     image::ImageSampler,
     prelude::*,
     render::render_resource::{Extent3d, TextureDimension, TextureFormat},
-    tasks::{AsyncComputeTaskPool, ConditionalSendFuture},
+    tasks::ConditionalSendFuture,
 };
 
 use super::*;
@@ -45,13 +45,8 @@ impl AssetLoader for SpriteAssetLoader {
             let mut bytes = Vec::new();
             reader.read_to_end(&mut bytes).await?;
 
-            let pool = AsyncComputeTaskPool::get();
-            let decrypted_data = pool
-                .spawn(async move {
-                    let key = reconstruct_key();
-                    decrypt_bytes(&bytes, &key)
-                })
-                .await?;
+            let key = reconstruct_key();
+            let decrypted_data = decrypt_bytes(&bytes, &key)?;
 
             // Decode the image data using the `image` crate and create a Bevy `Image` asset.
             let mut reader = image::ImageReader::new(Cursor::new(decrypted_data));

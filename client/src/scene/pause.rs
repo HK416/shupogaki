@@ -96,6 +96,19 @@ fn handle_player_input(
     }
 }
 
+// --- UPDATE SYSTEMS ---
+
+fn update_pause_title(mut query: Query<&mut Visibility, With<PauseTitle>>, time: Res<Time>) {
+    for mut visibility in query.iter_mut() {
+        let t = time.elapsed_secs() % PAUSE_TITLE_CYCLE;
+        if t < PAUSE_TITLE_CYCLE * 0.5 {
+            *visibility = Visibility::Visible;
+        } else {
+            *visibility = Visibility::Hidden;
+        }
+    }
+}
+
 #[allow(clippy::type_complexity)]
 fn handle_button_system(
     mut commands: Commands,
@@ -184,17 +197,4 @@ fn play_button_sound_when_returned(
         PlaybackSettings::DESPAWN.with_volume(Volume::Linear(system_volume.effect_percentage())),
         EffectSound,
     ));
-}
-
-// --- UPDATE SYSTEMS ---
-
-fn update_pause_title(mut query: Query<&mut Visibility, With<PauseTitle>>, time: Res<Time>) {
-    for mut visibility in query.iter_mut() {
-        let t = time.elapsed_secs() % PAUSE_TITLE_CYCLE;
-        if t < PAUSE_TITLE_CYCLE * 0.5 {
-            *visibility = Visibility::Visible;
-        } else {
-            *visibility = Visibility::Hidden;
-        }
-    }
 }

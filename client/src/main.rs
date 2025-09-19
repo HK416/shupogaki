@@ -19,7 +19,6 @@ use bevy::{
     pbr::ExtendedMaterial,
     prelude::*,
 };
-use bevy_simple_scroll_view::ScrollViewPlugin;
 use bevy_tweening::TweeningPlugin;
 
 // Import local modules for asset handling and game scenes.
@@ -59,7 +58,6 @@ fn main() {
                     ..Default::default()
                 }),
             TweeningPlugin,
-            ScrollViewPlugin,
             #[cfg(target_arch = "wasm32")]
             web::WebBgmPlugin,
         ))

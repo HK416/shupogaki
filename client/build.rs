@@ -24,18 +24,18 @@ const_assert_eq!(MASK.len(), 32);
 
 #[derive(Deserialize)]
 struct Hierarchy {
-    #[serde(default)]
+    #[serde(default)] 
     files: Vec<String>,
-    #[serde(default)]
+    #[serde(default)] 
     target_files: Vec<String>,
-    #[serde(default)]
+    #[serde(default)] 
     directories: HashMap<String, Hierarchy>,
 }
 
 // --- MAIN ---
 
 fn main() {
-    let hierarchy = serde_json::de::from_str::<Hierarchy>(ASSET_LIST).unwrap();
+    let hierarchy = serde_json::de::from_str::<Hierarchy>(&ASSET_LIST).unwrap();
 
     let mut src_path = Path::new(env!("CARGO_MANIFEST_DIR")).to_path_buf();
     src_path.push("assets");
