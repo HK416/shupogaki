@@ -594,7 +594,7 @@ fn play_damaged_sound(
     asset_server: &AssetServer,
     system_volume: &SystemVolume,
 ) {
-    if rand::random_ratio(1, 3) {
+    if rand::random_ratio(2, 3) {
         let path = SOUND_PATH_VO_DAMAGEDS
             .choose(&mut rand::rng())
             .copied()

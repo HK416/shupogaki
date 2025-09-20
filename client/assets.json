@@ -28,7 +28,9 @@
                 "ImgFont_Resume.sprite",
                 "ImgFont_Score.sprite",
                 "ImgFont_Start.sprite",
-                "ImgFont_Time.sprite"
+                "ImgFont_Time.sprite",
+                "ImgFont_Best.sprite",
+                "ImgFont_New.sprite"
             ]
         },
         "locale": {

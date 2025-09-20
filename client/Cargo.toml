@@ -45,6 +45,8 @@ web-sys = { version = "0.3", features = [
     "AudioBufferSourceNode",
     "AudioParam",
     "GainNode",
+    "Storage",
+    "Window",
 ] }
 js-sys = "0.3"
 

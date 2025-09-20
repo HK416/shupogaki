@@ -178,7 +178,7 @@ fn spawn_result_ui_entities(
                             Node {
                                 left: Val::Percent(7.0),
                                 width: Val::Percent(100.0),
-                                height: Val::Percent(20.0),
+                                height: Val::Percent(30.0),
                                 flex_direction: FlexDirection::Column,
                                 justify_content: JustifyContent::Center,
                                 align_content: AlignContent::Center,
@@ -199,7 +199,7 @@ fn spawn_result_ui_entities(
                             parent
                                 .spawn(Node {
                                     width: Val::Percent(80.0),
-                                    height: Val::Percent(30.0),
+                                    height: Val::Percent(25.0),
                                     flex_direction: FlexDirection::Row,
                                     justify_content: JustifyContent::Center,
                                     align_content: AlignContent::Center,
@@ -212,7 +212,7 @@ fn spawn_result_ui_entities(
                                             width: Val::Percent(50.0),
                                             height: Val::Percent(100.0),
                                             justify_content: JustifyContent::Start,
-                                            align_content: AlignContent::Center,
+                                            align_items: AlignItems::Center,
                                             ..Default::default()
                                         })
                                         .with_children(|parent| {
@@ -233,9 +233,9 @@ fn spawn_result_ui_entities(
                                     parent
                                         .spawn(Node {
                                             width: Val::Percent(50.0),
-                                            height: Val::Percent(74.0),
+                                            height: Val::Percent(100.0),
                                             justify_content: JustifyContent::Start,
-                                            align_content: AlignContent::Center,
+                                            align_items: AlignItems::FlexStart,
                                             ..Default::default()
                                         })
                                         .with_children(|parent| {
@@ -261,7 +261,7 @@ fn spawn_result_ui_entities(
                             parent
                                 .spawn(Node {
                                     width: Val::Percent(80.0),
-                                    height: Val::Percent(30.0),
+                                    height: Val::Percent(25.0),
                                     justify_content: JustifyContent::Center,
                                     align_content: AlignContent::Center,
                                     align_items: AlignItems::Center,
@@ -294,9 +294,9 @@ fn spawn_result_ui_entities(
                                     parent
                                         .spawn(Node {
                                             width: Val::Percent(50.0),
-                                            height: Val::Percent(74.0),
+                                            height: Val::Percent(100.0),
                                             justify_content: JustifyContent::Start,
-                                            align_content: AlignContent::Center,
+                                            align_content: AlignContent::FlexStart,
                                             ..Default::default()
                                         })
                                         .with_children(|parent| {
@@ -310,6 +310,82 @@ fn spawn_result_ui_entities(
                                                 Node::default(),
                                                 Visibility::Hidden,
                                                 UI::GameScore,
+                                            ));
+
+                                            let texture = asset_server.load(FONT_PATH_NEW);
+                                            parent.spawn((
+                                                ImageNode::new(texture)
+                                                    .with_color(Color::WHITE.with_alpha(0.0)),
+                                                Node {
+                                                    left: Val::Percent(0.0),
+                                                    top: Val::Percent(0.0),
+                                                    height: Val::Percent(38.0),
+                                                    aspect_ratio: Some(110.0 / 48.0),
+                                                    ..Default::default()
+                                                },
+                                                Visibility::Hidden,
+                                                NewRecord,
+                                            ));
+                                        });
+                                });
+
+                            parent.spawn(Node {
+                                height: Val::Percent(1.0),
+                                ..Default::default()
+                            });
+
+                            parent
+                                .spawn(Node {
+                                    width: Val::Percent(80.0),
+                                    height: Val::Percent(25.0),
+                                    justify_content: JustifyContent::Center,
+                                    align_content: AlignContent::Center,
+                                    align_items: AlignItems::Center,
+                                    ..Default::default()
+                                })
+                                .with_children(|parent| {
+                                    parent
+                                        .spawn(Node {
+                                            width: Val::Percent(50.0),
+                                            height: Val::Percent(100.0),
+                                            justify_content: JustifyContent::Start,
+                                            align_content: AlignContent::Center,
+                                            ..Default::default()
+                                        })
+                                        .with_children(|parent| {
+                                            let texture = asset_server.load(FONT_PATH_BEST);
+                                            parent.spawn((
+                                                ImageNode::new(texture)
+                                                    .with_color(Color::WHITE.with_alpha(0.0)),
+                                                Node {
+                                                    height: Val::Percent(100.0),
+                                                    aspect_ratio: Some(256.0 / 108.0),
+                                                    ..Default::default()
+                                                },
+                                                Visibility::Hidden,
+                                                UI::ResultImgFont,
+                                            ));
+                                        });
+
+                                    parent
+                                        .spawn(Node {
+                                            width: Val::Percent(50.0),
+                                            height: Val::Percent(100.0),
+                                            justify_content: JustifyContent::Start,
+                                            align_content: AlignContent::FlexStart,
+                                            ..Default::default()
+                                        })
+                                        .with_children(|parent| {
+                                            let font = asset_server.load(FONT_PATH_NOTOSANS_BOLD);
+                                            parent.spawn((
+                                                Text::new("0"),
+                                                TextFont::from_font(font),
+                                                TextLayout::new_with_justify(JustifyText::Center),
+                                                TextColor::BLACK,
+                                                ResizableFont::vertical(1280.0, 54.0),
+                                                Node::default(),
+                                                Visibility::Hidden,
+                                                UI::BestScore,
                                             ));
                                         });
                                 });

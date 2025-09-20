@@ -15,6 +15,9 @@ use rand::{
     distr::{Distribution, weighted::WeightedIndex},
 };
 
+#[cfg(target_arch = "wasm32")]
+use web_sys::{Storage, window};
+
 use crate::{asset::spawner::SpawnModel, collider::Collider};
 
 // --- PLUGIN ---
@@ -42,11 +45,13 @@ const FONT_PATH_NOTOSANS_BOLD: &str = "fonts/NotoSans-Bold.otf";
 const FONT_PATH_START: &str = "fonts/ImgFont_Start.sprite";
 const FONT_PATH_FINISH: &str = "fonts/ImgFont_Finish.sprite";
 const FONT_PATH_PAUSE: &str = "fonts/ImgFont_Pause.sprite";
+const FONT_PATH_NEW: &str = "fonts/ImgFont_New.sprite";
 const FONT_PATH_NUM_1: &str = "fonts/ImgFont_1.sprite";
 const FONT_PATH_NUM_2: &str = "fonts/ImgFont_2.sprite";
 const FONT_PATH_NUM_3: &str = "fonts/ImgFont_3.sprite";
 const FONT_PATH_TIME: &str = "fonts/ImgFont_Time.sprite";
 const FONT_PATH_SCORE: &str = "fonts/ImgFont_Score.sprite";
+const FONT_PATH_BEST: &str = "fonts/ImgFont_Best.sprite";
 const FONT_PATH_NUMBER: &str = "fonts/ImgFont_Number.sprite";
 const ATLAS_PATH_NUMBER: &str = "fonts/ImgFont_Number.atlas";
 const SOUND_PATH_HIKARI_TITLE: &str = "sounds/Hikari_Title.sound";
@@ -146,6 +151,9 @@ const SOUND_PATH_VO_RESULTS: [&str; NUM_SOUND_VO_RESULTS] = [
 ];
 
 // --- CONSTANTS ---
+
+#[cfg(target_arch = "wasm32")]
+const HIGH_SCORE_KEY: &str = "high_score";
 
 const NUM_LANES: usize = 3;
 const MAX_LANE_INDEX: usize = NUM_LANES - 1;
@@ -393,6 +401,9 @@ pub struct ScoreSpace100000s;
 pub struct PauseTitle;
 
 #[derive(Component)]
+pub struct NewRecord;
+
+#[derive(Component)]
 pub struct SpawnRequest;
 
 #[derive(Component)]
@@ -450,7 +461,6 @@ pub enum UI {
 
     StartButton,
     OptionButton,
-    // RankButton,
     StartLabel,
     FinishLabel,
     PauseButton,
@@ -472,6 +482,8 @@ pub enum UI {
     ResultExitButton,
     PlayTime,
     GameScore,
+    BestScore,
+    NewRecord,
 }
 
 #[derive(Component)]
@@ -576,6 +588,9 @@ impl ResizableFont {
 }
 
 // --- RESOURCES ---
+
+#[derive(Default, Resource)]
+pub struct HighScore(pub u32);
 
 #[derive(Default, Resource, Deref, DerefMut)]
 pub struct Counter(pub u32);
@@ -1056,4 +1071,11 @@ fn update_font_size(
             }
         }
     }
+}
+
+// --- UTILITY FUNCTIONS ---
+
+#[cfg(target_arch = "wasm32")]
+fn get_local_storage() -> Option<Storage> {
+    window()?.local_storage().ok()?
 }

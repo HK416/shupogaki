@@ -14,7 +14,6 @@ impl Plugin for StatePlugin {
             (
                 debug_label,
                 show_interface,
-                set_result_text,
                 play_ui_animation,
                 play_hikari_animation,
                 play_nozomi_animation,
@@ -39,29 +38,9 @@ fn show_interface(mut query: Query<(&UI, &mut Visibility)>) {
             | UI::GameScore
             | UI::ResultModal
             | UI::RestartButton
-            | UI::ResultExitButton => *visibility = Visibility::Visible,
-            _ => { /* empty */ }
-        }
-    }
-}
-
-fn set_result_text(
-    score: Res<CurrentScore>,
-    play_time: Res<PlayTime>,
-    mut query: Query<(&UI, &mut Text)>,
-) {
-    for (&ui, mut text) in query.iter_mut() {
-        match ui {
-            UI::PlayTime => {
-                let total_millis = play_time.millis();
-                let minutes = (total_millis / (1000 * 60)) % 60;
-                let seconds = (total_millis / 1000) % 60;
-                let milliseconds = total_millis % 1000;
-                *text = Text::new(format!("{:02}:{:02}:{:03}", minutes, seconds, milliseconds));
-            }
-            UI::GameScore => {
-                *text = Text::new(score.get().to_string());
-            }
+            | UI::ResultExitButton
+            | UI::BestScore
+            | UI::NewRecord => *visibility = Visibility::Visible,
             _ => { /* empty */ }
         }
     }
@@ -76,7 +55,9 @@ fn play_ui_animation(mut commands: Commands, query: Query<(Entity, &UI)>) {
             | UI::GameScore
             | UI::ResultModal
             | UI::RestartButton
-            | UI::ResultExitButton => {
+            | UI::ResultExitButton
+            | UI::BestScore
+            | UI::NewRecord => {
                 commands
                     .entity(entity)
                     .insert(FadeInAnimation::new(PREPARE_ANIM_DURATION));

@@ -129,6 +129,9 @@ fn load_assets(commands: &mut Commands, asset_server: &AssetServer) {
     let texture: Handle<Image> = asset_server.load(FONT_PATH_NUM_1);
     loading_assets.handles.push(texture.into());
 
+    let texture: Handle<Image> = asset_server.load(FONT_PATH_NEW);
+    loading_assets.handles.push(texture.into());
+
     let atlas: Handle<TextureAtlasLayout> = asset_server.load(ATLAS_PATH_NUMBER);
     loading_assets.handles.push(atlas.into());
 

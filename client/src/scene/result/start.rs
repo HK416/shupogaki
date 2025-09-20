@@ -28,6 +28,8 @@ impl Plugin for StatePlugin {
                 spawn_camera_and_light,
                 play_animation,
                 play_result_sound,
+                setup_result_text,
+                check_and_save_high_score.after(setup_result_text),
             ),
         )
         .add_systems(OnExit(GameState::StartResult), end_timer)
@@ -75,7 +77,7 @@ fn spawn_camera_and_light(
         commands.spawn((
             Camera3d::default(),
             Projection::from(PerspectiveProjection {
-                fov: 50f32.to_radians(),
+                fov: 45f32.to_radians(),
                 aspect_ratio: 16.0 / 9.0,
                 near: 0.1,
                 far: 100.0,
@@ -119,6 +121,53 @@ fn play_result_sound(
         PlaybackSettings::DESPAWN.with_volume(Volume::Linear(system_volume.voice_percentage())),
         VoiceSound,
     ));
+}
+
+fn check_and_save_high_score(
+    mut commands: Commands,
+    mut high_score: ResMut<HighScore>,
+    score: Res<CurrentScore>,
+    new_record_query: Query<Entity, With<NewRecord>>,
+) {
+    if high_score.0 < score.get() {
+        high_score.0 = score.get();
+
+        if let Ok(entity) = new_record_query.single() {
+            commands.entity(entity).insert(UI::NewRecord);
+        }
+
+        #[cfg(target_arch = "wasm32")]
+        if let Some(storage) = get_local_storage() {
+            let _ = storage.set_item(HIGH_SCORE_KEY, &high_score.0.to_string());
+        }
+    }
+}
+
+fn setup_result_text(
+    score: Res<CurrentScore>,
+    play_time: Res<PlayTime>,
+    high_score: Res<HighScore>,
+    mut text_entities_query: Query<(&UI, &mut Text)>,
+) {
+    for (&ui, mut text) in text_entities_query.iter_mut() {
+        match ui {
+            UI::PlayTime => {
+                let total_millis = play_time.millis();
+                let minutes = (total_millis / (1000 * 60)) % 60;
+                let seconds = (total_millis / 1000) % 60;
+                let milliseconds = total_millis % 1000;
+                *text = Text::new(format!("{:02}:{:02}:{:03}", minutes, seconds, milliseconds));
+            }
+            UI::GameScore => {
+                *text = Text::new(score.get().to_string());
+            }
+            UI::BestScore => {
+                let high_score = score.get().max(high_score.0);
+                *text = Text::new(high_score.to_string());
+            }
+            _ => { /* empty */ }
+        }
+    }
 }
 
 // --- CLEANUP SYSTEMS ---

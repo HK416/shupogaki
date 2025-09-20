@@ -26,6 +26,7 @@ impl Plugin for StatePlugin {
                 (
                     debug_label,
                     setup_locale,
+                    setup_high_score,
                     setup_system_volume,
                     load_necessary_assets,
                     setup_loading_screen,
@@ -84,6 +85,25 @@ fn setup_locale(mut commands: Commands) {
     #[allow(unreachable_code)]
     commands.insert_resource(CurrentLocale::default());
     info!("Use default language: {}", Locale::default());
+}
+
+#[cfg(target_arch = "wasm32")]
+fn setup_high_score(mut commands: Commands) {
+    if let Some(storage) = get_local_storage()
+        && let Ok(storage_item) = storage.get_item(HIGH_SCORE_KEY)
+        && let Some(score_str) = storage_item
+        && let Ok(score) = score_str.parse::<u32>()
+    {
+        info!("Loaded high score: {}", score);
+        commands.insert_resource(HighScore(score));
+    } else {
+        commands.insert_resource(HighScore::default());
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn setup_high_score(mut commands: Commands) {
+    commands.insert_resource(HighScore::default());
 }
 
 /// Initializes and inserts the default system volume as a resource.
