@@ -6,6 +6,9 @@ use bevy_tweening::{Animator, Tween, lens::UiPositionLens};
 
 use crate::asset::sound::SystemVolume;
 
+#[cfg(target_arch = "wasm32")]
+use crate::web::{WebAudioPlayer, WebPlaybackSettings};
+
 use super::*;
 
 // --- PLUGIN ---
@@ -45,6 +48,7 @@ fn show_in_game_interface(mut query: Query<(&mut Visibility, &UI)>) {
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn play_start_sound(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
@@ -58,6 +62,21 @@ fn play_start_sound(
     ));
 }
 
+#[cfg(target_arch = "wasm32")]
+fn play_start_sound(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    system_volume: Res<SystemVolume>,
+) {
+    commands.spawn((
+        WebAudioPlayer::new(asset_server.load(SOUND_PATH_UI_START)),
+        WebPlaybackSettings::DESPAWN.with_volume(Volume::Linear(system_volume.effect_percentage())),
+        InGameStateRoot,
+        EffectSound,
+    ));
+}
+
+#[cfg(not(target_arch = "wasm32"))]
 fn play_start_voice(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
@@ -68,6 +87,22 @@ fn play_start_voice(
     commands.spawn((
         AudioPlayer::new(asset_server.load(path)),
         PlaybackSettings::DESPAWN.with_volume(Volume::Linear(system_volume.voice_percentage())),
+        InGameStateRoot,
+        VoiceSound,
+    ));
+}
+
+#[cfg(target_arch = "wasm32")]
+fn play_start_voice(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    system_volume: Res<SystemVolume>,
+) {
+    let index = rand::random_range(0..NUM_SOUND_VO_START);
+    let path = SOUND_PATH_VO_STARTS[index];
+    commands.spawn((
+        WebAudioPlayer::new(asset_server.load(path)),
+        WebPlaybackSettings::DESPAWN.with_volume(Volume::Linear(system_volume.voice_percentage())),
         InGameStateRoot,
         VoiceSound,
     ));

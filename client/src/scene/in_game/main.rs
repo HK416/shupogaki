@@ -5,6 +5,9 @@ use rand::seq::IndexedRandom;
 
 use crate::asset::sound::SystemVolume;
 
+#[cfg(target_arch = "wasm32")]
+use crate::web::{WebAudioPlayer, WebPlaybackSettings};
+
 use super::*;
 
 // --- PLUGIN ---
@@ -353,6 +356,7 @@ fn button_system(
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn play_train_sound(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
@@ -383,6 +387,38 @@ fn play_train_sound(
     }
 }
 
+#[cfg(target_arch = "wasm32")]
+fn play_train_sound(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    system_volume: Res<SystemVolume>,
+    forward_move: Res<ForwardMovement>,
+    removed: RemovedComponents<TrainSoundStart>,
+) {
+    if !removed.is_empty() {
+        let t = forward_move.percentage();
+
+        let volume = system_volume.effect_percentage() * (1.0 - t);
+        commands.spawn((
+            WebAudioPlayer::new(asset_server.load(SOUND_PATH_SFX_TRAIN_LOOP_1)),
+            WebPlaybackSettings::LOOP.with_volume(Volume::Linear(volume)),
+            TrainSoundLoop1,
+            InGameStateRoot,
+            EffectSound,
+        ));
+
+        let volume = system_volume.effect_percentage() * t;
+        commands.spawn((
+            WebAudioPlayer::new(asset_server.load(SOUND_PATH_SFX_TRAIN_LOOP_2)),
+            WebPlaybackSettings::LOOP.with_volume(Volume::Linear(volume)),
+            TrainSoundLoop2,
+            InGameStateRoot,
+            EffectSound,
+        ));
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
 #[allow(clippy::type_complexity)]
 fn update_train_sound(
     mut commands: Commands,
@@ -425,6 +461,55 @@ fn update_train_sound(
     }
 }
 
+#[cfg(target_arch = "wasm32")]
+#[allow(clippy::type_complexity)]
+fn update_train_sound(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    system_volume: Res<SystemVolume>,
+    forward_move: Res<ForwardMovement>,
+    is_jumping: Res<IsPlayerJumping>,
+    mut set: ParamSet<(
+        Query<&mut WebPlaybackSettings, With<TrainSoundLoop1>>,
+        Query<&mut WebPlaybackSettings, With<TrainSoundLoop2>>,
+    )>,
+) {
+    if !is_jumping.changed() {
+        return;
+    }
+
+    if is_jumping.get() {
+        if let Ok(mut settings) = set.p0().single_mut() {
+            *settings = settings.with_volume(Volume::Linear(0.0));
+        }
+
+        if let Ok(mut settings) = set.p1().single_mut() {
+            *settings = settings.with_volume(Volume::Linear(0.0));
+        }
+    } else {
+        if let Ok(mut settings) = set.p0().single_mut() {
+            let t = forward_move.percentage();
+            let volume = system_volume.effect_percentage() * (1.0 - t);
+            *settings = settings.with_volume(Volume::Linear(volume));
+        }
+
+        if let Ok(mut settings) = set.p1().single_mut() {
+            let t = forward_move.percentage();
+            let volume = system_volume.effect_percentage() * t;
+            *settings = settings.with_volume(Volume::Linear(volume));
+        }
+
+        commands.spawn((
+            WebAudioPlayer::new(asset_server.load(SOUND_PATH_SFX_TRAIN_LANDING)),
+            WebPlaybackSettings::DESPAWN
+                .with_volume(Volume::Linear(system_volume.effect_percentage())),
+            InGameStateRoot,
+            EffectSound,
+        ));
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
 #[allow(clippy::type_complexity)]
 fn update_train_volume(
     system_volume: Res<SystemVolume>,
@@ -444,6 +529,34 @@ fn update_train_volume(
         let t = forward_move.percentage();
         let volume = system_volume.effect_percentage() * t;
         sink.set_volume(Volume::Linear(volume));
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+#[allow(clippy::type_complexity)]
+fn update_train_volume(
+    system_volume: Res<SystemVolume>,
+    forward_move: Res<ForwardMovement>,
+    is_jumping: Res<IsPlayerJumping>,
+    mut set: ParamSet<(
+        Query<&mut WebPlaybackSettings, With<TrainSoundLoop1>>,
+        Query<&mut WebPlaybackSettings, With<TrainSoundLoop2>>,
+    )>,
+) {
+    if is_jumping.get() {
+        return;
+    }
+
+    if let Ok(mut settings) = set.p0().single_mut() {
+        let t = forward_move.percentage();
+        let volume = system_volume.effect_percentage() * (1.0 - t);
+        *settings = settings.with_volume(Volume::Linear(volume));
+    }
+
+    if let Ok(mut settings) = set.p1().single_mut() {
+        let t = forward_move.percentage();
+        let volume = system_volume.effect_percentage() * t;
+        *settings = settings.with_volume(Volume::Linear(volume));
     }
 }
 
@@ -589,6 +702,7 @@ fn check_for_collisions(
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn play_damaged_sound(
     commands: &mut Commands,
     asset_server: &AssetServer,
@@ -608,6 +722,28 @@ fn play_damaged_sound(
     }
 }
 
+#[cfg(target_arch = "wasm32")]
+fn play_damaged_sound(
+    commands: &mut Commands,
+    asset_server: &AssetServer,
+    system_volume: &SystemVolume,
+) {
+    if rand::random_ratio(2, 3) {
+        let path = SOUND_PATH_VO_DAMAGEDS
+            .choose(&mut rand::rng())
+            .copied()
+            .unwrap();
+        commands.spawn((
+            WebAudioPlayer::new(asset_server.load(path)),
+            WebPlaybackSettings::DESPAWN
+                .with_volume(Volume::Linear(system_volume.voice_percentage())),
+            InGameStateRoot,
+            VoiceSound,
+        ));
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
 fn play_healing_sound(
     commands: &mut Commands,
     asset_server: &AssetServer,
@@ -621,6 +757,27 @@ fn play_healing_sound(
         commands.spawn((
             AudioPlayer::new(asset_server.load(path)),
             PlaybackSettings::DESPAWN.with_volume(Volume::Linear(system_volume.voice_percentage())),
+            InGameStateRoot,
+            VoiceSound,
+        ));
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+fn play_healing_sound(
+    commands: &mut Commands,
+    asset_server: &AssetServer,
+    system_volume: &SystemVolume,
+) {
+    if rand::random_ratio(1, 3) {
+        let path = SOUND_PATH_VO_HEALINGS
+            .choose(&mut rand::rng())
+            .copied()
+            .unwrap();
+        commands.spawn((
+            WebAudioPlayer::new(asset_server.load(path)),
+            WebPlaybackSettings::DESPAWN
+                .with_volume(Volume::Linear(system_volume.voice_percentage())),
             InGameStateRoot,
             VoiceSound,
         ));
@@ -790,6 +947,7 @@ pub fn update_player_speed(mut forward_move: ResMut<ForwardMovement>, time: Res<
     forward_move.accel(time.delta_secs());
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn play_button_sound_when_hovered(
     commands: &mut Commands,
     asset_server: &AssetServer,
@@ -802,6 +960,20 @@ fn play_button_sound_when_hovered(
     ));
 }
 
+#[cfg(target_arch = "wasm32")]
+fn play_button_sound_when_hovered(
+    commands: &mut Commands,
+    asset_server: &AssetServer,
+    system_volume: &SystemVolume,
+) {
+    commands.spawn((
+        WebAudioPlayer::new(asset_server.load(SOUND_PATH_UI_LOADING)),
+        WebPlaybackSettings::DESPAWN.with_volume(Volume::Linear(system_volume.effect_percentage())),
+        EffectSound,
+    ));
+}
+
+#[cfg(not(target_arch = "wasm32"))]
 fn play_button_sound_when_pressed(
     commands: &mut Commands,
     asset_server: &AssetServer,
@@ -810,6 +982,19 @@ fn play_button_sound_when_pressed(
     commands.spawn((
         AudioPlayer::new(asset_server.load(SOUND_PATH_UI_BUTTON_TOUCH)),
         PlaybackSettings::DESPAWN.with_volume(Volume::Linear(system_volume.effect_percentage())),
+        EffectSound,
+    ));
+}
+
+#[cfg(target_arch = "wasm32")]
+fn play_button_sound_when_pressed(
+    commands: &mut Commands,
+    asset_server: &AssetServer,
+    system_volume: &SystemVolume,
+) {
+    commands.spawn((
+        WebAudioPlayer::new(asset_server.load(SOUND_PATH_UI_BUTTON_TOUCH)),
+        WebPlaybackSettings::DESPAWN.with_volume(Volume::Linear(system_volume.effect_percentage())),
         EffectSound,
     ));
 }

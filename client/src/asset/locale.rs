@@ -1,7 +1,8 @@
-use std::{collections::HashMap, fmt};
+use core::fmt;
 
 use bevy::{
     asset::{AssetLoader, LoadContext, io::Reader},
+    platform::collections::HashMap,
     prelude::*,
     tasks::ConditionalSendFuture,
 };

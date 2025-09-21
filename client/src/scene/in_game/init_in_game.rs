@@ -7,6 +7,9 @@ use crate::asset::{
     spawner::{SpawnModel, TranslatableText},
 };
 
+#[cfg(target_arch = "wasm32")]
+use crate::web::{WebAudioPlayer, WebPlaybackSettings};
+
 use super::*;
 
 // --- PLUGIN ---
@@ -38,6 +41,7 @@ fn debug_label() {
     info!("Current State: InitInGame");
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn play_loading_sound(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
@@ -46,6 +50,19 @@ fn play_loading_sound(
     commands.spawn((
         AudioPlayer::new(asset_server.load(SOUND_PATH_UI_LOADING)),
         PlaybackSettings::DESPAWN.with_volume(Volume::Linear(system_volume.effect_percentage())),
+        EffectSound,
+    ));
+}
+
+#[cfg(target_arch = "wasm32")]
+fn play_loading_sound(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    system_volume: Res<SystemVolume>,
+) {
+    commands.spawn((
+        WebAudioPlayer::new(asset_server.load(SOUND_PATH_UI_LOADING)),
+        WebPlaybackSettings::DESPAWN.with_volume(Volume::Linear(system_volume.effect_percentage())),
         EffectSound,
     ));
 }

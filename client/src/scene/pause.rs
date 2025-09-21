@@ -3,6 +3,9 @@ use bevy::{audio::Volume, prelude::*};
 
 use crate::asset::sound::SystemVolume;
 
+#[cfg(target_arch = "wasm32")]
+use crate::web::{WebAudioPlayer, WebPlaybackSettings};
+
 use super::*;
 
 // --- PLUGIN ---
@@ -54,6 +57,7 @@ fn pause_animation(mut query: Query<&mut AnimationPlayer>) {
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn pause_effect_sounds(
     mut query: Query<&mut AudioSink, (With<InGameStateRoot>, With<EffectSound>)>,
 ) {
@@ -62,9 +66,28 @@ fn pause_effect_sounds(
     }
 }
 
+#[cfg(target_arch = "wasm32")]
+fn pause_effect_sounds(
+    mut query: Query<&mut WebPlaybackSettings, (With<InGameStateRoot>, With<EffectSound>)>,
+) {
+    for mut settings in query.iter_mut() {
+        settings.paused = true;
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
 fn pause_voice_sounds(mut query: Query<&mut AudioSink, (With<InGameStateRoot>, With<VoiceSound>)>) {
     for sink in query.iter_mut() {
         sink.pause();
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+fn pause_voice_sounds(
+    mut query: Query<&mut WebPlaybackSettings, (With<InGameStateRoot>, With<VoiceSound>)>,
+) {
+    for mut settings in query.iter_mut() {
+        settings.paused = true;
     }
 }
 
@@ -163,6 +186,7 @@ fn handle_button_system(
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn play_button_sound_when_hovered(
     commands: &mut Commands,
     asset_server: &AssetServer,
@@ -175,6 +199,20 @@ fn play_button_sound_when_hovered(
     ));
 }
 
+#[cfg(target_arch = "wasm32")]
+fn play_button_sound_when_hovered(
+    commands: &mut Commands,
+    asset_server: &AssetServer,
+    system_volume: &SystemVolume,
+) {
+    commands.spawn((
+        WebAudioPlayer::new(asset_server.load(SOUND_PATH_UI_LOADING)),
+        WebPlaybackSettings::DESPAWN.with_volume(Volume::Linear(system_volume.effect_percentage())),
+        EffectSound,
+    ));
+}
+
+#[cfg(not(target_arch = "wasm32"))]
 fn play_button_sound_when_pressed(
     commands: &mut Commands,
     asset_server: &AssetServer,
@@ -187,6 +225,20 @@ fn play_button_sound_when_pressed(
     ));
 }
 
+#[cfg(target_arch = "wasm32")]
+fn play_button_sound_when_pressed(
+    commands: &mut Commands,
+    asset_server: &AssetServer,
+    system_volume: &SystemVolume,
+) {
+    commands.spawn((
+        WebAudioPlayer::new(asset_server.load(SOUND_PATH_UI_BUTTON_TOUCH)),
+        WebPlaybackSettings::DESPAWN.with_volume(Volume::Linear(system_volume.effect_percentage())),
+        EffectSound,
+    ));
+}
+
+#[cfg(not(target_arch = "wasm32"))]
 fn play_button_sound_when_returned(
     commands: &mut Commands,
     asset_server: &AssetServer,
@@ -195,6 +247,19 @@ fn play_button_sound_when_returned(
     commands.spawn((
         AudioPlayer::new(asset_server.load(SOUND_PATH_UI_BUTTON_BACK)),
         PlaybackSettings::DESPAWN.with_volume(Volume::Linear(system_volume.effect_percentage())),
+        EffectSound,
+    ));
+}
+
+#[cfg(target_arch = "wasm32")]
+fn play_button_sound_when_returned(
+    commands: &mut Commands,
+    asset_server: &AssetServer,
+    system_volume: &SystemVolume,
+) {
+    commands.spawn((
+        WebAudioPlayer::new(asset_server.load(SOUND_PATH_UI_BUTTON_BACK)),
+        WebPlaybackSettings::DESPAWN.with_volume(Volume::Linear(system_volume.effect_percentage())),
         EffectSound,
     ));
 }

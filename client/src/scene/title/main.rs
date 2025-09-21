@@ -2,7 +2,7 @@
 use bevy::{audio::Volume, pbr::ExtendedMaterial, prelude::*};
 
 #[cfg(target_arch = "wasm32")]
-use crate::web::WebBgmAudioManager;
+use crate::web::{WebAudioPlayer, WebPlaybackSettings};
 
 use crate::{
     asset::{animation::AnimationClipHandle, sound::SystemVolume},
@@ -128,21 +128,18 @@ fn setup_background_sound(
 
 #[cfg(target_arch = "wasm32")]
 fn setup_background_sound(
+    mut commands: Commands,
     asset_server: Res<AssetServer>,
-    sound_assets: Res<Assets<AudioSource>>,
     system_volume: Res<SystemVolume>,
-    web_bgm: NonSend<WebBgmAudioManager>,
-    mut is_play: Local<bool>,
+    query: Query<(), With<BackgroundSound>>,
 ) {
-    if !*is_play {
-        let handle = asset_server.load(SOUND_PATH_BACKGROUND);
-        if let Some(source) = sound_assets.get(&handle) {
-            web_bgm.play_from_bytes(
-                source,
-                Volume::Linear(system_volume.background_percentage()),
-            );
-            *is_play = true;
-        }
+    if query.single().is_err() {
+        commands.spawn((
+            WebAudioPlayer::new(asset_server.load(SOUND_PATH_BACKGROUND)),
+            WebPlaybackSettings::LOOP
+                .with_volume(Volume::Linear(system_volume.background_percentage())),
+            BackgroundSound,
+        ));
     }
 }
 
@@ -212,6 +209,7 @@ fn title_button_systems(
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn play_button_sound_when_hovered(
     commands: &mut Commands,
     asset_server: &AssetServer,
@@ -224,6 +222,20 @@ fn play_button_sound_when_hovered(
     ));
 }
 
+#[cfg(target_arch = "wasm32")]
+fn play_button_sound_when_hovered(
+    commands: &mut Commands,
+    asset_server: &AssetServer,
+    system_volume: &SystemVolume,
+) {
+    commands.spawn((
+        WebAudioPlayer::new(asset_server.load(SOUND_PATH_UI_LOADING)),
+        WebPlaybackSettings::DESPAWN.with_volume(Volume::Linear(system_volume.effect_percentage())),
+        EffectSound,
+    ));
+}
+
+#[cfg(not(target_arch = "wasm32"))]
 fn play_button_sound_when_pressed(
     commands: &mut Commands,
     asset_server: &AssetServer,
@@ -232,6 +244,19 @@ fn play_button_sound_when_pressed(
     commands.spawn((
         AudioPlayer::new(asset_server.load(SOUND_PATH_UI_BUTTON_TOUCH)),
         PlaybackSettings::DESPAWN.with_volume(Volume::Linear(system_volume.effect_percentage())),
+        EffectSound,
+    ));
+}
+
+#[cfg(target_arch = "wasm32")]
+fn play_button_sound_when_pressed(
+    commands: &mut Commands,
+    asset_server: &AssetServer,
+    system_volume: &SystemVolume,
+) {
+    commands.spawn((
+        WebAudioPlayer::new(asset_server.load(SOUND_PATH_UI_BUTTON_TOUCH)),
+        WebPlaybackSettings::DESPAWN.with_volume(Volume::Linear(system_volume.effect_percentage())),
         EffectSound,
     ));
 }

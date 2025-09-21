@@ -59,7 +59,7 @@ fn main() {
                 }),
             TweeningPlugin,
             #[cfg(target_arch = "wasm32")]
-            web::WebBgmPlugin,
+            web::WebAudioPlugin,
         ))
         .add_plugins(MaterialPlugin::<
             ExtendedMaterial<StandardMaterial, FacialExpressionExtension>,

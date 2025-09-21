@@ -3,7 +3,7 @@ use bevy::{audio::Volume, prelude::*};
 use rand::seq::IndexedRandom;
 
 #[cfg(target_arch = "wasm32")]
-use crate::web::WebBgmAudioManager;
+use crate::web::{WebAudioPlayer, WebPlaybackSettings};
 
 use crate::asset::{
     locale::{CurrentLocale, Locale},
@@ -514,11 +514,14 @@ fn control_background_volume(
 #[cfg(target_arch = "wasm32")]
 fn control_background_volume(
     system_volume: Res<SystemVolume>,
-    web_bgm: NonSend<WebBgmAudioManager>,
+    mut query: Query<&mut WebPlaybackSettings, With<BackgroundSound>>,
 ) {
-    web_bgm.set_volume(Volume::Linear(system_volume.background_percentage()));
+    if let Ok(mut settings) = query.single_mut() {
+        settings.volume = Volume::Linear(system_volume.background_percentage());
+    }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn control_effect_volume(
     system_volume: Res<SystemVolume>,
     mut query: Query<&mut AudioSink, With<EffectSound>>,
@@ -528,6 +531,17 @@ fn control_effect_volume(
     }
 }
 
+#[cfg(target_arch = "wasm32")]
+fn control_effect_volume(
+    system_volume: Res<SystemVolume>,
+    mut query: Query<&mut WebPlaybackSettings, With<EffectSound>>,
+) {
+    for mut settings in query.iter_mut() {
+        settings.volume = Volume::Linear(system_volume.effect_percentage());
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
 fn control_voice_volume(
     system_volume: Res<SystemVolume>,
     mut query: Query<&mut AudioSink, With<VoiceSound>>,
@@ -537,6 +551,17 @@ fn control_voice_volume(
     }
 }
 
+#[cfg(target_arch = "wasm32")]
+fn control_voice_volume(
+    system_volume: Res<SystemVolume>,
+    mut query: Query<&mut WebPlaybackSettings, With<VoiceSound>>,
+) {
+    for mut settings in query.iter_mut() {
+        settings.volume = Volume::Linear(system_volume.voice_percentage());
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
 fn play_button_sound_when_hovered(
     commands: &mut Commands,
     asset_server: &AssetServer,
@@ -549,6 +574,20 @@ fn play_button_sound_when_hovered(
     ));
 }
 
+#[cfg(target_arch = "wasm32")]
+fn play_button_sound_when_hovered(
+    commands: &mut Commands,
+    asset_server: &AssetServer,
+    system_volume: &SystemVolume,
+) {
+    commands.spawn((
+        WebAudioPlayer::new(asset_server.load(SOUND_PATH_UI_LOADING)),
+        WebPlaybackSettings::DESPAWN.with_volume(Volume::Linear(system_volume.effect_percentage())),
+        EffectSound,
+    ));
+}
+
+#[cfg(not(target_arch = "wasm32"))]
 fn play_button_sound_when_pressed(
     commands: &mut Commands,
     asset_server: &AssetServer,
@@ -561,6 +600,20 @@ fn play_button_sound_when_pressed(
     ));
 }
 
+#[cfg(target_arch = "wasm32")]
+fn play_button_sound_when_pressed(
+    commands: &mut Commands,
+    asset_server: &AssetServer,
+    system_volume: &SystemVolume,
+) {
+    commands.spawn((
+        WebAudioPlayer::new(asset_server.load(SOUND_PATH_UI_BUTTON_TOUCH)),
+        WebPlaybackSettings::DESPAWN.with_volume(Volume::Linear(system_volume.effect_percentage())),
+        EffectSound,
+    ));
+}
+
+#[cfg(not(target_arch = "wasm32"))]
 fn play_button_sound_when_returned(
     commands: &mut Commands,
     asset_server: &AssetServer,
@@ -573,6 +626,20 @@ fn play_button_sound_when_returned(
     ));
 }
 
+#[cfg(target_arch = "wasm32")]
+fn play_button_sound_when_returned(
+    commands: &mut Commands,
+    asset_server: &AssetServer,
+    system_volume: &SystemVolume,
+) {
+    commands.spawn((
+        WebAudioPlayer::new(asset_server.load(SOUND_PATH_UI_BUTTON_BACK)),
+        WebPlaybackSettings::DESPAWN.with_volume(Volume::Linear(system_volume.effect_percentage())),
+        EffectSound,
+    ));
+}
+
+#[cfg(not(target_arch = "wasm32"))]
 fn play_sfx_feedback_when_released(
     commands: &mut Commands,
     asset_server: &AssetServer,
@@ -585,6 +652,20 @@ fn play_sfx_feedback_when_released(
     ));
 }
 
+#[cfg(target_arch = "wasm32")]
+fn play_sfx_feedback_when_released(
+    commands: &mut Commands,
+    asset_server: &AssetServer,
+    system_volume: &SystemVolume,
+) {
+    commands.spawn((
+        WebAudioPlayer::new(asset_server.load(SOUND_PATH_SFX_DOOR_BELL_00)),
+        WebPlaybackSettings::DESPAWN.with_volume(Volume::Linear(system_volume.effect_percentage())),
+        EffectSound,
+    ));
+}
+
+#[cfg(not(target_arch = "wasm32"))]
 fn play_voice_feedback_when_released(
     commands: &mut Commands,
     asset_server: &AssetServer,
@@ -597,6 +678,23 @@ fn play_voice_feedback_when_released(
     commands.spawn((
         AudioPlayer::new(asset_server.load(path)),
         PlaybackSettings::DESPAWN.with_volume(Volume::Linear(system_volume.voice_percentage())),
+        VoiceSound,
+    ));
+}
+
+#[cfg(target_arch = "wasm32")]
+fn play_voice_feedback_when_released(
+    commands: &mut Commands,
+    asset_server: &AssetServer,
+    system_volume: &SystemVolume,
+) {
+    let path = SOUND_PATH_VO_TITLES
+        .choose(&mut rand::rng())
+        .copied()
+        .unwrap();
+    commands.spawn((
+        WebAudioPlayer::new(asset_server.load(path)),
+        WebPlaybackSettings::DESPAWN.with_volume(Volume::Linear(system_volume.voice_percentage())),
         VoiceSound,
     ));
 }

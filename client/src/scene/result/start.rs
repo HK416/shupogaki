@@ -7,6 +7,9 @@ use crate::{
     shader::face_mouth::{EyeMouth, FacialExpressionExtension},
 };
 
+#[cfg(target_arch = "wasm32")]
+use crate::web::{WebAudioPlayer, WebPlaybackSettings};
+
 use super::*;
 
 // --- CONSTANTS ---
@@ -107,6 +110,7 @@ fn play_animation(
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn play_result_sound(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
@@ -119,6 +123,23 @@ fn play_result_sound(
     commands.spawn((
         AudioPlayer::new(asset_server.load(path)),
         PlaybackSettings::DESPAWN.with_volume(Volume::Linear(system_volume.voice_percentage())),
+        VoiceSound,
+    ));
+}
+
+#[cfg(target_arch = "wasm32")]
+fn play_result_sound(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    system_volume: Res<SystemVolume>,
+) {
+    let path = SOUND_PATH_VO_RESULTS
+        .choose(&mut rand::rng())
+        .copied()
+        .unwrap();
+    commands.spawn((
+        WebAudioPlayer::new(asset_server.load(path)),
+        WebPlaybackSettings::DESPAWN.with_volume(Volume::Linear(system_volume.voice_percentage())),
         VoiceSound,
     ));
 }

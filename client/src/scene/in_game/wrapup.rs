@@ -6,6 +6,9 @@ use bevy_tweening::{Animator, Tween, TweenCompleted, lens::UiPositionLens};
 
 use crate::asset::sound::SystemVolume;
 
+#[cfg(target_arch = "wasm32")]
+use crate::web::{WebAudioPlayer, WebPlaybackSettings};
+
 use super::*;
 
 // --- CONSTANTS ---
@@ -62,6 +65,7 @@ fn debug_label() {
     info!("Current State: WrapupInGame");
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 #[allow(clippy::type_complexity)]
 fn switch_train_sounds(
     mut commands: Commands,
@@ -83,6 +87,32 @@ fn switch_train_sounds(
     commands.spawn((
         AudioPlayer::new(asset_server.load(SOUND_PATH_SFX_TRAIN_END)),
         PlaybackSettings::DESPAWN.with_volume(Volume::Linear(system_volume.effect_percentage())),
+        EffectSound,
+    ));
+}
+
+#[cfg(target_arch = "wasm32")]
+#[allow(clippy::type_complexity)]
+fn switch_train_sounds(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    system_volume: Res<SystemVolume>,
+    mut set: ParamSet<(
+        Query<Entity, With<TrainSoundLoop1>>,
+        Query<Entity, With<TrainSoundLoop2>>,
+    )>,
+) {
+    if let Ok(entity) = set.p0().single() {
+        commands.entity(entity).despawn();
+    }
+
+    if let Ok(entity) = set.p1().single() {
+        commands.entity(entity).despawn();
+    }
+
+    commands.spawn((
+        WebAudioPlayer::new(asset_server.load(SOUND_PATH_SFX_TRAIN_END)),
+        WebPlaybackSettings::DESPAWN.with_volume(Volume::Linear(system_volume.effect_percentage())),
         EffectSound,
     ));
 }

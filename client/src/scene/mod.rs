@@ -333,7 +333,6 @@ pub enum GameState {
 
 // --- COMPONENTS ---
 
-#[cfg(not(target_arch = "wasm32"))]
 #[derive(Component)]
 pub struct BackgroundSound;
 

@@ -1,6 +1,9 @@
 // Import necessary Bevy modules.
 use bevy::prelude::*;
 
+#[cfg(target_arch = "wasm32")]
+use crate::web::WebPlaybackSettings;
+
 use super::*;
 
 // --- CONSTANTS ---
@@ -63,6 +66,7 @@ fn resume_animation(mut query: Query<&mut AnimationPlayer>) {
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn resume_effect_sounds(
     mut query: Query<&mut AudioSink, (With<InGameStateRoot>, With<EffectSound>)>,
 ) {
@@ -71,11 +75,30 @@ fn resume_effect_sounds(
     }
 }
 
+#[cfg(target_arch = "wasm32")]
+fn resume_effect_sounds(
+    mut query: Query<&mut WebPlaybackSettings, (With<InGameStateRoot>, With<EffectSound>)>,
+) {
+    for mut settings in query.iter_mut() {
+        settings.paused = false;
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
 fn resume_voice_sounds(
     mut query: Query<&mut AudioSink, (With<InGameStateRoot>, With<VoiceSound>)>,
 ) {
     for sink in query.iter_mut() {
         sink.play();
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+fn resume_voice_sounds(
+    mut query: Query<&mut WebPlaybackSettings, (With<InGameStateRoot>, With<VoiceSound>)>,
+) {
+    for mut settings in query.iter_mut() {
+        settings.paused = false;
     }
 }
 

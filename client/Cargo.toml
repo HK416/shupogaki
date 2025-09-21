@@ -36,6 +36,7 @@ version = "0.16"
 features = ["shader_format_spirv"]
 
 [target.'cfg(all(target_arch = "wasm32", target_os = "unknown"))'.dependencies]
+flume = "0.11"
 getrandom = { version = "0.3", features = ["wasm_js"] }
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"

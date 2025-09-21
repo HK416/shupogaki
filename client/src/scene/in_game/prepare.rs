@@ -6,6 +6,9 @@ use crate::{
     shader::face_mouth::{EyeMouth, FacialExpressionExtension},
 };
 
+#[cfg(target_arch = "wasm32")]
+use crate::web::{WebAudioPlayer, WebPlaybackSettings};
+
 use super::*;
 
 // --- CONSTANTS ---
@@ -64,6 +67,7 @@ fn start_timer(mut commands: Commands) {
     commands.insert_resource(SceneTimer::default());
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn play_train_sound(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
@@ -72,6 +76,21 @@ fn play_train_sound(
     commands.spawn((
         AudioPlayer::new(asset_server.load(SOUND_PATH_SFX_TRAIN_START)),
         PlaybackSettings::DESPAWN.with_volume(Volume::Linear(system_volume.effect_percentage())),
+        InGameStateRoot,
+        TrainSoundStart,
+        EffectSound,
+    ));
+}
+
+#[cfg(target_arch = "wasm32")]
+fn play_train_sound(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    system_volume: Res<SystemVolume>,
+) {
+    commands.spawn((
+        WebAudioPlayer::new(asset_server.load(SOUND_PATH_SFX_TRAIN_START)),
+        WebPlaybackSettings::DESPAWN.with_volume(Volume::Linear(system_volume.effect_percentage())),
         InGameStateRoot,
         TrainSoundStart,
         EffectSound,

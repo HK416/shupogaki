@@ -3,6 +3,9 @@ use bevy::{audio::Volume, prelude::*};
 
 use crate::asset::sound::SystemVolume;
 
+#[cfg(target_arch = "wasm32")]
+use crate::web::{WebAudioPlayer, WebPlaybackSettings};
+
 use super::*;
 
 // --- CONSTANTS ---
@@ -75,6 +78,7 @@ fn play_ui_animation(mut commands: Commands, query: Query<(Entity, &UI)>) {
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn play_finish_sound(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
@@ -83,6 +87,19 @@ fn play_finish_sound(
     commands.spawn((
         AudioPlayer::new(asset_server.load(SOUND_PATH_UI_FINISH)),
         PlaybackSettings::DESPAWN.with_volume(Volume::Linear(system_volume.effect_percentage())),
+        EffectSound,
+    ));
+}
+
+#[cfg(target_arch = "wasm32")]
+fn play_finish_sound(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    system_volume: Res<SystemVolume>,
+) {
+    commands.spawn((
+        WebAudioPlayer::new(asset_server.load(SOUND_PATH_UI_FINISH)),
+        WebPlaybackSettings::DESPAWN.with_volume(Volume::Linear(system_volume.effect_percentage())),
         EffectSound,
     ));
 }
