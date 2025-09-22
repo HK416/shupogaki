@@ -42,6 +42,8 @@ impl Plugin for StatePlugin {
                     update_player_position,
                     update_ground_position,
                     update_object_position,
+                    play_aoba_animation.after(update_object_position),
+                    setup_no_shadow_casting,
                     rotate_animation,
                     fade_in_out_animation,
                     cleanup_ui_animation,
@@ -560,6 +562,55 @@ fn update_train_volume(
     }
 }
 
+#[allow(clippy::type_complexity)]
+fn play_aoba_animation(
+    mut commands: Commands,
+    mut graphs: ResMut<Assets<AnimationGraph>>,
+    aoba_query: Query<(Entity, &AnimationClipHandle), With<InGameStateRoot>>,
+) {
+    for (entity, clip) in aoba_query.iter() {
+        let (graph, animation_index) = AnimationGraph::from_clip(clip.0.clone());
+        let mut player = AnimationPlayer::default();
+        player.play(animation_index).repeat();
+
+        info!("Play Animation!");
+        let mut commands = commands.entity(entity);
+        commands
+            .insert((AnimationGraphHandle(graphs.add(graph)), player))
+            .remove::<AnimationClipHandle>();
+    }
+}
+
+fn setup_no_shadow_casting(
+    mut commands: Commands,
+    children_query: Query<&Children>,
+    query: Query<(Entity, &Children), (With<GlowRoot>, Added<Children>)>,
+) {
+    for (entity, children) in query.iter() {
+        for child in children.iter() {
+            apply_to_descendants(&mut commands, child, &children_query);
+        }
+
+        commands.entity(entity).remove::<GlowRoot>();
+    }
+}
+
+fn apply_to_descendants(
+    commands: &mut Commands,
+    entity: Entity,
+    children_query: &Query<&Children>,
+) {
+    commands
+        .entity(entity)
+        .insert((NotShadowCaster, NotShadowReceiver));
+
+    if let Ok(children) = children_query.get(entity) {
+        for child in children.iter() {
+            apply_to_descendants(commands, child, children_query);
+        }
+    }
+}
+
 // --- POSTUPDATE SYSTEMS ---
 
 #[allow(clippy::type_complexity)]
@@ -691,9 +742,26 @@ fn check_for_collisions(
                     fuel.add(FUEL_AMOUNT);
                     commands.entity(entity).despawn();
                 }
+                (CurrentState::Idle, Object::Bell) => {
+                    play_door_bell_sound(&mut commands, &asset_server, &system_volume);
+                    commands.entity(entity).despawn();
+                }
+                (CurrentState::Idle, Object::Aoba) => {
+                    // TODO: Invincible state
+                    play_aoba_hit_sound(&mut commands, &asset_server, &system_volume);
+                    commands.entity(entity).despawn();
+                }
                 (CurrentState::Attacked { .. }, Object::Fuel) => {
                     fuel.add(FUEL_AMOUNT);
                     commands.entity(entity).despawn();
+                }
+                (CurrentState::Attacked { .. }, Object::Bell) => {
+                    play_door_bell_sound(&mut commands, &asset_server, &system_volume);
+                    commands.entity(entity).despawn();
+                }
+                (CurrentState::Attacked { .. }, Object::Aoba) => {
+                    // TODO: Invincible state
+                    play_aoba_hit_sound(&mut commands, &asset_server, &system_volume);
                 }
                 _ => { /* empty */ }
             }
@@ -782,6 +850,70 @@ fn play_healing_sound(
             VoiceSound,
         ));
     }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn play_door_bell_sound(
+    commands: &mut Commands,
+    asset_server: &AssetServer,
+    system_volume: &SystemVolume,
+) {
+    commands.spawn((
+        AudioPlayer::new(asset_server.load(SOUND_PATH_SFX_DOOR_BELL_00)),
+        PlaybackSettings::DESPAWN.with_volume(Volume::Linear(system_volume.voice_percentage())),
+        InGameStateRoot,
+        VoiceSound,
+    ));
+}
+
+#[cfg(target_arch = "wasm32")]
+fn play_door_bell_sound(
+    commands: &mut Commands,
+    asset_server: &AssetServer,
+    system_volume: &SystemVolume,
+) {
+    commands.spawn((
+        WebAudioPlayer::new(asset_server.load(SOUND_PATH_SFX_DOOR_BELL_00)),
+        WebPlaybackSettings::DESPAWN.with_volume(Volume::Linear(system_volume.voice_percentage())),
+        InGameStateRoot,
+        VoiceSound,
+    ));
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn play_aoba_hit_sound(
+    commands: &mut Commands,
+    asset_server: &AssetServer,
+    system_volume: &SystemVolume,
+) {
+    let path = SOUND_PATH_VO_AOBA_HITS
+        .choose(&mut rand::rng())
+        .copied()
+        .unwrap();
+    commands.spawn((
+        AudioPlayer::new(asset_server.load(path)),
+        PlaybackSettings::DESPAWN.with_volume(Volume::Linear(system_volume.voice_percentage())),
+        InGameStateRoot,
+        VoiceSound,
+    ));
+}
+
+#[cfg(target_arch = "wasm32")]
+fn play_aoba_hit_sound(
+    commands: &mut Commands,
+    asset_server: &AssetServer,
+    system_volume: &SystemVolume,
+) {
+    let path = SOUND_PATH_VO_AOBA_HITS
+        .choose(&mut rand::rng())
+        .copied()
+        .unwrap();
+    commands.spawn((
+        WebAudioPlayer::new(asset_server.load(path)),
+        WebPlaybackSettings::DESPAWN.with_volume(Volume::Linear(system_volume.voice_percentage())),
+        InGameStateRoot,
+        VoiceSound,
+    ));
 }
 
 #[allow(clippy::type_complexity)]

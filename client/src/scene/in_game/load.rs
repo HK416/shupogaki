@@ -101,6 +101,16 @@ fn load_assets(commands: &mut Commands, asset_server: &AssetServer) {
         loading_assets.handles.push(sound.into());
     }
 
+    for path in SOUND_PATH_VO_AOBAS {
+        let sound: Handle<AudioSource> = asset_server.load(path);
+        loading_assets.handles.push(sound.into());
+    }
+
+    for path in SOUND_PATH_VO_AOBA_HITS {
+        let sound: Handle<AudioSource> = asset_server.load(path);
+        loading_assets.handles.push(sound.into());
+    }
+
     // --- Texture Loading ---
     let texture: Handle<Image> = asset_server.load(FONT_PATH_START);
     loading_assets.handles.push(texture.into());
@@ -156,6 +166,12 @@ fn load_assets(commands: &mut Commands, asset_server: &AssetServer) {
     let model: Handle<ModelAsset> = asset_server.load(MODEL_PATH_FUEL);
     loading_assets.handles.push(model.into());
 
+    let model: Handle<ModelAsset> = asset_server.load(MODEL_PATH_DOOR_BELL);
+    loading_assets.handles.push(model.into());
+
+    let model: Handle<ModelAsset> = asset_server.load(MODEL_PATH_GLOW);
+    loading_assets.handles.push(model.into());
+
     // --- Player Loading ---
     let model: Handle<ModelAsset> = asset_server.load(MODEL_PATH_TOY_TRAIN_00);
     loading_assets.handles.push(model.into());
@@ -166,6 +182,10 @@ fn load_assets(commands: &mut Commands, asset_server: &AssetServer) {
     let model: Handle<ModelAsset> = asset_server.load(MODEL_PATH_TOY_TRAIN_02);
     loading_assets.handles.push(model.into());
 
+    // --- Student Loading ---
+    let model: Handle<ModelAsset> = asset_server.load(MODEL_PATH_AOBA);
+    loading_assets.handles.push(model.into());
+
     let model: Handle<ModelAsset> = asset_server.load(MODEL_PATH_HIKARI);
     loading_assets.handles.push(model.into());
 
@@ -173,6 +193,9 @@ fn load_assets(commands: &mut Commands, asset_server: &AssetServer) {
     loading_assets.handles.push(model.into());
 
     // --- Animation Loading ---
+    let clip: Handle<AnimationClip> = asset_server.load(ANIM_PATH_AOBA);
+    loading_assets.handles.push(clip.into());
+
     let clip: Handle<AnimationClip> = asset_server.load(ANIM_PATH_HIKARI_IN_GAME);
     loading_assets.handles.push(clip.into());
 

@@ -15,6 +15,13 @@ use bevy::prelude::*;
 
 use super::*;
 
+// --- CONSTANTS ---
+pub const IN_GAME_CAMERA_POS: Vec3 = Vec3::new(8.0, 12.0, 10.0);
+lazy_static! {
+    pub static ref IN_GAME_AOBA_DIR: Vec3 =
+        (Vec3::ZERO - IN_GAME_CAMERA_POS.with_y(0.0)).normalize();
+}
+
 // --- PLUGIN ---
 
 pub struct StatePlugin;

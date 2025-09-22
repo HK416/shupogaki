@@ -6,19 +6,28 @@ mod result;
 mod setup;
 mod title;
 
-use std::{collections::VecDeque, f32::consts::PI, ops::RangeInclusive};
+use std::{collections::VecDeque, f32::consts::PI, hash::Hash, ops::RangeInclusive};
 
-use bevy::{platform::collections::HashMap, prelude::*, window::WindowResized};
+use bevy::{
+    pbr::{NotShadowCaster, NotShadowReceiver},
+    platform::collections::HashMap,
+    prelude::*,
+    window::WindowResized,
+};
 use lazy_static::lazy_static;
 use rand::{
     Rng,
     distr::{Distribution, weighted::WeightedIndex},
+    seq::IndexedRandom,
 };
 
 #[cfg(target_arch = "wasm32")]
 use web_sys::{Storage, window};
 
-use crate::{asset::spawner::SpawnModel, collider::Collider};
+use crate::{
+    asset::{animation::AnimationClipHandle, spawner::SpawnModel},
+    collider::Collider,
+};
 
 // --- PLUGIN ---
 
@@ -86,6 +95,11 @@ const SOUND_PATH_VO_RESULT_00: &str = "sounds/VO_Result_00.sound";
 const SOUND_PATH_VO_RESULT_01: &str = "sounds/VO_Result_01.sound";
 const SOUND_PATH_VO_RESULT_02: &str = "sounds/VO_Result_02.sound";
 const SOUND_PATH_VO_RESULT_03: &str = "sounds/VO_Result_03.sound";
+const SOUND_PATH_VO_AOBA_00: &str = "sounds/VO_Aoba_00.sound";
+const SOUND_PATH_VO_AOBA_01: &str = "sounds/VO_Aoba_01.sound";
+const SOUND_PATH_VO_AOBA_HIT_00: &str = "sounds/VO_Aoba_Hit_00.sound";
+const SOUND_PATH_VO_AOBA_HIT_01: &str = "sounds/VO_Aoba_Hit_01.sound";
+const ANIM_PATH_AOBA: &str = "animations/Aoba.anim";
 const ANIM_PATH_HIKARI_CAFE_IDLE: &str = "animations/Hikari_Cafe_Idle.anim";
 const ANIM_PATH_HIKARI_IN_GAME: &str = "animations/Hikari_InGame.anim";
 const ANIM_PATH_HIKARI_VICTORY_START: &str = "animations/Hikari_Victory_Start_Interaction.anim";
@@ -102,6 +116,9 @@ const MODEL_PATH_TOY_TRAIN_02: &str = "models/ToyTrain02.hierarchy";
 const MODEL_PATH_BARRICADE: &str = "models/Barricade.hierarchy";
 const MODEL_PATH_STONE: &str = "models/Stone.hierarchy";
 const MODEL_PATH_FUEL: &str = "models/Fuel.hierarchy";
+const MODEL_PATH_DOOR_BELL: &str = "models/DoorBell.hierarchy";
+const MODEL_PATH_AOBA: &str = "models/Aoba.hierarchy";
+const MODEL_PATH_GLOW: &str = "models/Glow.hierarchy";
 const MODEL_PATH_HIKARI: &str = "models/Hikari.hierarchy";
 const MODEL_PATH_NOZOMI: &str = "models/Nozomi.hierarchy";
 const TEXTURE_PATH_TRAIN_ICON: &str = "textures/Train_Icon.sprite";
@@ -150,6 +167,14 @@ const SOUND_PATH_VO_RESULTS: [&str; NUM_SOUND_VO_RESULTS] = [
     SOUND_PATH_VO_RESULT_03,
 ];
 
+const NUM_SOUND_VO_AOBA: usize = 2;
+const SOUND_PATH_VO_AOBAS: [&str; NUM_SOUND_VO_AOBA] =
+    [SOUND_PATH_VO_AOBA_00, SOUND_PATH_VO_AOBA_01];
+
+const NUM_SOUND_VO_AOBA_HIT: usize = 2;
+const SOUND_PATH_VO_AOBA_HITS: [&str; NUM_SOUND_VO_AOBA_HIT] =
+    [SOUND_PATH_VO_AOBA_HIT_00, SOUND_PATH_VO_AOBA_HIT_01];
+
 // --- CONSTANTS ---
 
 #[cfg(target_arch = "wasm32")]
@@ -173,58 +198,93 @@ const DESPAWN_LOCATION: f32 = -100.0;
 const SPAWN_LOCATION: f32 = 100.0;
 const PLANE_SPAWN_INTERVAL: f32 = 30.0;
 
-const NUM_OBJECTS: usize = 3;
+const NUM_OBJECTS: usize = 5;
 const OBJECT_SPAWN_INTERVAL: f32 = 25.0;
 const OBJECT_SPAWN_OFFSET: RangeInclusive<f32> = -5.0..=5.0;
 
 const NUM_BARRICADE_LOCATIONS: usize = 7;
 const NUM_STONE_LOCATIONS: usize = 7;
 const NUM_FUEL_LOCATIONS: usize = 3;
+const NUM_BELL_LOCATIONS: usize = 3;
+const NUM_AOBA_LOCATIONS: usize = 3;
 
 const BARRICADE_AMOUNT: f32 = 20.0;
 const STONE_AMOUNT: f32 = 30.0;
 const FUEL_AMOUNT: f32 = 30.0;
 
 lazy_static! {
-    static ref OBJECT_MODELS: HashMap<Object, &'static str> = [
-        (Object::Barricade, MODEL_PATH_BARRICADE),
-        (Object::Stone, MODEL_PATH_STONE),
-        (Object::Fuel, MODEL_PATH_FUEL),
-    ]
-    .into_iter()
-    .collect();
-    static ref OBJECT_COLLIDER: HashMap<Object, Collider> = [
-        (
-            Object::Barricade,
-            Collider::Aabb {
-                offset: Vec3::new(0.0, 0.5, 0.0),
-                size: Vec3::splat(1.0)
-            }
-        ),
-        (
-            Object::Stone,
-            Collider::Sphere {
-                offset: Vec3::splat(0.0),
-                radius: 1.0
-            }
-        ),
-        (
-            Object::Fuel,
-            Collider::Aabb {
-                offset: Vec3::new(0.0, 0.0, 0.0),
-                size: Vec3::splat(0.5)
-            }
-        ),
-    ]
-    .into_iter()
-    .collect();
+    static ref OBJECT_MODELS: HashMap<Object, &'static str> = {
+        let map: HashMap<_, _> = [
+            (Object::Barricade, MODEL_PATH_BARRICADE),
+            (Object::Stone, MODEL_PATH_STONE),
+            (Object::Fuel, MODEL_PATH_FUEL),
+            (Object::Bell, MODEL_PATH_DOOR_BELL),
+            (Object::Aoba, MODEL_PATH_AOBA),
+        ]
+        .into_iter()
+        .collect();
+
+        assert!(map.len() == NUM_OBJECTS);
+        map
+    };
+    static ref OBJECT_COLLIDER: HashMap<Object, Collider> = {
+        let map: HashMap<_, _> = [
+            (
+                Object::Barricade,
+                Collider::Aabb {
+                    offset: Vec3::new(0.0, 0.5, 0.0),
+                    size: Vec3::splat(1.0),
+                },
+            ),
+            (
+                Object::Stone,
+                Collider::Sphere {
+                    offset: Vec3::splat(0.0),
+                    radius: 1.0,
+                },
+            ),
+            (
+                Object::Fuel,
+                Collider::Aabb {
+                    offset: Vec3::new(0.0, 0.0, 0.0),
+                    size: Vec3::splat(0.5),
+                },
+            ),
+            (
+                Object::Bell,
+                Collider::Aabb {
+                    offset: Vec3::new(0.0, 0.0, 0.0),
+                    size: Vec3::splat(0.5),
+                },
+            ),
+            (
+                Object::Aoba,
+                Collider::Aabb {
+                    offset: Vec3::new(0.0, 0.0, 0.0),
+                    size: Vec3::new(0.5, 1.0, 0.5),
+                },
+            ),
+        ]
+        .into_iter()
+        .collect();
+
+        assert!(map.len() == NUM_OBJECTS);
+        map
+    };
     static ref SPAWN_WEIGHTS: WeightedIndex<u32> = {
-        const WEIGHTS: [u32; NUM_OBJECTS] = [5, 5, 3];
+        // const WEIGHTS: [u32; NUM_OBJECTS] = [40, 30, 20, 9, 1];
+        const WEIGHTS: [u32; NUM_OBJECTS] = [1, 1, 1, 1, 100];
         WeightedIndex::new(WEIGHTS).unwrap()
     };
 }
 
-const OBJECT_LIST: [Object; NUM_OBJECTS] = [Object::Barricade, Object::Stone, Object::Fuel];
+const OBJECT_LIST: [Object; NUM_OBJECTS] = [
+    Object::Barricade,
+    Object::Stone,
+    Object::Fuel,
+    Object::Bell,
+    Object::Aoba,
+];
 lazy_static! {
     static ref BARRICADE_WEIGHTS: WeightedIndex<u32> = {
         const WEIGHTS: [u32; NUM_BARRICADE_LOCATIONS] = [3, 3, 2, 3, 2, 2, 1];
@@ -255,18 +315,16 @@ lazy_static! {
         vec![LANE_LOCATIONS[1], LANE_LOCATIONS[2]], // Pattern 6: Lanes 1, 2
         vec![LANE_LOCATIONS[0], LANE_LOCATIONS[1], LANE_LOCATIONS[2]], // Pattern 7: Lanes 0, 1, 2
     ];
-
-    static ref FUEL_WEIGHTS: WeightedIndex<u32> = {
-        const WEIGHTS: [u32; NUM_FUEL_LOCATIONS] = [1, 1, 1];
-        WeightedIndex::new(WEIGHTS).unwrap()
-    };
-
-    static ref FUEL_LOCATIONS: [Vec<f32>; NUM_FUEL_LOCATIONS] = [
-        vec![LANE_LOCATIONS[0]], // Pattern 1: Lane 0
-        vec![LANE_LOCATIONS[1]], // Pattern 2: Lane 1
-        vec![LANE_LOCATIONS[2]], // Pattern 3: Lane 2
-    ];
 }
+
+const FUEL_LOCATIONS: [f32; NUM_FUEL_LOCATIONS] =
+    [LANE_LOCATIONS[0], LANE_LOCATIONS[1], LANE_LOCATIONS[2]];
+
+const BELL_LOCATIONS: [f32; NUM_BELL_LOCATIONS] =
+    [LANE_LOCATIONS[0], LANE_LOCATIONS[1], LANE_LOCATIONS[2]];
+
+const AOBA_LOCATIONS: [f32; NUM_AOBA_LOCATIONS] =
+    [LANE_LOCATIONS[0], LANE_LOCATIONS[1], LANE_LOCATIONS[2]];
 
 const MIN_SPEED: f32 = 20.0;
 const MAX_SPEED: f32 = 30.0;
@@ -432,6 +490,9 @@ pub struct Nozomi;
 #[derive(Component)]
 pub struct Hikari;
 
+#[derive(Component)]
+pub struct GlowRoot;
+
 /// A marker component for the "Now Loading..." text UI entity.
 #[derive(Component)]
 pub struct LoadingText;
@@ -494,6 +555,8 @@ pub enum Object {
     Barricade,
     Stone,
     Fuel,
+    Bell,
+    Aoba,
 }
 
 #[derive(Component)]
@@ -954,36 +1017,93 @@ impl ObjectSpawner {
                     }
                 }
                 Object::Fuel => {
-                    let index = FUEL_WEIGHTS.sample(&mut rng);
-                    let locations = &FUEL_LOCATIONS[index];
-                    for &lane_x in locations {
-                        let recycle = self
-                            .retired
-                            .get_mut(&self.next_obj)
-                            .and_then(|entities| entities.pop_front());
+                    let lane_x = FUEL_LOCATIONS.choose(&mut rng).copied().unwrap();
+                    let recycle = self
+                        .retired
+                        .get_mut(&self.next_obj)
+                        .and_then(|entities| entities.pop_front());
 
-                        match recycle {
-                            Some(entity) => {
-                                info!("Recycle Fuel entity");
-                                commands
-                                    .entity(entity)
-                                    .insert(Transform::from_xyz(
-                                        lane_x,
-                                        0.5,
-                                        SPAWN_LOCATION + delta,
-                                    ))
-                                    .insert(self.next_obj);
-                            }
-                            None => {
-                                commands.spawn((
+                    match recycle {
+                        Some(entity) => {
+                            info!("Recycle Fuel entity");
+                            commands
+                                .entity(entity)
+                                .insert(Transform::from_xyz(lane_x, 0.5, SPAWN_LOCATION + delta))
+                                .insert(self.next_obj);
+                        }
+                        None => {
+                            commands.spawn((
+                                SpawnModel(model.clone()),
+                                Transform::from_xyz(lane_x, 0.5, SPAWN_LOCATION + delta),
+                                RotateAnimation::from_rotation_y(120f32.to_radians()),
+                                InGameStateRoot,
+                                self.next_obj,
+                                collider,
+                            ));
+                        }
+                    }
+                }
+                Object::Bell => {
+                    let lane_x = BELL_LOCATIONS.choose(&mut rng).copied().unwrap();
+                    let recycle = self
+                        .retired
+                        .get_mut(&self.next_obj)
+                        .and_then(|entities| entities.pop_front());
+
+                    match recycle {
+                        Some(entity) => {
+                            info!("Recycle Bell entity");
+                            commands
+                                .entity(entity)
+                                .insert(Transform::from_xyz(lane_x, 0.5, SPAWN_LOCATION + delta))
+                                .insert(self.next_obj);
+                        }
+                        None => {
+                            commands.spawn((
+                                SpawnModel(model.clone()),
+                                Transform::from_xyz(lane_x, 0.5, SPAWN_LOCATION + delta),
+                                RotateAnimation::from_rotation_y(120f32.to_radians()),
+                                InGameStateRoot,
+                                self.next_obj,
+                                collider,
+                            ));
+                        }
+                    }
+                }
+                Object::Aoba => {
+                    let lane_x = AOBA_LOCATIONS.choose(&mut rng).copied().unwrap();
+                    let recycle = self
+                        .retired
+                        .get_mut(&self.next_obj)
+                        .and_then(|entities| entities.pop_front());
+
+                    match recycle {
+                        Some(entity) => {
+                            info!("Recycle Aoba entity");
+                            commands
+                                .entity(entity)
+                                .insert(Transform::from_xyz(lane_x, 0.0, SPAWN_LOCATION + delta))
+                                .insert(AnimationClipHandle(asset_server.load(ANIM_PATH_AOBA)))
+                                .insert(self.next_obj);
+                        }
+                        None => {
+                            commands
+                                .spawn((
                                     SpawnModel(model.clone()),
-                                    Transform::from_xyz(lane_x, 0.5, SPAWN_LOCATION + delta),
-                                    RotateAnimation::from_rotation_y(120f32.to_radians()),
+                                    AnimationClipHandle(asset_server.load(ANIM_PATH_AOBA)),
+                                    Transform::from_xyz(lane_x, 0.0, SPAWN_LOCATION + delta)
+                                        .looking_to(*in_game::IN_GAME_AOBA_DIR, Vec3::Y),
                                     InGameStateRoot,
                                     self.next_obj,
                                     collider,
-                                ));
-                            }
+                                ))
+                                .with_children(|parent| {
+                                    parent.spawn((
+                                        SpawnModel(asset_server.load(MODEL_PATH_GLOW)),
+                                        Transform::IDENTITY,
+                                        GlowRoot,
+                                    ));
+                                });
                         }
                     }
                 }
