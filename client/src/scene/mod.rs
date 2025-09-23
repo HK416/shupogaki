@@ -19,6 +19,7 @@ use bevy::{
     prelude::*,
     window::WindowResized,
 };
+use const_format::concatcp;
 use lazy_static::lazy_static;
 use rand::{
     Rng,
@@ -52,86 +53,89 @@ impl Plugin for StatePlugin {
 }
 
 // --- ASSET PATH ---
-const LOCALE_PATH_EN: &str = "locale/en.json";
-const LOCALE_PATH_JA: &str = "locale/ja.json";
-const LOCALE_PATH_KO: &str = "locale/ko.json";
-const FONT_PATH_NOTOSANS_BOLD: &str = "fonts/NotoSans-Bold.otf";
-const FONT_PATH_START: &str = "fonts/ImgFont_Start.sprite";
-const FONT_PATH_FINISH: &str = "fonts/ImgFont_Finish.sprite";
-const FONT_PATH_PAUSE: &str = "fonts/ImgFont_Pause.sprite";
-const FONT_PATH_NEW: &str = "fonts/ImgFont_New.sprite";
-const FONT_PATH_NUM_1: &str = "fonts/ImgFont_1.sprite";
-const FONT_PATH_NUM_2: &str = "fonts/ImgFont_2.sprite";
-const FONT_PATH_NUM_3: &str = "fonts/ImgFont_3.sprite";
-const FONT_PATH_TIME: &str = "fonts/ImgFont_Time.sprite";
-const FONT_PATH_SCORE: &str = "fonts/ImgFont_Score.sprite";
-const FONT_PATH_BEST: &str = "fonts/ImgFont_Best.sprite";
-const FONT_PATH_NUMBER: &str = "fonts/ImgFont_Number.sprite";
-const ATLAS_PATH_NUMBER: &str = "fonts/ImgFont_Number.atlas";
-const SOUND_PATH_HIKARI_TITLE: &str = "sounds/Hikari_Title.sound";
-const SOUND_PATH_NOZOMI_TITLE: &str = "sounds/Nozomi_Title.sound";
-const SOUND_PATH_BACKGROUND: &str = "sounds/Theme_253_Game.sound";
-const SOUND_PATH_UI_START: &str = "sounds/UI_Start.sound";
-const SOUND_PATH_UI_FINISH: &str = "sounds/UI_Finish.sound";
-const SOUND_PATH_UI_BUTTON_BACK: &str = "sounds/UI_Button_Back.sound";
-const SOUND_PATH_UI_BUTTON_TOUCH: &str = "sounds/UI_Button_Touch.sound";
-const SOUND_PATH_UI_LOADING: &str = "sounds/UI_Loading.sound";
-const SOUND_PATH_SFX_DOOR_BELL: &str = "sounds/SFX_DoorBell.sound";
-const SOUND_PATH_SFX_TRAIN_START: &str = "sounds/SFX_Train_Start.sound";
-const SOUND_PATH_SFX_TRAIN_LOOP_1: &str = "sounds/SFX_Train_Loop_01.sound";
-const SOUND_PATH_SFX_TRAIN_LOOP_2: &str = "sounds/SFX_Train_Loop_02.sound";
-const SOUND_PATH_SFX_TRAIN_END: &str = "sounds/SFX_Train_End.sound";
-const SOUND_PATH_SFX_TRAIN_LANDING: &str = "sounds/SFX_Train_Landing.sound";
-const SOUND_PATH_SFX_TRAIN_INVINCIBLE: &str = "sounds/SFX_Train_Invincible.sound";
-const SOUND_PATH_VO_START_00: &str = "sounds/VO_Start_00.sound";
-const SOUND_PATH_VO_START_01: &str = "sounds/VO_Start_01.sound";
-const SOUND_PATH_VO_START_02: &str = "sounds/VO_Start_02.sound";
-const SOUND_PATH_VO_START_03: &str = "sounds/VO_Start_03.sound";
-const SOUND_PATH_VO_DAMAGED_00: &str = "sounds/VO_Damaged_00.sound";
-const SOUND_PATH_VO_DAMAGED_01: &str = "sounds/VO_Damaged_01.sound";
-const SOUND_PATH_VO_DAMAGED_02: &str = "sounds/VO_Damaged_02.sound";
-const SOUND_PATH_VO_DAMAGED_03: &str = "sounds/VO_Damaged_03.sound";
-const SOUND_PATH_VO_DAMAGED_04: &str = "sounds/VO_Damaged_04.sound";
-const SOUND_PATH_VO_DAMAGED_05: &str = "sounds/VO_Damaged_05.sound";
-const SOUND_PATH_VO_HEALING_00: &str = "sounds/VO_Healing_00.sound";
-const SOUND_PATH_VO_HEALING_01: &str = "sounds/VO_Healing_01.sound";
-const SOUND_PATH_VO_HEALING_02: &str = "sounds/VO_Healing_02.sound";
-const SOUND_PATH_VO_HEALING_03: &str = "sounds/VO_Healing_03.sound";
-const SOUND_PATH_VO_INVINCIBLE_00: &str = "sounds/VO_Invincible_00.sound";
-const SOUND_PATH_VO_INVINCIBLE_01: &str = "sounds/VO_Invincible_01.sound";
-const SOUND_PATH_VO_INVINCIBLE_02: &str = "sounds/VO_Invincible_02.sound";
-const SOUND_PATH_VO_INVINCIBLE_03: &str = "sounds/VO_Invincible_03.sound";
-const SOUND_PATH_VO_RESULT_00: &str = "sounds/VO_Result_00.sound";
-const SOUND_PATH_VO_RESULT_01: &str = "sounds/VO_Result_01.sound";
-const SOUND_PATH_VO_RESULT_02: &str = "sounds/VO_Result_02.sound";
-const SOUND_PATH_VO_RESULT_03: &str = "sounds/VO_Result_03.sound";
-const SOUND_PATH_VO_AOBA_00: &str = "sounds/VO_Aoba_00.sound";
-const SOUND_PATH_VO_AOBA_01: &str = "sounds/VO_Aoba_01.sound";
-const SOUND_PATH_VO_AOBA_HIT_00: &str = "sounds/VO_Aoba_Hit_00.sound";
-const SOUND_PATH_VO_AOBA_HIT_01: &str = "sounds/VO_Aoba_Hit_01.sound";
-const ANIM_PATH_AOBA: &str = "animations/Aoba.anim";
-const ANIM_PATH_HIKARI_CAFE_IDLE: &str = "animations/Hikari_Cafe_Idle.anim";
-const ANIM_PATH_HIKARI_IN_GAME: &str = "animations/Hikari_InGame.anim";
-const ANIM_PATH_HIKARI_VICTORY_START: &str = "animations/Hikari_Victory_Start_Interaction.anim";
-const ANIM_PATH_HIKARI_VICTORY_END: &str = "animations/Hikari_Victory_End_Interaction.anim";
-const ANIM_PATH_NOZOMI_CAFE_IDLE: &str = "animations/Nozomi_Cafe_Idle.anim";
-const ANIM_PATH_NOZOMI_IN_GAME: &str = "animations/Nozomi_InGame.anim";
-const ANIM_PATH_NOZOMI_VICTORY_START: &str = "animations/Nozomi_Victory_Start_Interaction.anim";
-const ANIM_PATH_NOZOMI_VICTORY_END: &str = "animations/Nozomi_Victory_End_Interaction.anim";
-const MODEL_PATH_PLANE_0: &str = "models/Plane_0.hierarchy";
-const MODEL_PATH_PLANE_999: &str = "models/Plane_999.hierarchy";
-const MODEL_PATH_TOY_TRAIN_00: &str = "models/ToyTrain00.hierarchy";
-const MODEL_PATH_TOY_TRAIN_01: &str = "models/ToyTrain01.hierarchy";
-const MODEL_PATH_TOY_TRAIN_02: &str = "models/ToyTrain02.hierarchy";
-const MODEL_PATH_BARRICADE: &str = "models/Barricade.hierarchy";
-const MODEL_PATH_STONE: &str = "models/Stone.hierarchy";
-const MODEL_PATH_FUEL: &str = "models/Fuel.hierarchy";
-const MODEL_PATH_DOOR_BELL: &str = "models/DoorBell.hierarchy";
-const MODEL_PATH_AOBA: &str = "models/Aoba.hierarchy";
-const MODEL_PATH_GLOW: &str = "models/Glow.hierarchy";
-const MODEL_PATH_HIKARI: &str = "models/Hikari.hierarchy";
-const MODEL_PATH_NOZOMI: &str = "models/Nozomi.hierarchy";
-const TEXTURE_PATH_TRAIN_ICON: &str = "textures/Train_Icon.sprite";
+#[rustfmt::skip] const QUERY: &str = "?";
+#[rustfmt::skip] const VERSION: &str = concat!("v=", env!("CARGO_PKG_VERSION_MINOR"));
+
+#[rustfmt::skip] const LOCALE_PATH_EN: &str = concatcp!("locale/en.json", QUERY, VERSION);
+#[rustfmt::skip] const LOCALE_PATH_JA: &str = concatcp!("locale/ja.json", QUERY, VERSION);
+#[rustfmt::skip] const LOCALE_PATH_KO: &str = concatcp!("locale/ko.json", QUERY, VERSION);
+#[rustfmt::skip] const FONT_PATH_NOTOSANS_BOLD: &str = concatcp!("fonts/NotoSans-Bold.otf", QUERY, VERSION);
+#[rustfmt::skip] const FONT_PATH_START: &str = concatcp!("fonts/ImgFont_Start.sprite", QUERY, VERSION);
+#[rustfmt::skip] const FONT_PATH_FINISH: &str = concatcp!("fonts/ImgFont_Finish.sprite", QUERY, VERSION);
+#[rustfmt::skip] const FONT_PATH_PAUSE: &str = concatcp!("fonts/ImgFont_Pause.sprite", QUERY, VERSION);
+#[rustfmt::skip] const FONT_PATH_NEW: &str = concatcp!("fonts/ImgFont_New.sprite", QUERY, VERSION);
+#[rustfmt::skip] const FONT_PATH_NUM_1: &str = concatcp!("fonts/ImgFont_1.sprite", QUERY, VERSION);
+#[rustfmt::skip] const FONT_PATH_NUM_2: &str = concatcp!("fonts/ImgFont_2.sprite", QUERY, VERSION);
+#[rustfmt::skip] const FONT_PATH_NUM_3: &str = concatcp!("fonts/ImgFont_3.sprite", QUERY, VERSION);
+#[rustfmt::skip] const FONT_PATH_TIME: &str = concatcp!("fonts/ImgFont_Time.sprite", QUERY, VERSION);
+#[rustfmt::skip] const FONT_PATH_SCORE: &str = concatcp!("fonts/ImgFont_Score.sprite", QUERY, VERSION);
+#[rustfmt::skip] const FONT_PATH_BEST: &str = concatcp!("fonts/ImgFont_Best.sprite", QUERY, VERSION);
+#[rustfmt::skip] const FONT_PATH_NUMBER: &str = concatcp!("fonts/ImgFont_Number.sprite", QUERY, VERSION);
+#[rustfmt::skip] const ATLAS_PATH_NUMBER: &str = concatcp!("fonts/ImgFont_Number.atlas", QUERY, VERSION);
+#[rustfmt::skip] const SOUND_PATH_HIKARI_TITLE: &str = concatcp!("sounds/Hikari_Title.sound", QUERY, VERSION);
+#[rustfmt::skip] const SOUND_PATH_NOZOMI_TITLE: &str = concatcp!("sounds/Nozomi_Title.sound", QUERY, VERSION);
+#[rustfmt::skip] const SOUND_PATH_BACKGROUND: &str = concatcp!("sounds/Theme_253_Game.sound", QUERY, VERSION);
+#[rustfmt::skip] const SOUND_PATH_UI_START: &str = concatcp!("sounds/UI_Start.sound", QUERY, VERSION);
+#[rustfmt::skip] const SOUND_PATH_UI_FINISH: &str = concatcp!("sounds/UI_Finish.sound", QUERY, VERSION);
+#[rustfmt::skip] const SOUND_PATH_UI_BUTTON_BACK: &str = concatcp!("sounds/UI_Button_Back.sound", QUERY, VERSION);
+#[rustfmt::skip] const SOUND_PATH_UI_BUTTON_TOUCH: &str = concatcp!("sounds/UI_Button_Touch.sound", QUERY, VERSION);
+#[rustfmt::skip] const SOUND_PATH_UI_LOADING: &str = concatcp!("sounds/UI_Loading.sound", QUERY, VERSION);
+#[rustfmt::skip] const SOUND_PATH_SFX_DOOR_BELL: &str = concatcp!("sounds/SFX_DoorBell.sound", QUERY, VERSION);
+#[rustfmt::skip] const SOUND_PATH_SFX_TRAIN_START: &str = concatcp!("sounds/SFX_Train_Start.sound", QUERY, VERSION);
+#[rustfmt::skip] const SOUND_PATH_SFX_TRAIN_LOOP_1: &str = concatcp!("sounds/SFX_Train_Loop_01.sound", QUERY, VERSION);
+#[rustfmt::skip] const SOUND_PATH_SFX_TRAIN_LOOP_2: &str = concatcp!("sounds/SFX_Train_Loop_02.sound", QUERY, VERSION);
+#[rustfmt::skip] const SOUND_PATH_SFX_TRAIN_END: &str = concatcp!("sounds/SFX_Train_End.sound", QUERY, VERSION);
+#[rustfmt::skip] const SOUND_PATH_SFX_TRAIN_LANDING: &str = concatcp!("sounds/SFX_Train_Landing.sound", QUERY, VERSION);
+#[rustfmt::skip] const SOUND_PATH_SFX_TRAIN_INVINCIBLE: &str = concatcp!("sounds/SFX_Train_Invincible.sound", QUERY, VERSION);
+#[rustfmt::skip] const SOUND_PATH_VO_START_00: &str = concatcp!("sounds/VO_Start_00.sound", QUERY, VERSION);
+#[rustfmt::skip] const SOUND_PATH_VO_START_01: &str = concatcp!("sounds/VO_Start_01.sound", QUERY, VERSION);
+#[rustfmt::skip] const SOUND_PATH_VO_START_02: &str = concatcp!("sounds/VO_Start_02.sound", QUERY, VERSION);
+#[rustfmt::skip] const SOUND_PATH_VO_START_03: &str = concatcp!("sounds/VO_Start_03.sound", QUERY, VERSION);
+#[rustfmt::skip] const SOUND_PATH_VO_DAMAGED_00: &str = concatcp!("sounds/VO_Damaged_00.sound", QUERY, VERSION);
+#[rustfmt::skip] const SOUND_PATH_VO_DAMAGED_01: &str = concatcp!("sounds/VO_Damaged_01.sound", QUERY, VERSION);
+#[rustfmt::skip] const SOUND_PATH_VO_DAMAGED_02: &str = concatcp!("sounds/VO_Damaged_02.sound", QUERY, VERSION);
+#[rustfmt::skip] const SOUND_PATH_VO_DAMAGED_03: &str = concatcp!("sounds/VO_Damaged_03.sound", QUERY, VERSION);
+#[rustfmt::skip] const SOUND_PATH_VO_DAMAGED_04: &str = concatcp!("sounds/VO_Damaged_04.sound", QUERY, VERSION);
+#[rustfmt::skip] const SOUND_PATH_VO_DAMAGED_05: &str = concatcp!("sounds/VO_Damaged_05.sound", QUERY, VERSION);
+#[rustfmt::skip] const SOUND_PATH_VO_HEALING_00: &str = concatcp!("sounds/VO_Healing_00.sound", QUERY, VERSION);
+#[rustfmt::skip] const SOUND_PATH_VO_HEALING_01: &str = concatcp!("sounds/VO_Healing_01.sound", QUERY, VERSION);
+#[rustfmt::skip] const SOUND_PATH_VO_HEALING_02: &str = concatcp!("sounds/VO_Healing_02.sound", QUERY, VERSION);
+#[rustfmt::skip] const SOUND_PATH_VO_HEALING_03: &str = concatcp!("sounds/VO_Healing_03.sound", QUERY, VERSION);
+#[rustfmt::skip] const SOUND_PATH_VO_INVINCIBLE_00: &str = concatcp!("sounds/VO_Invincible_00.sound", QUERY, VERSION);
+#[rustfmt::skip] const SOUND_PATH_VO_INVINCIBLE_01: &str = concatcp!("sounds/VO_Invincible_01.sound", QUERY, VERSION);
+#[rustfmt::skip] const SOUND_PATH_VO_INVINCIBLE_02: &str = concatcp!("sounds/VO_Invincible_02.sound", QUERY, VERSION);
+#[rustfmt::skip] const SOUND_PATH_VO_INVINCIBLE_03: &str = concatcp!("sounds/VO_Invincible_03.sound", QUERY, VERSION);
+#[rustfmt::skip] const SOUND_PATH_VO_RESULT_00: &str = concatcp!("sounds/VO_Result_00.sound", QUERY, VERSION);
+#[rustfmt::skip] const SOUND_PATH_VO_RESULT_01: &str = concatcp!("sounds/VO_Result_01.sound", QUERY, VERSION);
+#[rustfmt::skip] const SOUND_PATH_VO_RESULT_02: &str = concatcp!("sounds/VO_Result_02.sound", QUERY, VERSION);
+#[rustfmt::skip] const SOUND_PATH_VO_RESULT_03: &str = concatcp!("sounds/VO_Result_03.sound", QUERY, VERSION);
+#[rustfmt::skip] const SOUND_PATH_VO_AOBA_00: &str = concatcp!("sounds/VO_Aoba_00.sound", QUERY, VERSION);
+#[rustfmt::skip] const SOUND_PATH_VO_AOBA_01: &str = concatcp!("sounds/VO_Aoba_01.sound", QUERY, VERSION);
+#[rustfmt::skip] const SOUND_PATH_VO_AOBA_HIT_00: &str = concatcp!("sounds/VO_Aoba_Hit_00.sound", QUERY, VERSION);
+#[rustfmt::skip] const SOUND_PATH_VO_AOBA_HIT_01: &str = concatcp!("sounds/VO_Aoba_Hit_01.sound", QUERY, VERSION);
+#[rustfmt::skip] const ANIM_PATH_AOBA: &str = concatcp!("animations/Aoba.anim", QUERY, VERSION);
+#[rustfmt::skip] const ANIM_PATH_HIKARI_CAFE_IDLE: &str = concatcp!("animations/Hikari_Cafe_Idle.anim", QUERY, VERSION);
+#[rustfmt::skip] const ANIM_PATH_HIKARI_IN_GAME: &str = concatcp!("animations/Hikari_InGame.anim", QUERY, VERSION);
+#[rustfmt::skip] const ANIM_PATH_HIKARI_VICTORY_START: &str = concatcp!("animations/Hikari_Victory_Start_Interaction.anim", QUERY, VERSION);
+#[rustfmt::skip] const ANIM_PATH_HIKARI_VICTORY_END: &str = concatcp!("animations/Hikari_Victory_End_Interaction.anim", QUERY, VERSION);
+#[rustfmt::skip] const ANIM_PATH_NOZOMI_CAFE_IDLE: &str = concatcp!("animations/Nozomi_Cafe_Idle.anim", QUERY, VERSION);
+#[rustfmt::skip] const ANIM_PATH_NOZOMI_IN_GAME: &str = concatcp!("animations/Nozomi_InGame.anim", QUERY, VERSION);
+#[rustfmt::skip] const ANIM_PATH_NOZOMI_VICTORY_START: &str = concatcp!("animations/Nozomi_Victory_Start_Interaction.anim", QUERY, VERSION);
+#[rustfmt::skip] const ANIM_PATH_NOZOMI_VICTORY_END: &str = concatcp!("animations/Nozomi_Victory_End_Interaction.anim", QUERY, VERSION);
+#[rustfmt::skip] const MODEL_PATH_PLANE_0: &str = concatcp!("models/Plane_0.hierarchy", QUERY, VERSION);
+#[rustfmt::skip] const MODEL_PATH_PLANE_999: &str = concatcp!("models/Plane_999.hierarchy", QUERY, VERSION);
+#[rustfmt::skip] const MODEL_PATH_TOY_TRAIN_00: &str = concatcp!("models/ToyTrain00.hierarchy", QUERY, VERSION);
+#[rustfmt::skip] const MODEL_PATH_TOY_TRAIN_01: &str = concatcp!("models/ToyTrain01.hierarchy", QUERY, VERSION);
+#[rustfmt::skip] const MODEL_PATH_TOY_TRAIN_02: &str = concatcp!("models/ToyTrain02.hierarchy", QUERY, VERSION);
+#[rustfmt::skip] const MODEL_PATH_BARRICADE: &str = concatcp!("models/Barricade.hierarchy", QUERY, VERSION);
+#[rustfmt::skip] const MODEL_PATH_STONE: &str = concatcp!("models/Stone.hierarchy", QUERY, VERSION);
+#[rustfmt::skip] const MODEL_PATH_FUEL: &str = concatcp!("models/Fuel.hierarchy", QUERY, VERSION);
+#[rustfmt::skip] const MODEL_PATH_DOOR_BELL: &str = concatcp!("models/DoorBell.hierarchy", QUERY, VERSION);
+#[rustfmt::skip] const MODEL_PATH_AOBA: &str = concatcp!("models/Aoba.hierarchy", QUERY, VERSION);
+#[rustfmt::skip] const MODEL_PATH_GLOW: &str = concatcp!("models/Glow.hierarchy", QUERY, VERSION);
+#[rustfmt::skip] const MODEL_PATH_HIKARI: &str = concatcp!("models/Hikari.hierarchy", QUERY, VERSION);
+#[rustfmt::skip] const MODEL_PATH_NOZOMI: &str = concatcp!("models/Nozomi.hierarchy", QUERY, VERSION);
+#[rustfmt::skip] const TEXTURE_PATH_TRAIN_ICON: &str = concatcp!("textures/Train_Icon.sprite", QUERY, VERSION);
 
 const NUM_SOUND_VO_TITLE: usize = 2;
 const SOUND_PATH_VO_TITLES: [&str; NUM_SOUND_VO_TITLE] =
@@ -543,6 +547,7 @@ pub enum UI {
     LanguageKo,
     BackButton,
 
+    HighScore,
     StartButton,
     OptionButton,
     StartLabel,
@@ -1131,14 +1136,13 @@ impl ObjectSpawner {
                                         InGameStateEntity,
                                     ));
 
-                                    let direction = in_game::IN_GAME_CAMERA_POS.normalize();
-                                    let translation =
-                                        direction * 0.75 + Vec3::Y * 10.0 - Vec3::Z * 1.5;
+                                    let direction = in_game::IN_GAME_AOBA_DIR.clone();
+                                    let translation = direction * 2.0 + Vec3::Y * 10.0;
                                     parent.spawn((
                                         SpawnModel(asset_server.load(MODEL_PATH_GLOW)),
                                         Transform::from_translation(translation)
                                             .with_scale((3.0, 20.0, 3.0).into())
-                                            .looking_to(-direction, Vec3::Y),
+                                            .looking_to(direction, Vec3::Y),
                                         GlowRoot,
                                     ));
                                 });

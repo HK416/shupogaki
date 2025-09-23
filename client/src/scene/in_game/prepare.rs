@@ -130,7 +130,7 @@ fn spawn_camera_and_light(
                 shadows_enabled: true,
                 ..Default::default()
             },
-            Transform::from_translation(IN_GAME_CAMERA_POS).looking_at(Vec3::ZERO, Vec3::Y),
+            Transform::from_xyz(8.0, 12.0, 10.0).looking_at(Vec3::ZERO, Vec3::Y),
             InGameStateRoot,
         ));
     }
@@ -148,7 +148,8 @@ fn spawn_camera_and_light(
                 scale: 1.25,
                 ..OrthographicProjection::default_3d()
             }),
-            Transform::from_xyz(12.0, 9.0, 12.0).looking_at((0.0, 1.5, 0.0).into(), Vec3::Y),
+            Transform::from_translation(IN_GAME_CAMERA_POS)
+                .looking_at(IN_GAME_CAMERA_LOOK_AT, Vec3::Y),
             InGameStateRoot,
         ));
     }

@@ -3,10 +3,12 @@
     <head>
         <meta charset="UTF-8" />
         <title>Shupogaki 💢</title>
+        <link rel="icon", href="assets/Highlander.svg", type="image/svg+xml">
         <style>
         body {
             margin: 0;
             display: flex;
+            flex-direction: column; 
             justify-content: center;
             align-items: center;
             height: 100vh;
@@ -48,7 +50,6 @@
             display: flex;
             flex-direction: column;
             gap: 1em; /* 항목 간 간격 */
-            max-width: 800px;
         }
         .overlay-content h1 {
             font-size: 2.5em;
@@ -70,11 +71,31 @@
             color: rgba(255, 255, 255, 0.7); /* 흐린 색상 */
             margin-top: 2em !important;
         }
+
+        .github-link {
+            margin-top: 15px; 
+            display: inline-block;
+        }
+        .github-link svg {
+            width: 40px;
+            height: 40px;
+            fill: #ffffff;
+            transition: opacity 0.2s ease-in-out;
+        }
+        .github-link:hover svg {
+            opacity: 0.7;
+        }
         </style>
     </head>
     <body>
         <div class="canvas-container"></div>
         
+        <a href="https://github.com/HK416/shupogaki" target="_blank" rel="noopener noreferrer" class="github-link">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16">
+                <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"/>
+            </svg>
+        </a>
+
         <div id="start-overlay">
             <div class="overlay-content">
                 <h1 id="text-title"></h1>
@@ -94,6 +115,7 @@
             // --- 다국어 텍스트 설정 로직 ---
             const translations = {
                 ko: {
+                    web_title: "철도가키 💢",
                     title: "안내",
                     body: "이 게임은 \'Blue Archive\'의 2차 창작물입니다.",
                     subBody: "원저작권자인 Nexon Games의 권리를 최우선으로 존중하며, 요청 시 비공개 또는 삭제처리할 예정입니다.",
@@ -101,6 +123,7 @@
                     disclaimer: "면책 조항: 플레이에 지장을 주는 문제가 생길 수 있으며, 공지 없이 서비스가 중단되거나 사용자 데이터가 삭제될 수 있습니다."
                 },
                 ja: {
+                    web_title: "シュポガキ 💢",
                     title: "ご案内",
                     body: "このゲームは『ブルーアーカイブ』の二次創作作品です。",
                     subBody: "原著作権者であるNexon Gamesの権利を最優先に尊重し、ご要請があった場合には非公開または削除いたします。",
@@ -108,6 +131,7 @@
                     disclaimer: "免責事項：プレイに支障をきたす問題が発生する可能性があり、予告なくサービスが中断されたり、ユーザーデータが削除されたりすることがあります。"
                 },
                 en: {
+                    web_title: "Shupogaki 💢",
                     title: "Notice",
                     body: "This game is an unofficial fan-made work based on \'Blue Archive\'.",
                     subBody: "The rights of the original copyright holder, Nexon Games, are respected with the highest priority, and this content will be made private or deleted upon request.",
@@ -120,6 +144,7 @@
             const userLang = navigator.language.split('-')[0]; // 'ko-KR' -> 'ko'
             const lang = translations[userLang] ? userLang : 'en'; // 지원 언어 없으면 영어로
             
+            document.title = translations[lang].web_title;
             document.getElementById('text-title').textContent = translations[lang].title;
             document.getElementById('text-body').textContent = translations[lang].body;
             document.getElementById('text-sub-body').textContent = translations[lang].subBody;

@@ -52,7 +52,7 @@ fn show_entities(mut query: Query<&mut Visibility, (With<TitleStateRoot>, Withou
 fn show_interfaces(mut query: Query<(&UI, &mut Visibility)>) {
     for (&ui, mut visibility) in query.iter_mut() {
         match ui {
-            UI::StartButton | UI::OptionButton => *visibility = Visibility::Visible,
+            UI::HighScore | UI::StartButton | UI::OptionButton => *visibility = Visibility::Visible,
             _ => { /* empty */ }
         }
     }
@@ -159,7 +159,7 @@ fn setup_mouth_expression(
 fn hide_interfaces(mut query: Query<(&UI, &mut Visibility)>) {
     for (&ui, mut visibility) in query.iter_mut() {
         match ui {
-            UI::StartButton | UI::OptionButton => *visibility = Visibility::Hidden,
+            UI::HighScore | UI::StartButton | UI::OptionButton => *visibility = Visibility::Hidden,
             _ => { /* empty */ }
         }
     }

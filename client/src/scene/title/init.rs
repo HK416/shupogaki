@@ -71,10 +71,19 @@ fn play_loading_sound(
     ));
 }
 
-fn spawn_entities(mut commands: Commands, asset_server: Res<AssetServer>) {
+fn spawn_entities(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    high_score: Res<HighScore>,
+) {
     let mut loading_entities = LoadingEntities::default();
     spawn_title_entities(&mut commands, &asset_server, &mut loading_entities);
-    spawn_title_ui_entities(&mut commands, &asset_server, &mut loading_entities);
+    spawn_title_ui_entities(
+        &mut commands,
+        &asset_server,
+        &mut loading_entities,
+        &high_score,
+    );
 
     // --- Resource Insertion ---
     commands.insert_resource(loading_entities);
@@ -174,7 +183,51 @@ fn spawn_title_ui_entities(
     commands: &mut Commands,
     asset_server: &AssetServer,
     loading_entities: &mut LoadingEntities,
+    high_score: &HighScore,
 ) {
+    let entity = commands
+        .spawn((
+            Node {
+                position_type: PositionType::Absolute,
+                left: Val::Vw(2.0),
+                top: Val::Vh(5.0),
+                width: Val::Vw(30.0),
+                height: Val::Vh(10.0),
+                flex_direction: FlexDirection::Row,
+                justify_content: JustifyContent::Center,
+                align_items: AlignItems::FlexStart,
+                ..Default::default()
+            },
+            SpawnRequest,
+        ))
+        .with_children(|parent| {
+            let font = asset_server.load(FONT_PATH_NOTOSANS_BOLD);
+            parent.spawn((
+                Text::new("High Score:"),
+                TextFont::from_font(font.clone()),
+                TextLayout::new_with_justify(JustifyText::Center),
+                TextShadow::default(),
+                TranslatableText("high_score".to_string()),
+                ResizableFont::vertical(1280.0, 78.0),
+                Node::default(),
+                Visibility::Hidden,
+                UI::HighScore,
+            ));
+
+            parent.spawn((
+                Text::new(format!("{}", high_score.0)),
+                TextFont::from_font(font.clone()),
+                TextLayout::new_with_justify(JustifyText::Center),
+                TextShadow::default(),
+                ResizableFont::vertical(1280.0, 78.0),
+                Node::default(),
+                Visibility::Hidden,
+                UI::HighScore,
+            ));
+        })
+        .id();
+    loading_entities.handles.push(entity);
+
     let entity = commands
         .spawn((
             Node {

@@ -1,4 +1,7 @@
 {
+    "files": [
+        "Highlander.svg"
+    ],
     "directories": {
         "animations": {
             "target_files": [
@@ -70,7 +73,6 @@
                 "Glow.material",
                 "Outline.material",
                 "Plane_0.material",
-                "Plane_999.material",
                 "Signlight_0.material",
                 "Signlight_1.material",
                 "Stone_0.material",
@@ -88,7 +90,7 @@
                 "CH0243_Halo.mesh",
                 "CH0288_Bag_Outline.mesh",
                 "CH0288_Body.mesh",
-                "CH0288_Face01_Outline.mesh",
+                "CH0288_Face_Outline.mesh",
                 "CH0288_Halo.mesh",
                 "DoorBell.mesh",
                 "Fence_0.mesh",
@@ -197,7 +199,6 @@
                 "Hikari_Mouth.texture",
                 "Nozomi_Mouth.texture",
                 "Plane_0.texture",
-                "Plane_999.texture",
                 "Stone_0.texture",
                 "Stone_1.texture",
                 "ToyTrain.texture",
