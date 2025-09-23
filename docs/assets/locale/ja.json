@@ -1,0 +1,17 @@
+{
+    "notice": "お知らせ",
+    "message": "このゲームは「ブルーアーカイブ」の二次創作ゲームです。",
+    "click": "- 画面をクリックしてゲームを開始 -",
+    "background_music": "BGM",
+    "sound_effect": "SE",
+    "voice": "ボイス",
+    "back": "戻る",
+    "high_score": "ハイスコア:",
+    "start": "スタート",
+    "option": "オプション",
+    "ranking": "ランキング",
+    "resume": "再開",
+    "exit": "終了",
+    "result": "ゲーム結果",
+    "restart": "リスタート"
+}

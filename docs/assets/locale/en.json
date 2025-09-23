@@ -1,0 +1,17 @@
+{
+    "notice": "Notice",
+    "message": "This is a fan-made game based on \"Blue Archive\"",
+    "click": "- Click the mouse button to start the game -",
+    "background_music": "BGM",
+    "sound_effect": "SFX",
+    "voice": "Voice",
+    "back": "Back",
+    "high_score": "High Score:",
+    "start": "Game Start",
+    "option": "Settings",
+    "ranking": "Ranking",
+    "resume": "Resume",
+    "exit": "Exit",
+    "result": "Game Result",
+    "restart": "Restart"
+}
