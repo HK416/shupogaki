@@ -1,0 +1,17 @@
+{
+    "notice": "안내 사항",
+    "message": "이 게임은 \"Blue Archive\"의 2차 창작 게임입니다.",
+    "click": "- 마우스 버튼을 눌러 게임을 시작하기 -",
+    "background_music": "배경음",
+    "sound_effect": "효과음",
+    "voice": "보이스",
+    "back": "돌아가기",
+    "high_score": "최고 점수:",
+    "start": "게임 시작",
+    "option": "게임 옵션",
+    "ranking": "게임 랭킹",
+    "resume": "계속 하기",
+    "exit": "나가기",
+    "result": "게임 결과",
+    "restart": "다시 시작"
+}
