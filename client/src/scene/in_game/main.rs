@@ -3,7 +3,7 @@ use bevy::{audio::Volume, prelude::*};
 use bevy_tweening::{Animator, TweenCompleted};
 use rand::seq::IndexedRandom;
 
-use crate::asset::sound::SystemVolume;
+use crate::asset::{material::EyeMouthMaterial, sound::SystemVolume};
 
 #[cfg(target_arch = "wasm32")]
 use crate::web::{WebAudioPlayer, WebPlaybackSettings};
@@ -207,6 +207,14 @@ fn update_player_state(mut state: ResMut<CurrentState>, time: Res<Time>) {
             *remaining -= time.delta_secs();
             if *remaining <= 0.0 {
                 *state = CurrentState::Idle;
+            }
+        }
+        CurrentState::Invincible { remaining } => {
+            *remaining -= time.delta_secs();
+            if *remaining <= 0.0 {
+                *state = CurrentState::Attacked {
+                    remaining: ATTACKED_DURATION,
+                };
             }
         }
         _ => { /* empty */ }
@@ -565,22 +573,29 @@ fn update_train_volume(
 #[allow(clippy::type_complexity)]
 fn play_aoba_animation(
     mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    system_volume: Res<SystemVolume>,
     mut graphs: ResMut<Assets<AnimationGraph>>,
-    aoba_query: Query<(Entity, &AnimationClipHandle), With<InGameStateRoot>>,
+    aoba_query: Query<(Entity, &AnimationClipHandle, &GlobalTransform), With<InGameStateEntity>>,
 ) {
-    for (entity, clip) in aoba_query.iter() {
-        let (graph, animation_index) = AnimationGraph::from_clip(clip.0.clone());
-        let mut player = AnimationPlayer::default();
-        player.play(animation_index).repeat();
+    for (entity, clip, transform) in aoba_query.iter() {
+        if transform.translation().z <= 17.5 {
+            let (graph, animation_index) = AnimationGraph::from_clip(clip.0.clone());
+            let mut player = AnimationPlayer::default();
+            player.play(animation_index).repeat();
 
-        info!("Play Animation!");
-        let mut commands = commands.entity(entity);
-        commands
-            .insert((AnimationGraphHandle(graphs.add(graph)), player))
-            .remove::<AnimationClipHandle>();
+            info!("Play Animation!");
+            commands
+                .entity(entity)
+                .insert((AnimationGraphHandle(graphs.add(graph)), player))
+                .remove::<AnimationClipHandle>();
+
+            play_aoba_sound(&mut commands, &asset_server, &system_volume);
+        }
     }
 }
 
+#[allow(clippy::type_complexity)]
 fn setup_no_shadow_casting(
     mut commands: Commands,
     children_query: Query<&Children>,
@@ -747,9 +762,12 @@ fn check_for_collisions(
                     commands.entity(entity).despawn();
                 }
                 (CurrentState::Idle, Object::Aoba) => {
-                    // TODO: Invincible state
-                    play_aoba_hit_sound(&mut commands, &asset_server, &system_volume);
+                    play_invincible_sound(&mut commands, &asset_server, &system_volume);
+                    forward_move.velocity = INVINCIBLE_SPEED;
                     commands.entity(entity).despawn();
+                    *state = CurrentState::Invincible {
+                        remaining: INVINCIBLE_DURATION,
+                    };
                 }
                 (CurrentState::Attacked { .. }, Object::Fuel) => {
                     fuel.add(FUEL_AMOUNT);
@@ -760,8 +778,28 @@ fn check_for_collisions(
                     commands.entity(entity).despawn();
                 }
                 (CurrentState::Attacked { .. }, Object::Aoba) => {
-                    // TODO: Invincible state
-                    play_aoba_hit_sound(&mut commands, &asset_server, &system_volume);
+                    play_invincible_sound(&mut commands, &asset_server, &system_volume);
+                    forward_move.velocity = INVINCIBLE_SPEED;
+                    commands.entity(entity).despawn();
+                    *state = CurrentState::Invincible {
+                        remaining: INVINCIBLE_DURATION,
+                    };
+                }
+                (CurrentState::Invincible { .. }, Object::Fuel) => {
+                    fuel.add(FUEL_AMOUNT);
+                    commands.entity(entity).despawn();
+                }
+                (CurrentState::Invincible { .. }, Object::Bell) => {
+                    play_door_bell_sound(&mut commands, &asset_server, &system_volume);
+                    commands.entity(entity).despawn();
+                }
+                (CurrentState::Invincible { .. }, Object::Aoba) => {
+                    play_invincible_sound(&mut commands, &asset_server, &system_volume);
+                    forward_move.velocity = INVINCIBLE_SPEED;
+                    commands.entity(entity).despawn();
+                    *state = CurrentState::Invincible {
+                        remaining: INVINCIBLE_DURATION,
+                    };
                 }
                 _ => { /* empty */ }
             }
@@ -859,7 +897,7 @@ fn play_door_bell_sound(
     system_volume: &SystemVolume,
 ) {
     commands.spawn((
-        AudioPlayer::new(asset_server.load(SOUND_PATH_SFX_DOOR_BELL_00)),
+        AudioPlayer::new(asset_server.load(SOUND_PATH_SFX_DOOR_BELL)),
         PlaybackSettings::DESPAWN.with_volume(Volume::Linear(system_volume.voice_percentage())),
         InGameStateRoot,
         VoiceSound,
@@ -873,7 +911,7 @@ fn play_door_bell_sound(
     system_volume: &SystemVolume,
 ) {
     commands.spawn((
-        WebAudioPlayer::new(asset_server.load(SOUND_PATH_SFX_DOOR_BELL_00)),
+        WebAudioPlayer::new(asset_server.load(SOUND_PATH_SFX_DOOR_BELL)),
         WebPlaybackSettings::DESPAWN.with_volume(Volume::Linear(system_volume.voice_percentage())),
         InGameStateRoot,
         VoiceSound,
@@ -881,12 +919,12 @@ fn play_door_bell_sound(
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-fn play_aoba_hit_sound(
+fn play_aoba_sound(
     commands: &mut Commands,
     asset_server: &AssetServer,
     system_volume: &SystemVolume,
 ) {
-    let path = SOUND_PATH_VO_AOBA_HITS
+    let path = SOUND_PATH_VO_AOBAS
         .choose(&mut rand::rng())
         .copied()
         .unwrap();
@@ -899,18 +937,80 @@ fn play_aoba_hit_sound(
 }
 
 #[cfg(target_arch = "wasm32")]
-fn play_aoba_hit_sound(
+fn play_aoba_sound(
     commands: &mut Commands,
     asset_server: &AssetServer,
     system_volume: &SystemVolume,
 ) {
-    let path = SOUND_PATH_VO_AOBA_HITS
+    let path = SOUND_PATH_VO_AOBAS
         .choose(&mut rand::rng())
         .copied()
         .unwrap();
     commands.spawn((
         WebAudioPlayer::new(asset_server.load(path)),
         WebPlaybackSettings::DESPAWN.with_volume(Volume::Linear(system_volume.voice_percentage())),
+        InGameStateRoot,
+        VoiceSound,
+    ));
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn play_invincible_sound(
+    commands: &mut Commands,
+    asset_server: &AssetServer,
+    system_volume: &SystemVolume,
+) {
+    let mut rng = rand::rng();
+    let path = SOUND_PATH_VO_AOBA_HITS.choose(&mut rng).copied().unwrap();
+    commands.spawn((
+        AudioPlayer::new(asset_server.load(path)),
+        PlaybackSettings::DESPAWN.with_volume(Volume::Linear(system_volume.voice_percentage())),
+        InGameStateRoot,
+        VoiceSound,
+    ));
+
+    let path = SOUND_PATH_VO_INVINCIBLES.choose(&mut rng).copied().unwrap();
+    commands.spawn((
+        AudioPlayer::new(asset_server.load(path)),
+        PlaybackSettings::DESPAWN.with_volume(Volume::Linear(system_volume.voice_percentage())),
+        InGameStateRoot,
+        VoiceSound,
+    ));
+
+    commands.spawn((
+        AudioPlayer::new(asset_server.load(SOUND_PATH_SFX_TRAIN_INVINCIBLE)),
+        PlaybackSettings::DESPAWN.with_volume(Volume::Linear(system_volume.effect_percentage())),
+        InGameStateRoot,
+        VoiceSound,
+    ));
+}
+
+#[cfg(target_arch = "wasm32")]
+fn play_invincible_sound(
+    commands: &mut Commands,
+    asset_server: &AssetServer,
+    system_volume: &SystemVolume,
+) {
+    let mut rng = rand::rng();
+    let path = SOUND_PATH_VO_AOBA_HITS.choose(&mut rng).copied().unwrap();
+    commands.spawn((
+        WebAudioPlayer::new(asset_server.load(path)),
+        WebPlaybackSettings::DESPAWN.with_volume(Volume::Linear(system_volume.voice_percentage())),
+        InGameStateRoot,
+        VoiceSound,
+    ));
+
+    let path = SOUND_PATH_VO_INVINCIBLES.choose(&mut rng).copied().unwrap();
+    commands.spawn((
+        WebAudioPlayer::new(asset_server.load(path)),
+        WebPlaybackSettings::DESPAWN.with_volume(Volume::Linear(system_volume.voice_percentage())),
+        InGameStateRoot,
+        VoiceSound,
+    ));
+
+    commands.spawn((
+        WebAudioPlayer::new(asset_server.load(SOUND_PATH_SFX_TRAIN_INVINCIBLE)),
+        WebPlaybackSettings::DESPAWN.with_volume(Volume::Linear(system_volume.effect_percentage())),
         InGameStateRoot,
         VoiceSound,
     ));
@@ -1007,16 +1107,20 @@ pub fn update_player_effect(
         Query<Entity, With<ToyTrain2>>,
     )>,
     children_query: Query<&Children>,
-    material_query: Query<&MeshMaterial3d<StandardMaterial>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
+    standard_material_query: Query<&MeshMaterial3d<StandardMaterial>>,
+    extented_material_query: Query<&MeshMaterial3d<EyeMouthMaterial>>,
+    mut standard_materials: ResMut<Assets<StandardMaterial>>,
+    mut extended_materials: ResMut<Assets<EyeMouthMaterial>>,
     mut state: ResMut<CurrentState>,
 ) {
     if let Ok(entity) = set.p0().single() {
         update_player_effect_recursive(
             entity,
             &children_query,
-            &material_query,
-            &mut materials,
+            &standard_material_query,
+            &extented_material_query,
+            &mut standard_materials,
+            &mut extended_materials,
             &mut state,
         );
     }
@@ -1025,8 +1129,10 @@ pub fn update_player_effect(
         update_player_effect_recursive(
             entity,
             &children_query,
-            &material_query,
-            &mut materials,
+            &standard_material_query,
+            &extented_material_query,
+            &mut standard_materials,
+            &mut extended_materials,
             &mut state,
         );
     }
@@ -1035,8 +1141,10 @@ pub fn update_player_effect(
         update_player_effect_recursive(
             entity,
             &children_query,
-            &material_query,
-            &mut materials,
+            &standard_material_query,
+            &extented_material_query,
+            &mut standard_materials,
+            &mut extended_materials,
             &mut state,
         );
     }
@@ -1045,12 +1153,14 @@ pub fn update_player_effect(
 fn update_player_effect_recursive(
     entity: Entity,
     children_query: &Query<&Children>,
-    material_query: &Query<&MeshMaterial3d<StandardMaterial>>,
-    materials: &mut ResMut<Assets<StandardMaterial>>,
+    standard_material_query: &Query<&MeshMaterial3d<StandardMaterial>>,
+    extented_material_query: &Query<&MeshMaterial3d<EyeMouthMaterial>>,
+    standard_materials: &mut ResMut<Assets<StandardMaterial>>,
+    extended_materials: &mut ResMut<Assets<EyeMouthMaterial>>,
     state: &mut CurrentState,
 ) {
-    if let Ok(handle) = material_query.get(entity)
-        && let Some(material) = materials.get_mut(handle.id())
+    if let Ok(handle) = standard_material_query.get(entity)
+        && let Some(material) = standard_materials.get_mut(handle.id())
     {
         match &mut *state {
             #[cfg(not(feature = "no-debuging-player"))]
@@ -1063,20 +1173,73 @@ fn update_player_effect_recursive(
             CurrentState::Attacked { remaining } => {
                 let t = *remaining * ATTACKED_EFFECT_CYCLE;
                 let fill = 0.5 * t.cos() + 0.5;
-                material.base_color = Color::srgb(fill, fill, fill);
+                material.base_color = Color::srgba(fill, fill, fill, material.base_color.alpha());
+            }
+            CurrentState::Invincible { remaining } => {
+                let t = ((INVINCIBLE_DURATION - *remaining) / INVINCIBLE_DURATION).max(0.0);
+                let cycle =
+                    MIN_INVINCIBLE_EFFECT_CYCLE * (1.0 - t) + MAX_INVINCIBLE_EFFECT_CYCLE * t;
+                let red = 0.5 * (t * cycle).sin() + 0.5;
+                let green = 0.5 * (TAU / 3.0 * t * cycle).sin() + 0.5;
+                let blue = 0.5 * (2.0 * TAU / 3.0 * t * cycle).sin() + 0.5;
+                material.base_color = Color::srgba(red, green, blue, material.base_color.alpha());
+            }
+        }
+    }
+
+    if let Ok(handle) = extented_material_query.get(entity)
+        && let Some(material) = extended_materials.get_mut(handle.id())
+    {
+        match &mut *state {
+            #[cfg(not(feature = "no-debuging-player"))]
+            CurrentState::Debug => {
+                material.base.base_color = Color::BLACK;
+            }
+            CurrentState::Idle => {
+                material.base.base_color = Color::WHITE;
+            }
+            CurrentState::Attacked { remaining } => {
+                let t = *remaining * ATTACKED_EFFECT_CYCLE;
+                let fill = 0.5 * t.cos() + 0.5;
+                material.base.base_color =
+                    Color::srgba(fill, fill, fill, material.base.base_color.alpha());
+            }
+            CurrentState::Invincible { remaining } => {
+                let t = ((INVINCIBLE_DURATION - *remaining) / INVINCIBLE_DURATION).max(0.0);
+                let cycle =
+                    MIN_INVINCIBLE_EFFECT_CYCLE * (1.0 - t) + MAX_INVINCIBLE_EFFECT_CYCLE * t;
+                let red = 0.5 * (t * cycle).sin() + 0.5;
+                let green = 0.5 * (TAU / 3.0 * t * cycle).sin() + 0.5;
+                let blue = 0.5 * (2.0 * TAU / 3.0 * t * cycle).sin() + 0.5;
+                material.base.base_color =
+                    Color::srgba(red, green, blue, material.base.base_color.alpha());
             }
         }
     }
 
     if let Ok(children) = children_query.get(entity) {
         for child in children.iter() {
-            update_player_effect_recursive(child, children_query, material_query, materials, state);
+            update_player_effect_recursive(
+                child,
+                children_query,
+                standard_material_query,
+                extented_material_query,
+                standard_materials,
+                extended_materials,
+                state,
+            );
         }
     }
 }
 
-pub fn update_player_speed(mut forward_move: ResMut<ForwardMovement>, time: Res<Time>) {
-    forward_move.accel(time.delta_secs());
+pub fn update_player_speed(
+    mut forward_move: ResMut<ForwardMovement>,
+    state: Res<CurrentState>,
+    time: Res<Time>,
+) {
+    if !matches!(*state, CurrentState::Invincible { .. }) {
+        forward_move.accel(time.delta_secs());
+    }
 }
 
 #[cfg(not(target_arch = "wasm32"))]

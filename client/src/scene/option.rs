@@ -27,7 +27,12 @@ impl Plugin for StatePlugin {
             // Register a cleanup system to run when exiting the `GameState::Option` state.
             .add_systems(
                 OnExit(GameState::Option),
-                (hide_state_ui, clear_slider_cursor_flag),
+                (
+                    hide_state_ui,
+                    clear_slider_cursor_flag,
+                    #[cfg(target_arch = "wasm32")]
+                    save_volume_options,
+                ),
             )
             .add_systems(
                 PreUpdate,
@@ -145,6 +150,16 @@ fn hide_state_ui(mut query: Query<(&UI, &mut Visibility)>) {
 
 fn clear_slider_cursor_flag(mut commands: Commands) {
     commands.remove_resource::<SelectedSliderCursor>();
+}
+
+#[cfg(target_arch = "wasm32")]
+fn save_volume_options(system_volume: Res<SystemVolume>) {
+    if let Some(storage) = get_local_storage()
+        && let Ok(value) = serde_json::ser::to_string(&*system_volume)
+    {
+        info!("Store system volume: {:?}", &value);
+        let _ = storage.set_item(SYSTEM_VOLUME_KEY, &value);
+    }
 }
 
 // --- PREUPDATE SYSTEMS ---
@@ -646,7 +661,7 @@ fn play_sfx_feedback_when_released(
     system_volume: &SystemVolume,
 ) {
     commands.spawn((
-        AudioPlayer::new(asset_server.load(SOUND_PATH_SFX_DOOR_BELL_00)),
+        AudioPlayer::new(asset_server.load(SOUND_PATH_SFX_DOOR_BELL)),
         PlaybackSettings::DESPAWN.with_volume(Volume::Linear(system_volume.effect_percentage())),
         EffectSound,
     ));
@@ -659,7 +674,7 @@ fn play_sfx_feedback_when_released(
     system_volume: &SystemVolume,
 ) {
     commands.spawn((
-        WebAudioPlayer::new(asset_server.load(SOUND_PATH_SFX_DOOR_BELL_00)),
+        WebAudioPlayer::new(asset_server.load(SOUND_PATH_SFX_DOOR_BELL)),
         WebPlaybackSettings::DESPAWN.with_volume(Volume::Linear(system_volume.effect_percentage())),
         EffectSound,
     ));

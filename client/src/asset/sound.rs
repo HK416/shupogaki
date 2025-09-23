@@ -3,10 +3,11 @@ use bevy::{
     prelude::*,
     tasks::ConditionalSendFuture,
 };
+use serde::Serialize;
 
 use super::*;
 
-#[derive(Resource)]
+#[derive(Debug, Resource, Deserialize, Serialize)]
 pub struct SystemVolume {
     pub background: u8,
     pub effect: u8,

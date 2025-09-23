@@ -1,16 +1,12 @@
 use bevy::{
     asset::{AssetLoader, LoadContext, io::Reader},
-    pbr::ExtendedMaterial,
     platform::collections::HashMap,
     prelude::*,
     tasks::ConditionalSendFuture,
 };
 use serde::Deserialize;
 
-use crate::{
-    asset::{Float4x4, mesh::MeshAsset},
-    shader::face_mouth::FacialExpressionExtension,
-};
+use crate::asset::{Float4x4, material::EyeMouthMaterial, mesh::MeshAsset};
 
 use super::*;
 
@@ -38,7 +34,7 @@ pub struct SerializableModelNode {
 
 pub enum MaterialHandle {
     Standard(Handle<StandardMaterial>),
-    FacialExpression(Handle<ExtendedMaterial<StandardMaterial, FacialExpressionExtension>>),
+    FacialExpression(Handle<EyeMouthMaterial>),
 }
 
 /// A custom model asset that holds the model hierarchy and handles to its dependencies.
@@ -139,8 +135,7 @@ fn collect_assets_recursive(
         let handle: MaterialHandle = match material_uri.contains("EyeMouth") {
             true => {
                 let material_path = format!("materials/{}.material", material_uri);
-                let handle: Handle<ExtendedMaterial<StandardMaterial, FacialExpressionExtension>> =
-                    load_context.load(material_path);
+                let handle: Handle<EyeMouthMaterial> = load_context.load(material_path);
                 MaterialHandle::FacialExpression(handle)
             }
             false => {

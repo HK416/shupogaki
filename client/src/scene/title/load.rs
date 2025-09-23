@@ -92,7 +92,7 @@ fn load_assets(commands: &mut Commands, asset_server: &AssetServer) {
     let sound: Handle<AudioSource> = asset_server.load(SOUND_PATH_NOZOMI_TITLE);
     loading_assets.handles.push(sound.into());
 
-    let sound: Handle<AudioSource> = asset_server.load(SOUND_PATH_SFX_DOOR_BELL_00);
+    let sound: Handle<AudioSource> = asset_server.load(SOUND_PATH_SFX_DOOR_BELL);
     loading_assets.handles.push(sound.into());
 
     commands.insert_resource(loading_assets);

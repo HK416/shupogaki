@@ -16,15 +16,14 @@ use std::num::NonZeroU32;
 use bevy::{
     asset::AssetMetaCheck,
     log::{Level, LogPlugin},
-    pbr::ExtendedMaterial,
     prelude::*,
 };
 use bevy_tweening::TweeningPlugin;
 
 // Import local modules for asset handling and game scenes.
 use crate::{
-    asset::spawner::CustomAssetPlugin, scene::GameState,
-    shader::face_mouth::FacialExpressionExtension,
+    asset::{material::EyeMouthMaterial, spawner::CustomAssetPlugin},
+    scene::GameState,
 };
 
 // --- MAIN FUNCTION ---
@@ -61,9 +60,7 @@ fn main() {
             #[cfg(target_arch = "wasm32")]
             web::WebAudioPlugin,
         ))
-        .add_plugins(MaterialPlugin::<
-            ExtendedMaterial<StandardMaterial, FacialExpressionExtension>,
-        >::default())
+        .add_plugins(MaterialPlugin::<EyeMouthMaterial>::default())
         .add_plugins(CustomAssetPlugin)
         .add_plugins(gizmo::GizmoPlugin)
         .add_plugins(scene::StatePlugin)

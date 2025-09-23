@@ -4,7 +4,7 @@ use std::time::Duration;
 use bevy::{audio::Volume, prelude::*};
 use bevy_tweening::{Animator, Tween, TweenCompleted, lens::UiPositionLens};
 
-use crate::asset::sound::SystemVolume;
+use crate::asset::{material::EyeMouthMaterial, sound::SystemVolume};
 
 #[cfg(target_arch = "wasm32")]
 use crate::web::{WebAudioPlayer, WebPlaybackSettings};
@@ -398,16 +398,20 @@ pub fn update_player_effect(
         Query<Entity, With<ToyTrain2>>,
     )>,
     children_query: Query<&Children>,
-    material_query: Query<&MeshMaterial3d<StandardMaterial>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
+    standard_material_query: Query<&MeshMaterial3d<StandardMaterial>>,
+    extented_material_query: Query<&MeshMaterial3d<EyeMouthMaterial>>,
+    mut standard_materials: ResMut<Assets<StandardMaterial>>,
+    mut extended_materials: ResMut<Assets<EyeMouthMaterial>>,
     mut state: ResMut<CurrentState>,
 ) {
     if let Ok(entity) = set.p0().single() {
         update_player_effect_recursive(
             entity,
             &children_query,
-            &material_query,
-            &mut materials,
+            &standard_material_query,
+            &extented_material_query,
+            &mut standard_materials,
+            &mut extended_materials,
             &mut state,
         );
     }
@@ -416,8 +420,10 @@ pub fn update_player_effect(
         update_player_effect_recursive(
             entity,
             &children_query,
-            &material_query,
-            &mut materials,
+            &standard_material_query,
+            &extented_material_query,
+            &mut standard_materials,
+            &mut extended_materials,
             &mut state,
         );
     }
@@ -426,8 +432,10 @@ pub fn update_player_effect(
         update_player_effect_recursive(
             entity,
             &children_query,
-            &material_query,
-            &mut materials,
+            &standard_material_query,
+            &extented_material_query,
+            &mut standard_materials,
+            &mut extended_materials,
             &mut state,
         );
     }
@@ -436,12 +444,14 @@ pub fn update_player_effect(
 fn update_player_effect_recursive(
     entity: Entity,
     children_query: &Query<&Children>,
-    material_query: &Query<&MeshMaterial3d<StandardMaterial>>,
-    materials: &mut ResMut<Assets<StandardMaterial>>,
+    standard_material_query: &Query<&MeshMaterial3d<StandardMaterial>>,
+    extented_material_query: &Query<&MeshMaterial3d<EyeMouthMaterial>>,
+    standard_materials: &mut ResMut<Assets<StandardMaterial>>,
+    extended_materials: &mut ResMut<Assets<EyeMouthMaterial>>,
     state: &mut CurrentState,
 ) {
-    if let Ok(handle) = material_query.get(entity)
-        && let Some(material) = materials.get_mut(handle.id())
+    if let Ok(handle) = standard_material_query.get(entity)
+        && let Some(material) = standard_materials.get_mut(handle.id())
     {
         match &mut *state {
             #[cfg(not(feature = "no-debuging-player"))]
@@ -454,14 +464,61 @@ fn update_player_effect_recursive(
             CurrentState::Attacked { remaining } => {
                 let t = *remaining * ATTACKED_EFFECT_CYCLE;
                 let fill = 0.5 * t.cos() + 0.5;
-                material.base_color = Color::srgb(fill, fill, fill);
+                material.base_color = Color::srgba(fill, fill, fill, material.base_color.alpha());
+            }
+            CurrentState::Invincible { remaining } => {
+                let t = ((INVINCIBLE_DURATION - *remaining) / INVINCIBLE_DURATION).max(0.0);
+                let cycle =
+                    MIN_INVINCIBLE_EFFECT_CYCLE * (1.0 - t) + MAX_INVINCIBLE_EFFECT_CYCLE * t;
+                let red = 0.5 * (t * cycle).sin() + 0.5;
+                let green = 0.5 * (TAU / 3.0 * t * cycle).sin() + 0.5;
+                let blue = 0.5 * (2.0 * TAU / 3.0 * t * cycle).sin() + 0.5;
+                material.base_color = Color::srgba(red, green, blue, material.base_color.alpha());
+            }
+        }
+    }
+
+    if let Ok(handle) = extented_material_query.get(entity)
+        && let Some(material) = extended_materials.get_mut(handle.id())
+    {
+        match &mut *state {
+            #[cfg(not(feature = "no-debuging-player"))]
+            CurrentState::Debug => {
+                material.base.base_color = Color::BLACK;
+            }
+            CurrentState::Idle => {
+                material.base.base_color = Color::WHITE;
+            }
+            CurrentState::Attacked { remaining } => {
+                let t = *remaining * ATTACKED_EFFECT_CYCLE;
+                let fill = 0.5 * t.cos() + 0.5;
+                material.base.base_color =
+                    Color::srgba(fill, fill, fill, material.base.base_color.alpha());
+            }
+            CurrentState::Invincible { remaining } => {
+                let t = ((INVINCIBLE_DURATION - *remaining) / INVINCIBLE_DURATION).max(0.0);
+                let cycle =
+                    MIN_INVINCIBLE_EFFECT_CYCLE * (1.0 - t) + MAX_INVINCIBLE_EFFECT_CYCLE * t;
+                let red = 0.5 * (t * cycle).sin() + 0.5;
+                let green = 0.5 * (TAU / 3.0 * t * cycle).sin() + 0.5;
+                let blue = 0.5 * (2.0 * TAU / 3.0 * t * cycle).sin() + 0.5;
+                material.base.base_color =
+                    Color::srgba(red, green, blue, material.base.base_color.alpha());
             }
         }
     }
 
     if let Ok(children) = children_query.get(entity) {
         for child in children.iter() {
-            update_player_effect_recursive(child, children_query, material_query, materials, state);
+            update_player_effect_recursive(
+                child,
+                children_query,
+                standard_material_query,
+                extented_material_query,
+                standard_materials,
+                extended_materials,
+                state,
+            );
         }
     }
 }

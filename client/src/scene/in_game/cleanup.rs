@@ -1,6 +1,8 @@
 // Import necessary Bevy modules.
 use bevy::prelude::*;
 
+use crate::asset::material::EyeMouthMaterial;
+
 use super::*;
 
 // --- PLUGIN ---
@@ -55,37 +57,75 @@ pub fn clear_player_effect(
         Query<Entity, With<ToyTrain2>>,
     )>,
     children_query: Query<&Children>,
-    material_query: Query<&MeshMaterial3d<StandardMaterial>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
+    standard_material_query: Query<&MeshMaterial3d<StandardMaterial>>,
+    extented_material_query: Query<&MeshMaterial3d<EyeMouthMaterial>>,
+    mut standard_materials: ResMut<Assets<StandardMaterial>>,
+    mut extended_materials: ResMut<Assets<EyeMouthMaterial>>,
 ) {
     if let Ok(entity) = set.p0().single() {
-        clear_player_effect_recursive(entity, &children_query, &material_query, &mut materials);
+        clear_player_effect_recursive(
+            entity,
+            &children_query,
+            &standard_material_query,
+            &extented_material_query,
+            &mut standard_materials,
+            &mut extended_materials,
+        );
     }
 
     if let Ok(entity) = set.p1().single() {
-        clear_player_effect_recursive(entity, &children_query, &material_query, &mut materials);
+        clear_player_effect_recursive(
+            entity,
+            &children_query,
+            &standard_material_query,
+            &extented_material_query,
+            &mut standard_materials,
+            &mut extended_materials,
+        );
     }
 
     if let Ok(entity) = set.p2().single() {
-        clear_player_effect_recursive(entity, &children_query, &material_query, &mut materials);
+        clear_player_effect_recursive(
+            entity,
+            &children_query,
+            &standard_material_query,
+            &extented_material_query,
+            &mut standard_materials,
+            &mut extended_materials,
+        );
     }
 }
 
 fn clear_player_effect_recursive(
     entity: Entity,
     children_query: &Query<&Children>,
-    material_query: &Query<&MeshMaterial3d<StandardMaterial>>,
-    materials: &mut ResMut<Assets<StandardMaterial>>,
+    standard_material_query: &Query<&MeshMaterial3d<StandardMaterial>>,
+    extented_material_query: &Query<&MeshMaterial3d<EyeMouthMaterial>>,
+    standard_materials: &mut ResMut<Assets<StandardMaterial>>,
+    extended_materials: &mut ResMut<Assets<EyeMouthMaterial>>,
 ) {
-    if let Ok(handle) = material_query.get(entity)
-        && let Some(material) = materials.get_mut(handle.id())
+    if let Ok(handle) = standard_material_query.get(entity)
+        && let Some(material) = standard_materials.get_mut(handle.id())
     {
         material.base_color = Color::WHITE;
     }
 
+    if let Ok(handle) = extented_material_query.get(entity)
+        && let Some(material) = extended_materials.get_mut(handle.id())
+    {
+        material.base.base_color = Color::WHITE;
+    }
+
     if let Ok(children) = children_query.get(entity) {
         for child in children.iter() {
-            clear_player_effect_recursive(child, children_query, material_query, materials);
+            clear_player_effect_recursive(
+                child,
+                children_query,
+                standard_material_query,
+                extented_material_query,
+                standard_materials,
+                extended_materials,
+            );
         }
     }
 }

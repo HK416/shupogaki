@@ -70,7 +70,11 @@ fn play_loading_sound(
 
 /// Spawns persistent UI entities, such as the options modal, that will be used across different scenes.
 /// These entities are initially hidden and are tracked via the `LoadingEntities` resource.
-fn spawn_entities(mut commands: Commands, asset_server: Res<AssetServer>) {
+fn spawn_entities(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    system_volume: Res<SystemVolume>,
+) {
     let mut loading_entities = LoadingEntities::default();
 
     // Spawn the root node for the options modal.
@@ -108,11 +112,11 @@ fn spawn_entities(mut commands: Commands, asset_server: Res<AssetServer>) {
                 .with_children(|parent| {
                     // Add UI elements to the modal.
                     add_vertical_space(parent, 10.0);
-                    add_bgm_volume_controller(parent, &asset_server, 100.0, 10.0);
+                    add_bgm_volume_controller(parent, &asset_server, &system_volume, 100.0, 10.0);
                     add_vertical_space(parent, 4.0);
-                    add_sfx_volume_controller(parent, &asset_server, 100.0, 10.0);
+                    add_sfx_volume_controller(parent, &asset_server, &system_volume, 100.0, 10.0);
                     add_vertical_space(parent, 4.0);
-                    add_voice_volume_controller(parent, &asset_server, 100.0, 10.0);
+                    add_voice_volume_controller(parent, &asset_server, &system_volume, 100.0, 10.0);
                     add_vertical_space(parent, 10.0);
                     add_locale_button(parent, &asset_server, 100.0, 16.0);
                     add_vertical_space(parent, 10.0);
@@ -148,9 +152,11 @@ fn add_horizontal_space<'a>(parent: &mut RelatedSpawnerCommands<'a, ChildOf>, w:
 fn add_bgm_volume_controller<'a>(
     parent: &mut RelatedSpawnerCommands<'a, ChildOf>,
     asset_server: &AssetServer,
+    system_volume: &SystemVolume,
     w: f32,
     h: f32,
 ) {
+    let percentage = system_volume.background_percentage() * 100.0;
     parent
         .spawn(Node {
             width: Val::Percent(w),
@@ -210,7 +216,7 @@ fn add_bgm_volume_controller<'a>(
                         .with_children(|parent| {
                             parent
                                 .spawn((Node {
-                                    left: Val::Percent(80.0),
+                                    left: Val::Percent(percentage),
                                     ..Default::default()
                                 },))
                                 .with_children(|parent| {
@@ -243,7 +249,7 @@ fn add_bgm_volume_controller<'a>(
                 .with_children(|parent| {
                     let font = asset_server.load(FONT_PATH_NOTOSANS_BOLD);
                     parent.spawn((
-                        Text::new("80"),
+                        Text::new(format!("{}", percentage as u32)),
                         TextFont::from_font(font),
                         TextLayout::new_with_justify(JustifyText::Center),
                         TextColor::BLACK,
@@ -260,9 +266,11 @@ fn add_bgm_volume_controller<'a>(
 fn add_sfx_volume_controller<'a>(
     parent: &mut RelatedSpawnerCommands<'a, ChildOf>,
     asset_server: &AssetServer,
+    system_volume: &SystemVolume,
     w: f32,
     h: f32,
 ) {
+    let percentage = system_volume.effect_percentage() * 100.0;
     parent
         .spawn(Node {
             width: Val::Percent(w),
@@ -322,7 +330,7 @@ fn add_sfx_volume_controller<'a>(
                         .with_children(|parent| {
                             parent
                                 .spawn((Node {
-                                    left: Val::Percent(80.0),
+                                    left: Val::Percent(percentage),
                                     ..Default::default()
                                 },))
                                 .with_children(|parent| {
@@ -355,7 +363,7 @@ fn add_sfx_volume_controller<'a>(
                 .with_children(|parent| {
                     let font = asset_server.load(FONT_PATH_NOTOSANS_BOLD);
                     parent.spawn((
-                        Text::new("80"),
+                        Text::new(format!("{}", percentage as u32)),
                         TextFont::from_font(font),
                         TextLayout::new_with_justify(JustifyText::Center),
                         ResizableFont::vertical(1280.0, 42.0),
@@ -372,9 +380,11 @@ fn add_sfx_volume_controller<'a>(
 fn add_voice_volume_controller<'a>(
     parent: &mut RelatedSpawnerCommands<'a, ChildOf>,
     asset_server: &AssetServer,
+    system_volume: &SystemVolume,
     w: f32,
     h: f32,
 ) {
+    let percentage = system_volume.voice_percentage() * 100.0;
     parent
         .spawn(Node {
             width: Val::Percent(w),
@@ -434,7 +444,7 @@ fn add_voice_volume_controller<'a>(
                         .with_children(|parent| {
                             parent
                                 .spawn((Node {
-                                    left: Val::Percent(80.0),
+                                    left: Val::Percent(percentage),
                                     ..Default::default()
                                 },))
                                 .with_children(|parent| {
@@ -467,7 +477,7 @@ fn add_voice_volume_controller<'a>(
                 .with_children(|parent| {
                     let font = asset_server.load(FONT_PATH_NOTOSANS_BOLD);
                     parent.spawn((
-                        Text::new("80"),
+                        Text::new(format!("{}", percentage as u32)),
                         TextFont::from_font(font),
                         TextLayout::new_with_justify(JustifyText::Center),
                         TextColor::BLACK,

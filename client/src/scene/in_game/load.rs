@@ -68,7 +68,7 @@ fn load_assets(commands: &mut Commands, asset_server: &AssetServer) {
     let sound: Handle<AudioSource> = asset_server.load(SOUND_PATH_UI_FINISH);
     loading_assets.handles.push(sound.into());
 
-    let sound: Handle<AudioSource> = asset_server.load(SOUND_PATH_SFX_DOOR_BELL_00);
+    let sound: Handle<AudioSource> = asset_server.load(SOUND_PATH_SFX_DOOR_BELL);
     loading_assets.handles.push(sound.into());
 
     let sound: Handle<AudioSource> = asset_server.load(SOUND_PATH_SFX_TRAIN_START);
@@ -86,12 +86,20 @@ fn load_assets(commands: &mut Commands, asset_server: &AssetServer) {
     let sound: Handle<AudioSource> = asset_server.load(SOUND_PATH_SFX_TRAIN_LANDING);
     loading_assets.handles.push(sound.into());
 
+    let sound: Handle<AudioSource> = asset_server.load(SOUND_PATH_SFX_TRAIN_INVINCIBLE);
+    loading_assets.handles.push(sound.into());
+
     for path in SOUND_PATH_VO_STARTS {
         let sound: Handle<AudioSource> = asset_server.load(path);
         loading_assets.handles.push(sound.into());
     }
 
     for path in SOUND_PATH_VO_DAMAGEDS {
+        let sound: Handle<AudioSource> = asset_server.load(path);
+        loading_assets.handles.push(sound.into());
+    }
+
+    for path in SOUND_PATH_VO_INVINCIBLES {
         let sound: Handle<AudioSource> = asset_server.load(path);
         loading_assets.handles.push(sound.into());
     }

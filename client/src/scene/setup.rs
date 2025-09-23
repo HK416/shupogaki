@@ -107,6 +107,22 @@ fn setup_high_score(mut commands: Commands) {
 }
 
 /// Initializes and inserts the default system volume as a resource.
+#[cfg(target_arch = "wasm32")]
+fn setup_system_volume(mut commands: Commands) {
+    if let Some(storage) = get_local_storage()
+        && let Ok(storage_item) = storage.get_item(SYSTEM_VOLUME_KEY)
+        && let Some(volume_str) = storage_item
+        && let Ok(system_volume) = serde_json::from_str::<SystemVolume>(&volume_str)
+    {
+        info!("Loaded system volume: {:?}", &system_volume);
+        commands.insert_resource(system_volume);
+    } else {
+        commands.insert_resource(SystemVolume::default());
+    }
+}
+
+/// Initializes and inserts the default system volume as a resource.
+#[cfg(not(target_arch = "wasm32"))]
 fn setup_system_volume(mut commands: Commands) {
     commands.insert_resource(SystemVolume::default());
 }

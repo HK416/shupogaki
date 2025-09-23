@@ -1,12 +1,14 @@
 #![allow(dead_code)]
 use bevy::{
-    pbr::{ExtendedMaterial, MaterialExtension},
+    pbr::MaterialExtension,
     prelude::*,
     render::render_resource::{AsBindGroup, ShaderRef, ShaderType},
 };
 
+use crate::asset::material::EyeMouthMaterial;
+
 #[derive(Component)]
-pub struct EyeMouth(pub Handle<ExtendedMaterial<StandardMaterial, FacialExpressionExtension>>);
+pub struct EyeMouth(pub Handle<EyeMouthMaterial>);
 
 #[derive(Debug, Default, Clone, Copy, ShaderType)]
 pub struct FacialExpressionUniform {

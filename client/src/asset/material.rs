@@ -13,6 +13,8 @@ use crate::{
 
 use super::*;
 
+pub type EyeMouthMaterial = ExtendedMaterial<StandardMaterial, FacialExpressionExtension>;
+
 /// Represents the blend mode for a material, mapping to Bevy's `AlphaMode`.
 #[derive(Debug, Deserialize, Clone)]
 pub enum BlendMode {
@@ -178,7 +180,7 @@ impl AssetLoader for MaterialAssetLoader {
 pub struct FaceMouthMaterialAssetLoader;
 
 impl AssetLoader for FaceMouthMaterialAssetLoader {
-    type Asset = ExtendedMaterial<StandardMaterial, FacialExpressionExtension>;
+    type Asset = EyeMouthMaterial;
     type Settings = ();
     type Error = MaterialLoaderError;
 

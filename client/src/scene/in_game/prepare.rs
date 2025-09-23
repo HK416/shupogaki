@@ -1,9 +1,9 @@
 // Import necessary Bevy modules.
-use bevy::{audio::Volume, pbr::ExtendedMaterial, prelude::*, render::camera::ScalingMode};
+use bevy::{audio::Volume, prelude::*, render::camera::ScalingMode};
 
 use crate::{
-    asset::{animation::AnimationClipHandle, sound::SystemVolume},
-    shader::face_mouth::{EyeMouth, FacialExpressionExtension},
+    asset::{animation::AnimationClipHandle, material::EyeMouthMaterial, sound::SystemVolume},
+    shader::face_mouth::EyeMouth,
 };
 
 #[cfg(target_arch = "wasm32")]
@@ -174,7 +174,7 @@ fn play_animation(
 }
 
 fn setup_mouth_expression(
-    mut materials: ResMut<Assets<ExtendedMaterial<StandardMaterial, FacialExpressionExtension>>>,
+    mut materials: ResMut<Assets<EyeMouthMaterial>>,
     query: Query<&EyeMouth>,
 ) {
     for mouth in query.iter() {

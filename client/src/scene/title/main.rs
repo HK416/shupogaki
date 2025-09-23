@@ -1,12 +1,12 @@
 // Import necessary Bevy modules.
-use bevy::{audio::Volume, pbr::ExtendedMaterial, prelude::*};
+use bevy::{audio::Volume, prelude::*};
 
 #[cfg(target_arch = "wasm32")]
 use crate::web::{WebAudioPlayer, WebPlaybackSettings};
 
 use crate::{
-    asset::{animation::AnimationClipHandle, sound::SystemVolume},
-    shader::face_mouth::{EyeMouth, FacialExpressionExtension},
+    asset::{animation::AnimationClipHandle, material::EyeMouthMaterial, sound::SystemVolume},
+    shader::face_mouth::EyeMouth,
 };
 
 use super::*;
@@ -144,7 +144,7 @@ fn setup_background_sound(
 }
 
 fn setup_mouth_expression(
-    mut materials: ResMut<Assets<ExtendedMaterial<StandardMaterial, FacialExpressionExtension>>>,
+    mut materials: ResMut<Assets<EyeMouthMaterial>>,
     query: Query<&EyeMouth>,
 ) {
     for mouth in query.iter() {

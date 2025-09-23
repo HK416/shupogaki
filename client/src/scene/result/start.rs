@@ -1,10 +1,10 @@
 // Import necessary Bevy modules.
-use bevy::{audio::Volume, pbr::ExtendedMaterial, prelude::*};
+use bevy::{audio::Volume, prelude::*};
 use rand::seq::IndexedRandom;
 
 use crate::{
-    asset::{animation::AnimationClipHandle, sound::SystemVolume},
-    shader::face_mouth::{EyeMouth, FacialExpressionExtension},
+    asset::{animation::AnimationClipHandle, material::EyeMouthMaterial, sound::SystemVolume},
+    shader::face_mouth::EyeMouth,
 };
 
 #[cfg(target_arch = "wasm32")]
@@ -211,7 +211,7 @@ fn update_scene_timer(
 }
 
 fn set_mouth_expression(
-    mut materials: ResMut<Assets<ExtendedMaterial<StandardMaterial, FacialExpressionExtension>>>,
+    mut materials: ResMut<Assets<EyeMouthMaterial>>,
     query: Query<&EyeMouth>,
     timer: ResMut<SceneTimer>,
 ) {

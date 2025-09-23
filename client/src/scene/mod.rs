@@ -6,7 +6,12 @@ mod result;
 mod setup;
 mod title;
 
-use std::{collections::VecDeque, f32::consts::PI, hash::Hash, ops::RangeInclusive};
+use std::{
+    collections::VecDeque,
+    f32::consts::{PI, TAU},
+    hash::Hash,
+    ops::RangeInclusive,
+};
 
 use bevy::{
     pbr::{NotShadowCaster, NotShadowReceiver},
@@ -71,12 +76,13 @@ const SOUND_PATH_UI_FINISH: &str = "sounds/UI_Finish.sound";
 const SOUND_PATH_UI_BUTTON_BACK: &str = "sounds/UI_Button_Back.sound";
 const SOUND_PATH_UI_BUTTON_TOUCH: &str = "sounds/UI_Button_Touch.sound";
 const SOUND_PATH_UI_LOADING: &str = "sounds/UI_Loading.sound";
-const SOUND_PATH_SFX_DOOR_BELL_00: &str = "sounds/SFX_DoorBell_00.sound";
+const SOUND_PATH_SFX_DOOR_BELL: &str = "sounds/SFX_DoorBell.sound";
 const SOUND_PATH_SFX_TRAIN_START: &str = "sounds/SFX_Train_Start.sound";
 const SOUND_PATH_SFX_TRAIN_LOOP_1: &str = "sounds/SFX_Train_Loop_01.sound";
 const SOUND_PATH_SFX_TRAIN_LOOP_2: &str = "sounds/SFX_Train_Loop_02.sound";
 const SOUND_PATH_SFX_TRAIN_END: &str = "sounds/SFX_Train_End.sound";
 const SOUND_PATH_SFX_TRAIN_LANDING: &str = "sounds/SFX_Train_Landing.sound";
+const SOUND_PATH_SFX_TRAIN_INVINCIBLE: &str = "sounds/SFX_Train_Invincible.sound";
 const SOUND_PATH_VO_START_00: &str = "sounds/VO_Start_00.sound";
 const SOUND_PATH_VO_START_01: &str = "sounds/VO_Start_01.sound";
 const SOUND_PATH_VO_START_02: &str = "sounds/VO_Start_02.sound";
@@ -91,6 +97,10 @@ const SOUND_PATH_VO_HEALING_00: &str = "sounds/VO_Healing_00.sound";
 const SOUND_PATH_VO_HEALING_01: &str = "sounds/VO_Healing_01.sound";
 const SOUND_PATH_VO_HEALING_02: &str = "sounds/VO_Healing_02.sound";
 const SOUND_PATH_VO_HEALING_03: &str = "sounds/VO_Healing_03.sound";
+const SOUND_PATH_VO_INVINCIBLE_00: &str = "sounds/VO_Invincible_00.sound";
+const SOUND_PATH_VO_INVINCIBLE_01: &str = "sounds/VO_Invincible_01.sound";
+const SOUND_PATH_VO_INVINCIBLE_02: &str = "sounds/VO_Invincible_02.sound";
+const SOUND_PATH_VO_INVINCIBLE_03: &str = "sounds/VO_Invincible_03.sound";
 const SOUND_PATH_VO_RESULT_00: &str = "sounds/VO_Result_00.sound";
 const SOUND_PATH_VO_RESULT_01: &str = "sounds/VO_Result_01.sound";
 const SOUND_PATH_VO_RESULT_02: &str = "sounds/VO_Result_02.sound";
@@ -159,6 +169,14 @@ const SOUND_PATH_VO_HEALINGS: [&str; NUM_SOUND_VO_HEALINGS] = [
     SOUND_PATH_VO_HEALING_03,
 ];
 
+const NUM_SOUND_VO_INVINCIBLES: usize = 4;
+const SOUND_PATH_VO_INVINCIBLES: [&str; NUM_SOUND_VO_INVINCIBLES] = [
+    SOUND_PATH_VO_INVINCIBLE_00,
+    SOUND_PATH_VO_INVINCIBLE_01,
+    SOUND_PATH_VO_INVINCIBLE_02,
+    SOUND_PATH_VO_INVINCIBLE_03,
+];
+
 const NUM_SOUND_VO_RESULTS: usize = 4;
 const SOUND_PATH_VO_RESULTS: [&str; NUM_SOUND_VO_RESULTS] = [
     SOUND_PATH_VO_RESULT_00,
@@ -180,6 +198,9 @@ const SOUND_PATH_VO_AOBA_HITS: [&str; NUM_SOUND_VO_AOBA_HIT] =
 #[cfg(target_arch = "wasm32")]
 const HIGH_SCORE_KEY: &str = "high_score";
 
+#[cfg(target_arch = "wasm32")]
+const SYSTEM_VOLUME_KEY: &str = "system_volume";
+
 const NUM_LANES: usize = 3;
 const MAX_LANE_INDEX: usize = NUM_LANES - 1;
 const LANE_LOCATIONS: [f32; NUM_LANES] = [-3.0, 0.25, 3.5];
@@ -191,6 +212,7 @@ const GRAVITY: f32 = -30.0;
 const FUEL_USAGE: f32 = 100.0 / 20.0;
 
 const ATTACKED_DURATION: f32 = 3.0;
+const INVINCIBLE_DURATION: f32 = 8.0;
 const PREPARE_ANIM_DURATION: f32 = 1.0;
 const FINISH_ANIM_DURATION: f32 = 1.0;
 
@@ -272,8 +294,7 @@ lazy_static! {
         map
     };
     static ref SPAWN_WEIGHTS: WeightedIndex<u32> = {
-        // const WEIGHTS: [u32; NUM_OBJECTS] = [40, 30, 20, 9, 1];
-        const WEIGHTS: [u32; NUM_OBJECTS] = [1, 1, 1, 1, 100];
+        const WEIGHTS: [u32; NUM_OBJECTS] = [400, 300, 200, 95, 5];
         WeightedIndex::new(WEIGHTS).unwrap()
     };
 }
@@ -328,6 +349,7 @@ const AOBA_LOCATIONS: [f32; NUM_AOBA_LOCATIONS] =
 
 const MIN_SPEED: f32 = 20.0;
 const MAX_SPEED: f32 = 30.0;
+const INVINCIBLE_SPEED: f32 = 2.0 * MAX_SPEED;
 const ACCELERATION: f32 = (MAX_SPEED - MIN_SPEED) / 30.0;
 
 const SCORE_LIMITS: u32 = 999_999;
@@ -337,6 +359,8 @@ const POINT_PER_DIST: f32 = 1.0;
 
 const FUEL_DECO_CYCLE: f32 = PI * 1.0;
 const ATTACKED_EFFECT_CYCLE: f32 = PI * 8.0;
+const MIN_INVINCIBLE_EFFECT_CYCLE: f32 = PI * 4.0;
+const MAX_INVINCIBLE_EFFECT_CYCLE: f32 = PI * 8.0;
 const PAUSE_TITLE_CYCLE: f32 = 1.5;
 
 const LANGUAGE_BTN_COLOR: Color = Color::srgb(0.8, 0.8, 0.8);
@@ -763,7 +787,7 @@ impl ForwardMovement {
     }
 
     pub fn percentage(&self) -> f32 {
-        (self.velocity - MIN_SPEED) / (MAX_SPEED - MIN_SPEED)
+        ((self.velocity - MIN_SPEED) / (MAX_SPEED - MIN_SPEED)).clamp(0.0, 1.0)
     }
 }
 
@@ -891,6 +915,9 @@ pub enum CurrentState {
     Attacked {
         remaining: f32,
     },
+    Invincible {
+        remaining: f32,
+    },
 }
 
 impl CurrentState {
@@ -906,6 +933,7 @@ impl CurrentState {
         match self {
             #[cfg(not(feature = "no-debuging-player"))]
             CurrentState::Debug => true,
+            CurrentState::Invincible { .. } => true,
             _ => false,
         }
     }
@@ -1089,18 +1117,28 @@ impl ObjectSpawner {
                         None => {
                             commands
                                 .spawn((
-                                    SpawnModel(model.clone()),
-                                    AnimationClipHandle(asset_server.load(ANIM_PATH_AOBA)),
-                                    Transform::from_xyz(lane_x, 0.0, SPAWN_LOCATION + delta)
-                                        .looking_to(*in_game::IN_GAME_AOBA_DIR, Vec3::Y),
+                                    Transform::from_xyz(lane_x, 0.0, SPAWN_LOCATION + delta),
                                     InGameStateRoot,
                                     self.next_obj,
                                     collider,
                                 ))
                                 .with_children(|parent| {
                                     parent.spawn((
+                                        SpawnModel(model.clone()),
+                                        AnimationClipHandle(asset_server.load(ANIM_PATH_AOBA)),
+                                        Transform::IDENTITY
+                                            .looking_to(*in_game::IN_GAME_AOBA_DIR, Vec3::Y),
+                                        InGameStateEntity,
+                                    ));
+
+                                    let direction = in_game::IN_GAME_CAMERA_POS.normalize();
+                                    let translation =
+                                        direction * 0.75 + Vec3::Y * 10.0 - Vec3::Z * 1.5;
+                                    parent.spawn((
                                         SpawnModel(asset_server.load(MODEL_PATH_GLOW)),
-                                        Transform::IDENTITY,
+                                        Transform::from_translation(translation)
+                                            .with_scale((3.0, 20.0, 3.0).into())
+                                            .looking_to(-direction, Vec3::Y),
                                         GlowRoot,
                                     ));
                                 });
