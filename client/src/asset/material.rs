@@ -2,6 +2,7 @@ use bevy::{
     asset::{AssetLoader, LoadContext, io::Reader},
     pbr::ExtendedMaterial,
     prelude::*,
+    render::render_resource::Face,
     tasks::ConditionalSendFuture,
 };
 use serde::Deserialize;
@@ -14,6 +15,21 @@ use crate::{
 use super::*;
 
 pub type EyeMouthMaterial = ExtendedMaterial<StandardMaterial, FacialExpressionExtension>;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Deserialize)]
+pub enum CullMode {
+    Front,
+    Back,
+}
+
+impl From<CullMode> for Face {
+    fn from(value: CullMode) -> Self {
+        match value {
+            CullMode::Front => Face::Front,
+            CullMode::Back => Face::Back,
+        }
+    }
+}
 
 /// Represents the blend mode for a material, mapping to Bevy's `AlphaMode`.
 #[derive(Debug, Deserialize, Clone)]
@@ -72,6 +88,8 @@ pub struct SerializableMaterial {
     pub unlit: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub double_sided: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cull_mode: Option<CullMode>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub blend_mode: Option<BlendMode>,
 
@@ -162,6 +180,10 @@ impl AssetLoader for MaterialAssetLoader {
                 emissive_texture: emissive_color_texture,
                 unlit: serializable.unlit.unwrap_or(false),
                 double_sided: serializable.double_sided.unwrap_or(false),
+                cull_mode: serializable
+                    .cull_mode
+                    .map(|m| Some(m.into()))
+                    .unwrap_or(Some(Face::Back)),
                 alpha_mode: serializable
                     .blend_mode
                     .map(|m| m.into())
@@ -249,6 +271,10 @@ impl AssetLoader for FaceMouthMaterialAssetLoader {
                     emissive_texture: emissive_color_texture,
                     unlit: serializable.unlit.unwrap_or(false),
                     double_sided: serializable.double_sided.unwrap_or(false),
+                    cull_mode: serializable
+                        .cull_mode
+                        .map(|m| Some(m.into()))
+                        .unwrap_or(Some(Face::Back)),
                     alpha_mode: serializable
                         .blend_mode
                         .map(|m| m.into())

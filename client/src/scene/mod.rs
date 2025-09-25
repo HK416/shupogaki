@@ -420,6 +420,9 @@ pub enum GameState {
 // --- COMPONENTS ---
 
 #[derive(Component)]
+pub struct BaseColor(pub Color);
+
+#[derive(Component)]
 pub struct BackgroundSound;
 
 #[derive(Component)]

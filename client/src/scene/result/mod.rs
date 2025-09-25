@@ -10,8 +10,8 @@ use bevy::prelude::*;
 use super::*;
 
 // --- CONSTANTS ---
-pub const HIKARI_POSITION: Vec3 = vec3(-5.0, 0.0, -0.383545);
-pub const NOZOMI_POSITION: Vec3 = vec3(-5.0, 0.0, 0.383545);
+pub const HIKARI_POSITION: Vec3 = vec3(-5.0, 0.0, 0.383545);
+pub const NOZOMI_POSITION: Vec3 = vec3(-5.0, 0.0, -0.383545);
 pub const STUDENT_DIRECTION: Vec3 = vec3(1.0, 0.0, 0.0);
 pub const CAMERA_POSITION: Vec3 = vec3(-2.0, 1.0, 0.0);
 pub const CAMERA_DIRECTION: Vec3 = vec3(-0.995037, -0.0995037, 0.0);

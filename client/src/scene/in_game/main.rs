@@ -1100,13 +1100,14 @@ fn update_fuel_gauge(
 }
 
 #[allow(clippy::type_complexity)]
-pub fn update_player_effect(
+fn update_player_effect(
     mut set: ParamSet<(
         Query<Entity, With<ToyTrain0>>,
         Query<Entity, With<ToyTrain1>>,
         Query<Entity, With<ToyTrain2>>,
     )>,
     children_query: Query<&Children>,
+    base_color_query: Query<&BaseColor>,
     standard_material_query: Query<&MeshMaterial3d<StandardMaterial>>,
     extented_material_query: Query<&MeshMaterial3d<EyeMouthMaterial>>,
     mut standard_materials: ResMut<Assets<StandardMaterial>>,
@@ -1117,6 +1118,7 @@ pub fn update_player_effect(
         update_player_effect_recursive(
             entity,
             &children_query,
+            &base_color_query,
             &standard_material_query,
             &extented_material_query,
             &mut standard_materials,
@@ -1129,6 +1131,7 @@ pub fn update_player_effect(
         update_player_effect_recursive(
             entity,
             &children_query,
+            &base_color_query,
             &standard_material_query,
             &extented_material_query,
             &mut standard_materials,
@@ -1141,6 +1144,7 @@ pub fn update_player_effect(
         update_player_effect_recursive(
             entity,
             &children_query,
+            &base_color_query,
             &standard_material_query,
             &extented_material_query,
             &mut standard_materials,
@@ -1153,6 +1157,7 @@ pub fn update_player_effect(
 fn update_player_effect_recursive(
     entity: Entity,
     children_query: &Query<&Children>,
+    base_color_query: &Query<&BaseColor>,
     standard_material_query: &Query<&MeshMaterial3d<StandardMaterial>>,
     extented_material_query: &Query<&MeshMaterial3d<EyeMouthMaterial>>,
     standard_materials: &mut ResMut<Assets<StandardMaterial>>,
@@ -1168,7 +1173,10 @@ fn update_player_effect_recursive(
                 material.base_color = Color::BLACK;
             }
             CurrentState::Idle => {
-                material.base_color = Color::WHITE;
+                material.base_color = base_color_query
+                    .get(entity)
+                    .map(|c| c.0)
+                    .unwrap_or(Color::WHITE);
             }
             CurrentState::Attacked { remaining } => {
                 let t = *remaining * ATTACKED_EFFECT_CYCLE;
@@ -1196,7 +1204,10 @@ fn update_player_effect_recursive(
                 material.base.base_color = Color::BLACK;
             }
             CurrentState::Idle => {
-                material.base.base_color = Color::WHITE;
+                material.base.base_color = base_color_query
+                    .get(entity)
+                    .map(|c| c.0)
+                    .unwrap_or(Color::WHITE);
             }
             CurrentState::Attacked { remaining } => {
                 let t = *remaining * ATTACKED_EFFECT_CYCLE;
@@ -1222,6 +1233,7 @@ fn update_player_effect_recursive(
             update_player_effect_recursive(
                 child,
                 children_query,
+                base_color_query,
                 standard_material_query,
                 extented_material_query,
                 standard_materials,

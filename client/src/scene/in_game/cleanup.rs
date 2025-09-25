@@ -50,13 +50,14 @@ fn remove_voice_sounds(mut commands: Commands, query: Query<Entity, With<VoiceSo
 }
 
 #[allow(clippy::type_complexity)]
-pub fn clear_player_effect(
+fn clear_player_effect(
     mut set: ParamSet<(
         Query<Entity, With<ToyTrain0>>,
         Query<Entity, With<ToyTrain1>>,
         Query<Entity, With<ToyTrain2>>,
     )>,
     children_query: Query<&Children>,
+    base_color_query: Query<&BaseColor>,
     standard_material_query: Query<&MeshMaterial3d<StandardMaterial>>,
     extented_material_query: Query<&MeshMaterial3d<EyeMouthMaterial>>,
     mut standard_materials: ResMut<Assets<StandardMaterial>>,
@@ -66,6 +67,7 @@ pub fn clear_player_effect(
         clear_player_effect_recursive(
             entity,
             &children_query,
+            &base_color_query,
             &standard_material_query,
             &extented_material_query,
             &mut standard_materials,
@@ -77,6 +79,7 @@ pub fn clear_player_effect(
         clear_player_effect_recursive(
             entity,
             &children_query,
+            &base_color_query,
             &standard_material_query,
             &extented_material_query,
             &mut standard_materials,
@@ -88,6 +91,7 @@ pub fn clear_player_effect(
         clear_player_effect_recursive(
             entity,
             &children_query,
+            &base_color_query,
             &standard_material_query,
             &extented_material_query,
             &mut standard_materials,
@@ -99,6 +103,7 @@ pub fn clear_player_effect(
 fn clear_player_effect_recursive(
     entity: Entity,
     children_query: &Query<&Children>,
+    base_color_query: &Query<&BaseColor>,
     standard_material_query: &Query<&MeshMaterial3d<StandardMaterial>>,
     extented_material_query: &Query<&MeshMaterial3d<EyeMouthMaterial>>,
     standard_materials: &mut ResMut<Assets<StandardMaterial>>,
@@ -107,13 +112,19 @@ fn clear_player_effect_recursive(
     if let Ok(handle) = standard_material_query.get(entity)
         && let Some(material) = standard_materials.get_mut(handle.id())
     {
-        material.base_color = Color::WHITE;
+        material.base_color = base_color_query
+            .get(entity)
+            .map(|c| c.0)
+            .unwrap_or(Color::WHITE);
     }
 
     if let Ok(handle) = extented_material_query.get(entity)
         && let Some(material) = extended_materials.get_mut(handle.id())
     {
-        material.base.base_color = Color::WHITE;
+        material.base.base_color = base_color_query
+            .get(entity)
+            .map(|c| c.0)
+            .unwrap_or(Color::WHITE);
     }
 
     if let Ok(children) = children_query.get(entity) {
@@ -121,6 +132,7 @@ fn clear_player_effect_recursive(
             clear_player_effect_recursive(
                 child,
                 children_query,
+                base_color_query,
                 standard_material_query,
                 extented_material_query,
                 standard_materials,

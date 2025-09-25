@@ -17,6 +17,7 @@ use crate::{
         texture::TexelAssetLoader,
         texture_atlas::TextureAtlasAssetLoader,
     },
+    scene::BaseColor,
     shader::face_mouth::EyeMouth,
 };
 
@@ -273,6 +274,10 @@ fn add_render_components_recursive(
                         EyeMouth(handle.clone()),
                     )),
                 };
+
+                if material_uri.contains("_Eye") || material_uri.contains("_Face") {
+                    render_entity_commands.insert(BaseColor(Color::srgb(1.4, 1.4, 1.4)));
+                }
 
                 if let Some(skinned_mesh_component) = skinned_mesh_component.as_ref() {
                     render_entity_commands.insert(skinned_mesh_component.clone());
