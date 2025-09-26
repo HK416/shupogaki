@@ -66,6 +66,7 @@
                 "CH0288_Hair.material",
                 "CH0288_Halo.material",
                 "CH0288_Prop.material",
+                "DangerZone.material",
                 "DoorBell_Body.material",
                 "DoorBell_Button.material",
                 "Fence_0.material",
@@ -77,6 +78,7 @@
                 "Signlight_1.material",
                 "Stone_0.material",
                 "Stone_1.material",
+                "Tok9Train.material",
                 "ToyTrain.material"
             ]
         },
@@ -105,13 +107,21 @@
                 "Stone_2.mesh",
                 "ToyTrain00.mesh",
                 "ToyTrain01.mesh",
-                "ToyTrain02.mesh"
+                "ToyTrain02.mesh",
+                "Train_0.mesh",
+                "Train_1.mesh",
+                "Train_2.mesh",
+                "Train_3.mesh",
+                "Train_4.mesh",
+                "Train_5.mesh",
+                "Train_6.mesh"
             ]
         },
         "models": {
             "target_files": [
                 "Aoba.hierarchy",
                 "Barricade.hierarchy",
+                "DangerZone.hierarchy",
                 "DoorBell.hierarchy",
                 "Fuel.hierarchy",
                 "Glow.hierarchy",
@@ -120,6 +130,8 @@
                 "Plane_0.hierarchy",
                 "Plane_999.hierarchy",
                 "Stone.hierarchy",
+                "Tok9Train00.hierarchy",
+                "Tok9Train01.hierarchy",
                 "ToyTrain00.hierarchy",
                 "ToyTrain01.hierarchy",
                 "ToyTrain02.hierarchy"
@@ -141,6 +153,9 @@
                 "SFX_Train_Loop_02.sound",
                 "SFX_Train_Start.sound",
                 "SFX_Train_Invincible.sound",
+                "SFX_Train.sound",
+                "SFX_TrainAlarm.sound",
+                "SFX_TrainSteamWhistle.sound",
                 "Theme_253_Game.sound",
                 "UI_Button_Back.sound",
                 "UI_Button_Touch.sound",

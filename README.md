@@ -1,6 +1,15 @@
 # shupogaki
 
-A fan-made endless runner game based on Blue Archive.
+A fan-made endless runner game based on Blue Archive.  
+
+The rights of the original copyright holder, Nexon Games, are respected with the highest priority, and this content will be made private or deleted upon request.
+
+The assets and their corresponding encryption keys necessary for the game build are not provided.  
+
+---
+
+Click the link below to play the game!
+https://hk416.github.io/shupogaki/
 
 # Code License
 

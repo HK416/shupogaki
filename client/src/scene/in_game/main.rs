@@ -43,6 +43,15 @@ impl Plugin for StatePlugin {
             .add_systems(
                 Update,
                 (
+                    update_tok9_train_delay_time,
+                    update_danger_zone_bg_delay_time,
+                    update_danger_zone_delay_time,
+                )
+                    .run_if(in_state(GameState::InGame)),
+            )
+            .add_systems(
+                Update,
+                (
                     update_play_time,
                     update_input_delay,
                     update_player_state,
@@ -51,6 +60,7 @@ impl Plugin for StatePlugin {
                     update_player_position,
                     update_ground_position,
                     update_object_position,
+                    update_tok9_train_position.after(update_tok9_train_delay_time),
                     play_aoba_animation.after(update_object_position),
                     setup_no_shadow_casting,
                     rotate_animation,
@@ -69,7 +79,9 @@ impl Plugin for StatePlugin {
                     update_toy_trains,
                     spawn_grounds,
                     spawn_objects,
+                    spawn_tok9_trains,
                     check_for_collisions,
+                    check_tok9_train_collisions.after(check_for_collisions),
                     update_score_ui,
                     update_fuel_deco,
                     update_fuel_gauge,
@@ -208,6 +220,97 @@ fn update_input_delay(mut delay: ResMut<InputDelay>, time: Res<Time>) {
     delay.on_advanced(time.delta_secs());
 }
 
+fn update_tok9_train_delay_time(
+    mut commands: Commands,
+    mut train_entities: Query<(Entity, &mut DelayTime), With<Tok9Train>>,
+    asset_server: Res<AssetServer>,
+    system_volume: Res<SystemVolume>,
+    time: Res<Time>,
+) {
+    for (entity, mut delay_time) in train_entities.iter_mut() {
+        delay_time.on_advanced(time.delta_secs());
+        if delay_time.is_expired() {
+            commands.entity(entity).remove::<DelayTime>();
+            play_tok9_train_sound(&mut commands, &asset_server, &system_volume);
+        }
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn play_tok9_train_sound(
+    commands: &mut Commands,
+    asset_server: &AssetServer,
+    system_volume: &SystemVolume,
+) {
+    commands.spawn((
+        AudioPlayer::new(asset_server.load(SOUND_PATH_SFX_TRAIN)),
+        PlaybackSettings::DESPAWN.with_volume(Volume::Linear(system_volume.effect_percentage())),
+        InGameStateRoot,
+        EffectSound,
+    ));
+
+    commands.spawn((
+        AudioPlayer::new(asset_server.load(SOUND_PATH_SFX_TRAIN_STEAM_WHISTLE)),
+        PlaybackSettings::DESPAWN.with_volume(Volume::Linear(system_volume.effect_percentage())),
+        InGameStateRoot,
+        EffectSound,
+    ));
+}
+
+#[cfg(target_arch = "wasm32")]
+fn play_tok9_train_sound(
+    commands: &mut Commands,
+    asset_server: &AssetServer,
+    system_volume: &SystemVolume,
+) {
+    commands.spawn((
+        WebAudioPlayer::new(asset_server.load(SOUND_PATH_SFX_TRAIN)),
+        WebPlaybackSettings::DESPAWN.with_volume(Volume::Linear(system_volume.effect_percentage())),
+        InGameStateRoot,
+        EffectSound,
+    ));
+
+    commands.spawn((
+        WebAudioPlayer::new(asset_server.load(SOUND_PATH_SFX_TRAIN_STEAM_WHISTLE)),
+        WebPlaybackSettings::DESPAWN.with_volume(Volume::Linear(system_volume.effect_percentage())),
+        InGameStateRoot,
+        EffectSound,
+    ));
+}
+
+fn update_danger_zone_bg_delay_time(
+    mut commands: Commands,
+    mut spawner: ResMut<Tok9TrainSpawner>,
+    mut zone_bg_entities: Query<(Entity, &mut DelayTime), With<DangerZoneBackground>>,
+    time: Res<Time>,
+) {
+    for (entity, mut delay_time) in zone_bg_entities.iter_mut() {
+        delay_time.on_advanced(time.delta_secs());
+        if delay_time.is_expired() {
+            spawner.drain_danger_zone(&mut commands, entity);
+        }
+    }
+}
+
+fn update_danger_zone_delay_time(
+    mut commands: Commands,
+    mut spawner: ResMut<Tok9TrainSpawner>,
+    mut zone_entities: Query<(Entity, &mut Transform, &mut DelayTime), With<DangerZone>>,
+    time: Res<Time>,
+) {
+    for (entity, mut transform, mut delay_time) in zone_entities.iter_mut() {
+        delay_time.on_advanced(time.delta_secs());
+        if delay_time.is_expired() {
+            spawner.drain_danger_zone(&mut commands, entity);
+        } else {
+            let remaining_sec = delay_time.get();
+            let t = (WARNING_DURATION - remaining_sec) / WARNING_DURATION;
+            let t = t.clamp(0.0, 1.0);
+            transform.scale.z = 3.0 * t;
+        }
+    }
+}
+
 fn update_player_state(mut state: ResMut<CurrentState>, time: Res<Time>) {
     match &mut *state {
         CurrentState::Attacked { remaining } => {
@@ -313,6 +416,32 @@ fn update_object_position(
 
         if transform.translation.z <= DESPAWN_POSITION {
             object_spawner.drain(&mut commands, entity, obj);
+        }
+    }
+}
+
+#[allow(clippy::type_complexity)]
+fn update_tok9_train_position(
+    mut commands: Commands,
+    mut train_spawner: ResMut<Tok9TrainSpawner>,
+    mut train_entities: Query<
+        (Entity, &mut Transform, &ForwardMovement, &Tok9Train),
+        Without<DelayTime>,
+    >,
+    player_query: Query<&ForwardMovement, With<Player>>,
+    time: Res<Time>,
+) {
+    let player_velocity = player_query
+        .single()
+        .map(|forward_move| forward_move.get())
+        .unwrap_or(0.0);
+
+    for (entity, mut transform, forward_move, &train) in train_entities.iter_mut() {
+        transform.translation.z -= player_velocity * time.delta_secs();
+        transform.translation.z -= forward_move.get() * time.delta_secs();
+
+        if transform.translation.z <= DESPAWN_POSITION {
+            train_spawner.drain(&mut commands, entity, train);
         }
     }
 }
@@ -639,14 +768,12 @@ fn play_aoba_animation(
 fn setup_no_shadow_casting(
     mut commands: Commands,
     children_query: Query<&Children>,
-    query: Query<(Entity, &Children), (With<GlowRoot>, Added<Children>)>,
+    query: Query<&Children, (With<BillBoard>, Added<Children>)>,
 ) {
-    for (entity, children) in query.iter() {
+    for children in query.iter() {
         for child in children.iter() {
             apply_to_descendants(&mut commands, child, &children_query);
         }
-
-        commands.entity(entity).remove::<GlowRoot>();
     }
 }
 
@@ -765,6 +892,21 @@ fn spawn_objects(
     );
 }
 
+fn spawn_tok9_trains(
+    mut commands: Commands,
+    mut spawner: ResMut<Tok9TrainSpawner>,
+    system_volume: Res<SystemVolume>,
+    asset_server: Res<AssetServer>,
+    time: Res<Time>,
+) {
+    spawner.on_advanced(
+        &mut commands,
+        &asset_server,
+        &system_volume,
+        time.delta_secs(),
+    );
+}
+
 #[allow(clippy::too_many_arguments)]
 fn check_for_collisions(
     mut commands: Commands,
@@ -774,15 +916,16 @@ fn check_for_collisions(
     mut state: ResMut<CurrentState>,
     mut score: ResMut<CurrentScore>,
     mut attacked: ResMut<Attacked>,
+    mut spawner: ResMut<ObjectSpawner>,
     mut player_query: Query<(&Collider, &Transform, &mut ForwardMovement), With<Player>>,
     object_query: Query<(Entity, &Object, &Collider, &Transform)>,
 ) {
-    for (entity, object, o_collider, o_trans) in object_query.iter() {
+    for (entity, &obj, o_collider, o_trans) in object_query.iter() {
         if let Ok((p_collider, p_trans, mut forward_move)) = player_query.single_mut()
             && p_collider.intersects(p_trans, o_collider, o_trans)
         {
             info!("Collision detected!");
-            match (*state, *object) {
+            match (*state, obj) {
                 (CurrentState::Idle, Object::Barricade) => {
                     play_damaged_sound(&mut commands, &asset_server, &system_volume);
                     fuel.dec(BARRICADE_DAMAGE);
@@ -804,51 +947,51 @@ fn check_for_collisions(
                 (CurrentState::Idle, Object::Fuel) => {
                     play_healing_sound(&mut commands, &asset_server, &system_volume);
                     fuel.inc(FUEL_HEALING);
-                    commands.entity(entity).despawn();
+                    spawner.drain(&mut commands, entity, obj);
                 }
                 (CurrentState::Idle, Object::Bell) => {
                     play_door_bell_sound(&mut commands, &asset_server, &system_volume);
                     score.inc(BELL_POINT);
-                    commands.entity(entity).despawn();
+                    spawner.drain(&mut commands, entity, obj);
                 }
                 (CurrentState::Idle, Object::Aoba) => {
                     play_invincible_sound(&mut commands, &asset_server, &system_volume);
                     forward_move.set(INVINCIBLE_SPEED);
-                    commands.entity(entity).despawn();
+                    spawner.drain(&mut commands, entity, obj);
                     *state = CurrentState::Invincible {
                         remaining: INVINCIBLE_DURATION,
                     };
                 }
                 (CurrentState::Attacked { .. }, Object::Fuel) => {
                     fuel.inc(FUEL_HEALING);
-                    commands.entity(entity).despawn();
+                    spawner.drain(&mut commands, entity, obj);
                 }
                 (CurrentState::Attacked { .. }, Object::Bell) => {
                     play_door_bell_sound(&mut commands, &asset_server, &system_volume);
                     score.inc(BELL_POINT);
-                    commands.entity(entity).despawn();
+                    spawner.drain(&mut commands, entity, obj);
                 }
                 (CurrentState::Attacked { .. }, Object::Aoba) => {
                     play_invincible_sound(&mut commands, &asset_server, &system_volume);
                     forward_move.set(INVINCIBLE_SPEED);
-                    commands.entity(entity).despawn();
+                    spawner.drain(&mut commands, entity, obj);
                     *state = CurrentState::Invincible {
                         remaining: INVINCIBLE_DURATION,
                     };
                 }
                 (CurrentState::Invincible { .. }, Object::Fuel) => {
                     fuel.inc(FUEL_HEALING);
-                    commands.entity(entity).despawn();
+                    spawner.drain(&mut commands, entity, obj);
                 }
                 (CurrentState::Invincible { .. }, Object::Bell) => {
                     play_door_bell_sound(&mut commands, &asset_server, &system_volume);
                     score.inc(BELL_POINT);
-                    commands.entity(entity).despawn();
+                    spawner.drain(&mut commands, entity, obj);
                 }
                 (CurrentState::Invincible { .. }, Object::Aoba) => {
                     play_invincible_sound(&mut commands, &asset_server, &system_volume);
                     forward_move.set(INVINCIBLE_SPEED);
-                    commands.entity(entity).despawn();
+                    spawner.drain(&mut commands, entity, obj);
                     *state = CurrentState::Invincible {
                         remaining: INVINCIBLE_DURATION,
                     };
@@ -856,6 +999,38 @@ fn check_for_collisions(
                 _ => { /* empty */ }
             }
             break;
+        }
+    }
+}
+
+#[allow(clippy::type_complexity)]
+#[allow(clippy::too_many_arguments)]
+fn check_tok9_train_collisions(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    system_volume: Res<SystemVolume>,
+    mut fuel: ResMut<TrainFuel>,
+    mut state: ResMut<CurrentState>,
+    mut attacked: ResMut<Attacked>,
+    mut player_query: Query<(&Collider, &Transform, &mut ForwardMovement), With<Player>>,
+    train_entities: Query<(&Collider, &Transform), (With<Tok9Train>, Without<DelayTime>)>,
+) {
+    for (o_collider, o_trans) in train_entities.iter() {
+        if let Ok((p_collider, p_trans, mut forward_move)) = player_query.single_mut()
+            && p_collider.intersects(p_trans, o_collider, o_trans)
+        {
+            match *state {
+                CurrentState::Idle => {
+                    play_damaged_sound(&mut commands, &asset_server, &system_volume);
+                    fuel.dec(TOK9_TRAIN_DAMAGE);
+                    forward_move.set(MIN_PLAYER_SPEED);
+                    attacked.add();
+                    *state = CurrentState::Attacked {
+                        remaining: ATTACKED_DURATION,
+                    };
+                }
+                _ => { /* empty */ }
+            }
         }
     }
 }

@@ -33,7 +33,7 @@ pub const INPUT_DELAY_TIME: f32 = 0.25;
 pub const POINT_PER_DIST: f32 = 1.0;
 
 pub const MIN_PLAYER_SPEED: f32 = 20.0;
-pub const MAX_PLAYER_SPEED: f32 = 30.0;
+pub const MAX_PLAYER_SPEED: f32 = 27.5;
 pub const LANE_SWITCH_SPEED: f32 = 5.0;
 pub const INVINCIBLE_SPEED: f32 = 2.0 * MAX_PLAYER_SPEED;
 pub const ACCELERATION: f32 = (MAX_PLAYER_SPEED - MIN_PLAYER_SPEED) / 30.0;
@@ -45,6 +45,7 @@ pub const ATTACKED_DURATION: f32 = 3.0;
 pub const INVINCIBLE_DURATION: f32 = 8.0;
 pub const PREPARE_ANIM_DURATION: f32 = 1.0;
 pub const FINISH_ANIM_DURATION: f32 = 1.0;
+pub const WARNING_DURATION: f32 = 3.0;
 
 pub const DESPAWN_POSITION: f32 = -100.0;
 pub const SPAWN_POSITION: f32 = 100.0;
@@ -61,12 +62,20 @@ pub const OBJECT_LIST: [Object; NUM_OBJECTS] = [
     Object::Aoba,
 ];
 
+pub const NUM_TOK9_TRAINS: usize = 2;
+pub const TOK9_TRAIN_CYCLE: f32 = 20.0;
+pub const TOK9_TRAIN_INIT_CYCLE: f32 = 30.0;
+pub const TOK9_TRAIN_OFFSET: RangeInclusive<f32> = -15.0..=10.0;
+pub const TOK9_TRAIN_SPEED: f32 = (SPAWN_POSITION - DESPAWN_POSITION) / 1.25;
+
 pub const NUM_BARRICADE_POSITIONS: usize = 7;
 pub const NUM_STONE_POSITIONS: usize = 7;
 pub const NUM_FUEL_POSITIONS: usize = 3;
 pub const NUM_BELL_POSITIONS: usize = 3;
 pub const NUM_AOBA_POSITIONS: usize = 3;
+pub const NUM_TOK9_TRAIN_POSITIONS: usize = 6;
 
+pub const TOK9_TRAIN_DAMAGE: f32 = 50.0;
 pub const BARRICADE_DAMAGE: f32 = 20.0;
 pub const STONE_DAMAGE: f32 = 30.0;
 pub const FUEL_HEALING: f32 = 30.0;
@@ -134,6 +143,43 @@ lazy_static! {
 }
 
 lazy_static! {
+    pub static ref TOK9_TRAIN_MODELS: HashMap<Tok9Train, &'static str> = {
+        let map: HashMap<_, _> = [
+            (Tok9Train::Blue, MODEL_PATH_TOK9_TRAIN_00),
+            (Tok9Train::Orange, MODEL_PATH_TOK9_TRAIN_01),
+        ]
+        .into_iter()
+        .collect();
+
+        assert!(map.len() == NUM_TOK9_TRAINS);
+        map
+    };
+    pub static ref TOK9_TRAIN_COLLIDER: HashMap<Tok9Train, Collider> = {
+        let map: HashMap<_, _> = [
+            (
+                Tok9Train::Blue,
+                Collider::Aabb {
+                    offset: Vec3::new(0.0, 1.5, 16.725),
+                    size: Vec3::new(2.0, 3.0, 44.0),
+                },
+            ),
+            (
+                Tok9Train::Orange,
+                Collider::Aabb {
+                    offset: Vec3::new(0.0, 1.5, 20.5),
+                    size: Vec3::new(2.0, 3.0, 49.0),
+                },
+            ),
+        ]
+        .into_iter()
+        .collect();
+
+        assert!(map.len() == NUM_TOK9_TRAINS);
+        map
+    };
+}
+
+lazy_static! {
     pub static ref SOUND_DAMAGED_WEIGHTS: WeightedIndex<u32> = {
         const WEIGHTS: [u32; NUM_SOUND_VO_DAMAGED] = [5, 5, 5, 5, 1, 1];
         WeightedIndex::new(WEIGHTS).unwrap()
@@ -150,6 +196,10 @@ lazy_static! {
         const WEIGHTS: [u32; NUM_STONE_POSITIONS] = [3, 3, 2, 3, 2, 2, 1];
         WeightedIndex::new(WEIGHTS).unwrap()
     };
+    pub static ref TOK9_TRAIN_WEIGHTS: WeightedIndex<u32> = {
+        const WEIGHTS: [u32; NUM_TOK9_TRAIN_POSITIONS] = [5, 5, 1, 5, 1, 1];
+        WeightedIndex::new(WEIGHTS).unwrap()
+    };
 }
 
 lazy_static! {
@@ -161,6 +211,11 @@ lazy_static! {
     #[rustfmt::skip]
     pub static ref STONE_POSITION_INDICES: [Vec<usize>; NUM_STONE_POSITIONS] = [
         vec![0], vec![1], vec![0, 1], vec![2], vec![0, 2], vec![1, 2], vec![0, 1, 2],
+    ];
+
+    #[rustfmt::skip]
+    pub static ref TOK9_TRAIN_POSITION_INDICES: [Vec<usize>; NUM_TOK9_TRAIN_POSITIONS] = [
+        vec![0], vec![1], vec![0, 1], vec![2], vec![0, 2], vec![1, 2]
     ];
 }
 

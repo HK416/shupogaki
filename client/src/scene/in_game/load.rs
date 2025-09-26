@@ -89,6 +89,15 @@ fn load_assets(commands: &mut Commands, asset_server: &AssetServer) {
     let sound: Handle<AudioSource> = asset_server.load(SOUND_PATH_SFX_TRAIN_INVINCIBLE);
     loading_assets.handles.push(sound.into());
 
+    let sound: Handle<AudioSource> = asset_server.load(SOUND_PATH_SFX_TRAIN);
+    loading_assets.handles.push(sound.into());
+
+    let sound: Handle<AudioSource> = asset_server.load(SOUND_PATH_SFX_TRAIN_ALARM);
+    loading_assets.handles.push(sound.into());
+
+    let sound: Handle<AudioSource> = asset_server.load(SOUND_PATH_SFX_TRAIN_STEAM_WHISTLE);
+    loading_assets.handles.push(sound.into());
+
     for path in SOUND_PATH_VO_STARTS {
         let sound: Handle<AudioSource> = asset_server.load(path);
         loading_assets.handles.push(sound.into());
@@ -177,7 +186,18 @@ fn load_assets(commands: &mut Commands, asset_server: &AssetServer) {
     let model: Handle<ModelAsset> = asset_server.load(MODEL_PATH_DOOR_BELL);
     loading_assets.handles.push(model.into());
 
+    // --- Tok9 Train Loading ---
+
+    for path in MODEL_PATH_TOK9_TRAINS {
+        let model: Handle<ModelAsset> = asset_server.load(path);
+        loading_assets.handles.push(model.into());
+    }
+
+    // --- BillBoard Loading ---
     let model: Handle<ModelAsset> = asset_server.load(MODEL_PATH_GLOW);
+    loading_assets.handles.push(model.into());
+
+    let model: Handle<ModelAsset> = asset_server.load(MODEL_PATH_DANGER_ZONE);
     loading_assets.handles.push(model.into());
 
     // --- Player Loading ---

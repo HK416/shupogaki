@@ -40,6 +40,7 @@ impl Plugin for StatePlugin {
                 update_player_state,
                 update_ground_position,
                 update_object_position,
+                update_tok9_train_position,
                 rotate_animation,
                 cleanup_ui_animation,
             )
@@ -267,6 +268,32 @@ fn update_object_position(
 
         if transform.translation.z <= DESPAWN_POSITION {
             commands.entity(entity).despawn();
+        }
+    }
+}
+
+#[allow(clippy::type_complexity)]
+fn update_tok9_train_position(
+    mut commands: Commands,
+    mut train_spawner: ResMut<Tok9TrainSpawner>,
+    mut train_entities: Query<
+        (Entity, &mut Transform, &ForwardMovement, &Tok9Train),
+        Without<DelayTime>,
+    >,
+    player_query: Query<&ForwardMovement, With<Player>>,
+    time: Res<Time>,
+) {
+    let player_velocity = player_query
+        .single()
+        .map(|forward_move| forward_move.get())
+        .unwrap_or(0.0);
+
+    for (entity, mut transform, forward_move, &train) in train_entities.iter_mut() {
+        transform.translation.z -= player_velocity * time.delta_secs();
+        transform.translation.z -= forward_move.get() * time.delta_secs();
+
+        if transform.translation.z <= DESPAWN_POSITION {
+            train_spawner.drain(&mut commands, entity, train);
         }
     }
 }

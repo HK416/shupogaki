@@ -107,6 +107,7 @@ fn insert_resource(mut commands: Commands) {
     commands.insert_resource(CurrentState::default());
     commands.insert_resource(RetiredGrounds::default());
     commands.insert_resource(ObjectSpawner::default());
+    commands.insert_resource(Tok9TrainSpawner::default());
 }
 
 fn show_entities(mut query: Query<&mut Visibility, (With<InGameStateRoot>, Without<UI>)>) {

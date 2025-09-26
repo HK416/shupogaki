@@ -1,9 +1,13 @@
 use std::collections::VecDeque;
 
+use bevy::audio::Volume;
 use bevy::{platform::collections::HashMap, prelude::*};
 use rand::{Rng, distr::Distribution, seq::IndexedRandom};
 
-use crate::asset::{animation::AnimationClipHandle, spawner::SpawnModel};
+use crate::asset::{animation::AnimationClipHandle, sound::SystemVolume, spawner::SpawnModel};
+
+#[cfg(target_arch = "wasm32")]
+use crate::web::{WebAudioPlayer, WebPlaybackSettings};
 
 use super::*;
 
@@ -301,6 +305,7 @@ impl ObjectSpawner {
                                         0.0,
                                         SPAWN_POSITION + delta,
                                     ),
+                                    self.next_obj,
                                 ));
                             }
                             None => {
@@ -340,6 +345,7 @@ impl ObjectSpawner {
                                         0.0,
                                         SPAWN_POSITION + delta,
                                     ),
+                                    self.next_obj,
                                 ));
                             }
                             None => {
@@ -377,6 +383,12 @@ impl ObjectSpawner {
                                     0.5,
                                     SPAWN_POSITION + delta,
                                 ),
+                                RotateAnimation {
+                                    axis: Vec3::Y,
+                                    radian_per_sec: 120f32.to_radians(),
+                                },
+                                Visibility::Visible,
+                                self.next_obj,
                             ));
                         }
                         None => {
@@ -393,6 +405,7 @@ impl ObjectSpawner {
                                     axis: Vec3::Y,
                                     radian_per_sec: 120f32.to_radians(),
                                 },
+                                Visibility::Visible,
                                 InGameStateRoot,
                                 self.next_obj,
                                 collider,
@@ -417,6 +430,12 @@ impl ObjectSpawner {
                                     0.5,
                                     SPAWN_POSITION + delta,
                                 ),
+                                RotateAnimation {
+                                    axis: Vec3::Y,
+                                    radian_per_sec: 120f32.to_radians(),
+                                },
+                                Visibility::Visible,
+                                self.next_obj,
                             ));
                         }
                         None => {
@@ -433,6 +452,7 @@ impl ObjectSpawner {
                                     axis: Vec3::Y,
                                     radian_per_sec: 120f32.to_radians(),
                                 },
+                                Visibility::Visible,
                                 InGameStateRoot,
                                 self.next_obj,
                                 collider,
@@ -471,6 +491,7 @@ impl ObjectSpawner {
                                     .with_scale((3.0, 20.0, 3.0).into())
                                     .looking_to(direction, Vec3::Y),
                                 GlowRoot,
+                                BillBoard,
                             ));
                         });
                 }
@@ -486,16 +507,21 @@ impl ObjectSpawner {
     }
 
     pub fn drain(&mut self, commands: &mut Commands, entity: Entity, obj: Object) {
-        if !matches!(obj, Object::Aoba) {
+        if matches!(obj, Object::Aoba) {
             commands.entity(entity).despawn();
         } else {
+            commands
+                .entity(entity)
+                .insert(Visibility::Hidden)
+                .remove::<RotateAnimation>()
+                .remove::<Object>();
+
             self.retired
                 .entry(obj)
                 .and_modify(|entities| {
                     entities.push_back(entity);
                 })
                 .or_insert(VecDeque::from_iter([entity]));
-            commands.entity(entity).remove::<Object>();
         }
     }
 }
@@ -506,6 +532,174 @@ impl Default for ObjectSpawner {
             distance: 0.0,
             next_obj: Object::default(),
             retired: HashMap::default(),
+        }
+    }
+}
+
+#[derive(Resource)]
+pub struct Tok9TrainSpawner {
+    remaining_sec: f32,
+    retired: HashMap<Tok9Train, VecDeque<Entity>>,
+    retired_billboard: VecDeque<Entity>,
+}
+
+impl Tok9TrainSpawner {
+    pub fn on_advanced(
+        &mut self,
+        commands: &mut Commands,
+        asset_server: &AssetServer,
+        system_volume: &SystemVolume,
+        elapsed: f32,
+    ) {
+        let mut rng = rand::rng();
+        self.remaining_sec -= elapsed;
+        if self.remaining_sec <= 0.0 {
+            let index = TOK9_TRAIN_WEIGHTS.sample(&mut rng);
+            let indices = &TOK9_TRAIN_POSITION_INDICES[index];
+            for &lane_index in indices {
+                let train = rng.random::<Tok9Train>();
+                let path = TOK9_TRAIN_MODELS.get(&train).cloned().unwrap();
+                let collider = TOK9_TRAIN_COLLIDER.get(&train).cloned().unwrap();
+
+                let model = asset_server.load(path);
+                let recycle = self
+                    .retired
+                    .get_mut(&train)
+                    .and_then(|entities| entities.pop_front());
+                match recycle {
+                    Some(entity) => {
+                        info!("Recycle Tok9Train entity");
+                        commands.entity(entity).insert((
+                            Lane::new(lane_index),
+                            Transform::from_xyz(LANE_POSITIONS[lane_index], 0.0, SPAWN_POSITION),
+                            DelayTime::new(WARNING_DURATION),
+                            train,
+                        ));
+                    }
+                    None => {
+                        info!("Spawn Tok9Train entity");
+                        commands.spawn((
+                            SpawnModel(model),
+                            Lane::new(lane_index),
+                            Transform::from_xyz(LANE_POSITIONS[lane_index], 0.0, SPAWN_POSITION),
+                            ForwardMovement::new(TOK9_TRAIN_SPEED),
+                            DelayTime::new(WARNING_DURATION),
+                            InGameStateRoot,
+                            train,
+                            collider,
+                        ));
+                    }
+                }
+
+                let recycle = self.retired_billboard.pop_front();
+                match recycle {
+                    Some(entity) => {
+                        commands.entity(entity).insert((
+                            Lane::new(lane_index),
+                            Transform::from_xyz(LANE_POSITIONS[lane_index], 0.01, 0.0)
+                                .looking_to(Vec3::X, Vec3::NEG_Z)
+                                .with_scale((1.0, 40.0, 3.0).into()),
+                            DelayTime::new(WARNING_DURATION),
+                            DangerZoneBackground,
+                            Visibility::Visible,
+                        ));
+                    }
+                    None => {
+                        commands.spawn((
+                            SpawnModel(asset_server.load(MODEL_PATH_DANGER_ZONE)),
+                            Lane::new(lane_index),
+                            Transform::from_xyz(LANE_POSITIONS[lane_index], 0.01, 0.0)
+                                .looking_to(Vec3::X, Vec3::NEG_Z)
+                                .with_scale((1.0, 40.0, 3.0).into()),
+                            DelayTime::new(WARNING_DURATION),
+                            Visibility::Visible,
+                            DangerZoneBackground,
+                            InGameStateRoot,
+                            BillBoard,
+                        ));
+                    }
+                }
+
+                let recycle = self.retired_billboard.pop_front();
+                match recycle {
+                    Some(entity) => {
+                        commands.entity(entity).insert((
+                            Lane::new(lane_index),
+                            Transform::from_xyz(LANE_POSITIONS[lane_index], 0.02, 0.0)
+                                .looking_to(Vec3::X, Vec3::NEG_Z)
+                                .with_scale((1.0, 40.0, 3.0).into()),
+                            DelayTime::new(WARNING_DURATION),
+                            Visibility::Visible,
+                            DangerZone,
+                        ));
+                    }
+                    None => {
+                        commands.spawn((
+                            SpawnModel(asset_server.load(MODEL_PATH_DANGER_ZONE)),
+                            Lane::new(lane_index),
+                            Transform::from_xyz(LANE_POSITIONS[lane_index], 0.02, 0.0)
+                                .looking_to(Vec3::X, Vec3::NEG_Z)
+                                .with_scale((1.0, 40.0, 3.0).into()),
+                            DelayTime::new(WARNING_DURATION),
+                            Visibility::Visible,
+                            InGameStateRoot,
+                            DangerZone,
+                            BillBoard,
+                        ));
+                    }
+                }
+            }
+
+            #[cfg(not(target_arch = "wasm32"))]
+            commands.spawn((
+                AudioPlayer::new(asset_server.load(SOUND_PATH_SFX_TRAIN_ALARM)),
+                PlaybackSettings::DESPAWN
+                    .with_volume(Volume::Linear(system_volume.effect_percentage())),
+                InGameStateRoot,
+                EffectSound,
+            ));
+
+            #[cfg(target_arch = "wasm32")]
+            commands.spawn((
+                WebAudioPlayer::new(asset_server.load(SOUND_PATH_SFX_TRAIN_ALARM)),
+                WebPlaybackSettings::DESPAWN
+                    .with_volume(Volume::Linear(system_volume.effect_percentage())),
+                InGameStateRoot,
+                EffectSound,
+            ));
+
+            let offset = rng.random_range(TOK9_TRAIN_OFFSET);
+            self.remaining_sec = TOK9_TRAIN_CYCLE + offset;
+        }
+    }
+
+    pub fn drain(&mut self, commands: &mut Commands, entity: Entity, train: Tok9Train) {
+        self.retired
+            .entry(train)
+            .and_modify(|entities| {
+                entities.push_back(entity);
+            })
+            .or_insert(VecDeque::from_iter([entity]));
+        commands.entity(entity).remove::<Tok9Train>();
+    }
+
+    pub fn drain_danger_zone(&mut self, commands: &mut Commands, entity: Entity) {
+        commands
+            .entity(entity)
+            .insert(Visibility::Hidden)
+            .remove::<DelayTime>()
+            .remove::<DangerZone>()
+            .remove::<DangerZoneBackground>();
+        self.retired_billboard.push_back(entity);
+    }
+}
+
+impl Default for Tok9TrainSpawner {
+    fn default() -> Self {
+        Self {
+            remaining_sec: TOK9_TRAIN_INIT_CYCLE,
+            retired: HashMap::default(),
+            retired_billboard: VecDeque::with_capacity(8),
         }
     }
 }

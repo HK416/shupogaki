@@ -34,6 +34,9 @@ use const_format::concatcp;
 #[rustfmt::skip] pub const SOUND_PATH_SFX_TRAIN_END: &str = concatcp!("sounds/SFX_Train_End.sound", QUERY, VERSION);
 #[rustfmt::skip] pub const SOUND_PATH_SFX_TRAIN_LANDING: &str = concatcp!("sounds/SFX_Train_Landing.sound", QUERY, VERSION);
 #[rustfmt::skip] pub const SOUND_PATH_SFX_TRAIN_INVINCIBLE: &str = concatcp!("sounds/SFX_Train_Invincible.sound", QUERY, VERSION);
+#[rustfmt::skip] pub const SOUND_PATH_SFX_TRAIN: &str = concatcp!("sounds/SFX_Train.sound", QUERY, VERSION);
+#[rustfmt::skip] pub const SOUND_PATH_SFX_TRAIN_ALARM: &str = concatcp!("sounds/SFX_TrainAlarm.sound", QUERY, VERSION);
+#[rustfmt::skip] pub const SOUND_PATH_SFX_TRAIN_STEAM_WHISTLE: &str = concatcp!("sounds/SFX_TrainSteamWhistle.sound", QUERY, VERSION);
 #[rustfmt::skip] pub const SOUND_PATH_VO_START_00: &str = concatcp!("sounds/VO_Start_00.sound", QUERY, VERSION);
 #[rustfmt::skip] pub const SOUND_PATH_VO_START_01: &str = concatcp!("sounds/VO_Start_01.sound", QUERY, VERSION);
 #[rustfmt::skip] pub const SOUND_PATH_VO_START_02: &str = concatcp!("sounds/VO_Start_02.sound", QUERY, VERSION);
@@ -71,6 +74,9 @@ use const_format::concatcp;
 #[rustfmt::skip] pub const ANIM_PATH_NOZOMI_VICTORY_END: &str = concatcp!("animations/Nozomi_Victory_End_Interaction.anim", QUERY, VERSION);
 #[rustfmt::skip] pub const MODEL_PATH_PLANE_0: &str = concatcp!("models/Plane_0.hierarchy", QUERY, VERSION);
 #[rustfmt::skip] pub const MODEL_PATH_PLANE_999: &str = concatcp!("models/Plane_999.hierarchy", QUERY, VERSION);
+#[rustfmt::skip] pub const MODEL_PATH_TOK9_TRAIN_00: &str = concatcp!("models/Tok9Train00.hierarchy", QUERY, VERSION);
+#[rustfmt::skip] pub const MODEL_PATH_TOK9_TRAIN_01: &str = concatcp!("models/Tok9Train01.hierarchy", QUERY, VERSION);
+#[rustfmt::skip] pub const MODEL_PATH_DANGER_ZONE: &str = concatcp!("models/DangerZone.hierarchy", QUERY, VERSION);
 #[rustfmt::skip] pub const MODEL_PATH_TOY_TRAIN_00: &str = concatcp!("models/ToyTrain00.hierarchy", QUERY, VERSION);
 #[rustfmt::skip] pub const MODEL_PATH_TOY_TRAIN_01: &str = concatcp!("models/ToyTrain01.hierarchy", QUERY, VERSION);
 #[rustfmt::skip] pub const MODEL_PATH_TOY_TRAIN_02: &str = concatcp!("models/ToyTrain02.hierarchy", QUERY, VERSION);
@@ -137,3 +143,7 @@ pub const SOUND_PATH_VO_AOBAS: [&str; NUM_SOUND_VO_AOBA] =
 pub const NUM_SOUND_VO_AOBA_HIT: usize = 2;
 pub const SOUND_PATH_VO_AOBA_HITS: [&str; NUM_SOUND_VO_AOBA_HIT] =
     [SOUND_PATH_VO_AOBA_HIT_00, SOUND_PATH_VO_AOBA_HIT_01];
+
+pub const NUM_MODEL_TOK9_TRAINS: usize = 2;
+pub const MODEL_PATH_TOK9_TRAINS: [&str; NUM_MODEL_TOK9_TRAINS] =
+    [MODEL_PATH_TOK9_TRAIN_00, MODEL_PATH_TOK9_TRAIN_01];

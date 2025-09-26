@@ -1,6 +1,10 @@
 use std::f32::consts::PI;
 
 use bevy::prelude::*;
+use rand::{
+    Rng,
+    distr::{Distribution, StandardUniform},
+};
 
 use super::*;
 
@@ -105,6 +109,9 @@ pub struct Hikari;
 #[derive(Component)]
 pub struct GlowRoot;
 
+#[derive(Component)]
+pub struct BillBoard;
+
 /// A marker component for the "Now Loading..." text UI entity.
 #[derive(Component)]
 pub struct LoadingText;
@@ -112,6 +119,12 @@ pub struct LoadingText;
 /// A marker component for the loading bar UI entity.
 #[derive(Component)]
 pub struct LoadingBar;
+
+#[derive(Component)]
+pub struct DangerZoneBackground;
+
+#[derive(Component)]
+pub struct DangerZone;
 
 #[derive(Component)]
 pub struct Player;
@@ -244,6 +257,44 @@ pub struct Acceleration(f32);
 impl Acceleration {
     pub fn new(amount: f32) -> Self {
         Self(amount)
+    }
+
+    pub fn get(&self) -> f32 {
+        self.0
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Component)]
+pub enum Tok9Train {
+    Blue,
+    Orange,
+}
+
+impl Distribution<Tok9Train> for StandardUniform {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> Tok9Train {
+        let index = rng.random_range(0..=1);
+        match index {
+            0 => Tok9Train::Blue,
+            1 => Tok9Train::Orange,
+            _ => unreachable!(),
+        }
+    }
+}
+
+#[derive(Component)]
+pub struct DelayTime(f32);
+
+impl DelayTime {
+    pub fn new(amount: f32) -> Self {
+        Self(amount)
+    }
+
+    pub fn on_advanced(&mut self, elapsed: f32) {
+        self.0 = (self.0 - elapsed).max(0.0);
+    }
+
+    pub fn is_expired(&self) -> bool {
+        self.0 <= 0.0
     }
 
     pub fn get(&self) -> f32 {

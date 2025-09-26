@@ -42,6 +42,7 @@ fn remove_resource(mut commands: Commands) {
     commands.remove_resource::<CurrentState>();
     commands.remove_resource::<RetiredGrounds>();
     commands.remove_resource::<ObjectSpawner>();
+    commands.remove_resource::<Tok9TrainSpawner>();
     commands.remove_resource::<InGameAssets>();
 }
 
