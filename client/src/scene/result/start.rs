@@ -205,7 +205,7 @@ fn update_scene_timer(
     time: Res<Time>,
 ) {
     timer.tick(time.delta_secs());
-    if timer.elapsed_time >= SCENE_DURATION {
+    if timer.elapsed_sec() >= SCENE_DURATION {
         next_state.set(GameState::Start2End);
     }
 }
@@ -217,7 +217,7 @@ fn set_mouth_expression(
 ) {
     for mouth in query.iter() {
         if let Some(material) = materials.get_mut(&mouth.0) {
-            if timer.elapsed_time < SCENE_DURATION * 0.5 {
+            if timer.elapsed_sec() < SCENE_DURATION * 0.5 {
                 material.extension.uniform.index.x = 2;
             } else {
                 material.extension.uniform.index.x = 3;

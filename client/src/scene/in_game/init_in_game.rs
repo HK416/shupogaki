@@ -1,10 +1,13 @@
 // Import necessary Bevy modules.
 use bevy::{audio::Volume, prelude::*};
 
-use crate::asset::{
-    animation::AnimationClipHandle,
-    sound::SystemVolume,
-    spawner::{SpawnModel, TranslatableText},
+use crate::{
+    asset::{
+        animation::AnimationClipHandle,
+        sound::SystemVolume,
+        spawner::{SpawnModel, TranslatableText},
+    },
+    collider::Collider,
 };
 
 #[cfg(target_arch = "wasm32")]
@@ -82,11 +85,15 @@ fn spawn_in_game_entities(
 ) {
     let entity = commands
         .spawn((
-            Transform::from_xyz(LANE_LOCATIONS[NUM_LANES / 2], 0.0, PLAYER_MAX_Z_POS),
+            Transform::from_xyz(LANE_POSITIONS[NUM_LANES / 2], 0.0, PLAYER_MAX_Z_POS),
             Collider::Aabb {
                 offset: Vec3::new(0.0, 0.5, -1.5),
                 size: Vec3::new(0.9, 1.0, 3.6),
             },
+            Acceleration::new(ACCELERATION),
+            ForwardMovement::new(MIN_PLAYER_SPEED),
+            VerticalMovement::new(0.0),
+            Lane::default(),
             SpawnRequest,
             Player,
         ))
@@ -94,8 +101,8 @@ fn spawn_in_game_entities(
     loading_entities.handles.push(entity);
 
     let model = asset_server.load(MODEL_PATH_PLANE_0);
-    let mut plane_location = DESPAWN_LOCATION;
-    while plane_location <= SPAWN_LOCATION {
+    let mut plane_location = DESPAWN_POSITION;
+    while plane_location <= SPAWN_POSITION {
         let entity = commands
             .spawn((
                 SpawnModel(model.clone()),
@@ -106,7 +113,7 @@ fn spawn_in_game_entities(
             ))
             .id();
         loading_entities.handles.push(entity);
-        plane_location += PLANE_SPAWN_INTERVAL;
+        plane_location += GROUND_SPAWN_INTERVAL;
     }
 
     let model = asset_server.load(MODEL_PATH_TOY_TRAIN_00);

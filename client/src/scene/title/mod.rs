@@ -9,7 +9,7 @@ use bevy::prelude::*;
 use super::*;
 
 // --- CONSTANTS ---
-pub const TRAIN_POSITION: Vec3 = vec3(LANE_LOCATIONS[0], 0.0, 0.0);
+pub const TRAIN_POSITION: Vec3 = vec3(LANE_POSITIONS[0], 0.0, 0.0);
 pub const HIKARI_POSITION: Vec3 = vec3(-2.8438, 0.0, 2.8438);
 pub const NOZOMI_POSITION: Vec3 = vec3(-2.0, 0.0, 2.0);
 pub const CAMERA_POSITION: Vec3 = vec3(-1.0, 1.0, 4.5);

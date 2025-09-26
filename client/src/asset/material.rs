@@ -9,6 +9,7 @@ use serde::Deserialize;
 
 use crate::{
     asset::Float4,
+    scene::{QUERY, VERSION},
     shader::face_mouth::{FacialExpressionExtension, FacialExpressionUniform},
 };
 
@@ -149,15 +150,13 @@ impl AssetLoader for MaterialAssetLoader {
             // Load the base color texture as a dependency.
             // The material file specifies texture names without extensions or full paths.
             // We construct the full asset path here to load our custom `.texture` format.
-            let base_color_texture = serializable
-                .base_color_texture
-                .as_ref()
-                .map(|name| load_context.load(format!("textures/{}.texture", name)));
+            let base_color_texture = serializable.base_color_texture.as_ref().map(|name| {
+                load_context.load(format!("textures/{}.texture{}{}", name, QUERY, VERSION))
+            });
 
-            let emissive_color_texture = serializable
-                .emissive_color_texture
-                .as_ref()
-                .map(|name| load_context.load(format!("textures/{}.texture", name)));
+            let emissive_color_texture = serializable.emissive_color_texture.as_ref().map(|name| {
+                load_context.load(format!("textures/{}.texture{}{}", name, QUERY, VERSION))
+            });
 
             // Create the final `StandardMaterial` asset using the loaded data.
             // Default values are used if properties are not specified in the file.
@@ -233,20 +232,20 @@ impl AssetLoader for FaceMouthMaterialAssetLoader {
             // Load the base color texture as a dependency.
             // The material file specifies texture names without extensions or full paths.
             // We construct the full asset path here to load our custom `.texture` format.
-            let base_color_texture = serializable
-                .base_color_texture
-                .as_ref()
-                .map(|name| load_context.load(format!("textures/{}.texture", name)));
+            let base_color_texture = serializable.base_color_texture.as_ref().map(|name| {
+                load_context.load(format!("textures/{}.texture{}{}", name, QUERY, VERSION))
+            });
 
-            let emissive_color_texture = serializable
-                .emissive_color_texture
-                .as_ref()
-                .map(|name| load_context.load(format!("textures/{}.texture", name)));
+            let emissive_color_texture = serializable.emissive_color_texture.as_ref().map(|name| {
+                load_context.load(format!("textures/{}.texture{}{}", name, QUERY, VERSION))
+            });
 
             let mouth_atlas = serializable
                 .mouth_altas
                 .as_ref()
-                .map(|name| load_context.load(format!("textures/{}.texture", name)))
+                .map(|name| {
+                    load_context.load(format!("textures/{}.texture{}{}", name, QUERY, VERSION))
+                })
                 .unwrap();
 
             // Create the final `StandardMaterial` asset using the loaded data.

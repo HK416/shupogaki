@@ -28,10 +28,7 @@ fn remove_resource(mut commands: Commands) {
     commands.remove_resource::<PlayTime>();
     commands.remove_resource::<TrainFuel>();
     commands.remove_resource::<InputDelay>();
-    commands.remove_resource::<CurrentLane>();
     commands.remove_resource::<CurrentScore>();
-    commands.remove_resource::<ForwardMovement>();
-    commands.remove_resource::<VerticalMovement>();
     commands.remove_resource::<IsPlayerJumping>();
     commands.remove_resource::<CurrentState>();
     commands.remove_resource::<RetiredGrounds>();

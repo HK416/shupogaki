@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::{f32::consts::TAU, time::Duration};
 
 // Import necessary Bevy modules.
 use bevy::{audio::Volume, prelude::*};
@@ -214,7 +214,7 @@ fn update_scene_timer(
     time: Res<Time>,
 ) {
     timer.tick(time.delta_secs());
-    if timer.elapsed_time >= SCENE_DURATION {
+    if timer.elapsed_sec() >= SCENE_DURATION {
         next_state.set(GameState::FinishedInGame);
     }
 }
@@ -232,15 +232,20 @@ fn update_player_state(mut state: ResMut<CurrentState>, time: Res<Time>) {
 }
 
 fn update_ground_position(
-    forward_move: Res<ForwardMovement>,
+    player_query: Query<&ForwardMovement, With<Player>>,
     mut ground_entities: Query<(Entity, &mut Transform), With<Ground>>,
     mut retired: ResMut<RetiredGrounds>,
     time: Res<Time>,
 ) {
-    for (entity, mut transform) in ground_entities.iter_mut() {
-        transform.translation.z -= forward_move.velocity * time.delta_secs();
+    let player_velocity = player_query
+        .single()
+        .map(|forward_move| forward_move.get())
+        .unwrap_or(0.0);
 
-        if transform.translation.z <= DESPAWN_LOCATION {
+    for (entity, mut transform) in ground_entities.iter_mut() {
+        transform.translation.z -= player_velocity * time.delta_secs();
+
+        if transform.translation.z <= DESPAWN_POSITION {
             retired.push(entity);
         }
     }
@@ -248,14 +253,19 @@ fn update_ground_position(
 
 fn update_object_position(
     mut commands: Commands,
-    current: Res<ForwardMovement>,
-    mut query: Query<(Entity, &mut Transform), With<Object>>,
+    mut object_entities: Query<(Entity, &mut Transform), With<Object>>,
+    player_query: Query<&ForwardMovement, With<Player>>,
     time: Res<Time>,
 ) {
-    for (entity, mut transform) in query.iter_mut() {
-        transform.translation.z -= current.velocity * time.delta_secs();
+    let player_velocity = player_query
+        .single()
+        .map(|forward_move| forward_move.get())
+        .unwrap_or(0.0);
 
-        if transform.translation.z <= DESPAWN_LOCATION {
+    for (entity, mut transform) in object_entities.iter_mut() {
+        transform.translation.z -= player_velocity * time.delta_secs();
+
+        if transform.translation.z <= DESPAWN_POSITION {
             commands.entity(entity).despawn();
         }
     }
@@ -287,26 +297,26 @@ fn cleanup_ui_animation(
 // --- POSTUPDATE SYSTEMS ---
 
 fn update_player_position(
-    lane: Res<CurrentLane>,
-    mut vert_move: ResMut<VerticalMovement>,
-    mut player_query: Query<&mut Transform, With<Player>>,
+    mut player_query: Query<(&Lane, &mut Transform, &mut VerticalMovement), With<Player>>,
     timer: Res<SceneTimer>,
     time: Res<Time>,
 ) {
-    if let Ok(mut transform) = player_query.single_mut() {
-        let target_x = LANE_LOCATIONS[lane.index];
+    if let Ok((lane, mut transform, mut vert_move)) = player_query.single_mut() {
+        let target_x = LANE_POSITIONS[lane.get()];
         transform.translation.x +=
-            (target_x - transform.translation.x) * LANE_CHANGE_SPEED * time.delta_secs();
+            (target_x - transform.translation.x) * LANE_SWITCH_SPEED * time.delta_secs();
 
-        vert_move.on_advanced(time.delta_secs());
-        transform.translation.y += vert_move.velocity * time.delta_secs();
+        let mut velocity = vert_move.get();
+        velocity += GRAVITY * time.delta_secs();
+        vert_move.set(velocity);
 
+        transform.translation.y += velocity * time.delta_secs();
         if transform.translation.y <= 0.0 {
             transform.translation.y = 0.0;
-            vert_move.reset();
+            vert_move.set(0.0);
         }
 
-        let t = timer.elapsed_time / SCENE_DURATION;
+        let t = timer.elapsed_sec() / SCENE_DURATION;
         let z_pos = PLAYER_MAX_Z_POS * (1.0 - t) + PLAYER_MIN_Z_POS * t;
         transform.translation.z = z_pos;
     }
@@ -384,13 +394,14 @@ fn spawn_grounds(mut commands: Commands, mut retired: ResMut<RetiredGrounds>) {
             .entity(entity)
             .entry::<Transform>()
             .and_modify(|mut transform| {
-                transform.translation.z += SPAWN_LOCATION - DESPAWN_LOCATION;
+                transform.translation.z += SPAWN_POSITION - DESPAWN_POSITION;
             })
-            .or_insert(Transform::from_xyz(0.0, 0.0, SPAWN_LOCATION));
+            .or_insert(Transform::from_xyz(0.0, 0.0, SPAWN_POSITION));
     }
 }
 
 #[allow(clippy::type_complexity)]
+#[allow(clippy::too_many_arguments)]
 fn update_player_effect(
     mut set: ParamSet<(
         Query<Entity, With<ToyTrain0>>,
@@ -445,6 +456,7 @@ fn update_player_effect(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn update_player_effect_recursive(
     entity: Entity,
     children_query: &Query<&Children>,
@@ -535,6 +547,17 @@ fn update_player_effect_recursive(
     }
 }
 
-pub fn update_player_speed(mut forward_move: ResMut<ForwardMovement>, time: Res<Time>) {
-    forward_move.decel(time.delta_secs());
+pub fn update_player_speed(
+    mut player_query: Query<&mut ForwardMovement, With<Player>>,
+    time: Res<Time>,
+) {
+    let Ok(mut forward_move) = player_query.single_mut() else {
+        return;
+    };
+
+    let mut velocity = forward_move.get();
+    velocity -= ACCELERATION * time.delta_secs();
+    velocity = velocity.max(0.0);
+
+    forward_move.set(velocity);
 }

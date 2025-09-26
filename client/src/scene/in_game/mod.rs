@@ -12,6 +12,7 @@ mod wrapup;
 
 // Import necessary Bevy modules.
 use bevy::prelude::*;
+use lazy_static::lazy_static;
 
 use super::*;
 

@@ -187,14 +187,14 @@ fn setup_loading_screen(
 
 fn init_asset_load_timeout_retry(mut commands: Commands) {
     commands.insert_resource(SceneTimer::default());
-    commands.insert_resource(Counter::default());
+    commands.insert_resource(RetryCounter::default());
 }
 
 // --- CLEANUP SYSTEMS ---
 
 fn cleanup_asset_load_timeout_retry(mut commands: Commands) {
     commands.remove_resource::<SceneTimer>();
-    commands.remove_resource::<Counter>();
+    commands.remove_resource::<RetryCounter>();
 }
 
 // --- UPDATE SYSTEMS ---
@@ -241,12 +241,12 @@ fn check_and_retry_asset_load_timeout(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     mut next_state: ResMut<NextState<GameState>>,
-    mut counter: ResMut<Counter>,
+    mut counter: ResMut<RetryCounter>,
     mut scene_timer: ResMut<SceneTimer>,
     time: Res<Time>,
 ) {
     scene_timer.tick(time.delta_secs());
-    if scene_timer.elapsed_time >= TIMEOUT {
+    if scene_timer.elapsed_sec() >= TIMEOUT {
         scene_timer.reset();
 
         **counter += 1;

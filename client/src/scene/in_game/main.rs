@@ -1,9 +1,18 @@
+use std::f32::consts::TAU;
+
 // Import necessary Bevy modules.
-use bevy::{audio::Volume, prelude::*};
+use bevy::{
+    audio::Volume,
+    pbr::{NotShadowCaster, NotShadowReceiver},
+    prelude::*,
+};
 use bevy_tweening::{Animator, TweenCompleted};
 use rand::seq::IndexedRandom;
 
-use crate::asset::{material::EyeMouthMaterial, sound::SystemVolume};
+use crate::{
+    asset::{animation::AnimationClipHandle, material::EyeMouthMaterial, sound::SystemVolume},
+    collider::Collider,
+};
 
 #[cfg(target_arch = "wasm32")]
 use crate::web::{WebAudioPlayer, WebPlaybackSettings};
@@ -103,34 +112,34 @@ pub fn handle_player(
             CurrentState::Debug
         };
     } else if keyboard_input.just_pressed(KeyCode::F6) {
-        fuel.remaining = 100.0;
+        fuel.set(100.0);
     } else if keyboard_input.just_pressed(KeyCode::F7) {
-        fuel.remaining = 0.0;
+        fuel.set(0.0);
     }
 }
 
 pub fn handle_player_input(
     keyboard_input: Res<ButtonInput<KeyCode>>,
-    mut lane: ResMut<CurrentLane>,
     mut delay: ResMut<InputDelay>,
-    mut vert_move: ResMut<VerticalMovement>,
     mut is_jumping: ResMut<IsPlayerJumping>,
-    player_query: Query<&Transform, With<Player>>,
+    mut player_query: Query<(&mut Lane, &Transform, &mut VerticalMovement), With<Player>>,
 ) {
-    if let Ok(transform) = player_query.single() {
+    if let Ok((mut lane, transform, mut vert_move)) = player_query.single_mut() {
         if delay.is_expired() && !keyboard_input.all_pressed([KeyCode::KeyA, KeyCode::KeyD]) {
-            if keyboard_input.pressed(KeyCode::KeyA) {
-                lane.index = lane.index.saturating_sub(1);
+            if keyboard_input.pressed(KeyCode::KeyA) || keyboard_input.pressed(KeyCode::ArrowLeft) {
+                lane.dec();
                 delay.reset();
-            } else if keyboard_input.pressed(KeyCode::KeyD) {
-                lane.index = lane.index.saturating_add(1).min(MAX_LANE_INDEX);
+            } else if keyboard_input.pressed(KeyCode::KeyD)
+                || keyboard_input.pressed(KeyCode::ArrowRight)
+            {
+                lane.inc();
                 delay.reset();
             }
         }
 
         let is_grounded = transform.translation.y <= 0.0;
         if is_grounded && keyboard_input.pressed(KeyCode::Space) {
-            vert_move.jump();
+            vert_move.set(JUMP_STRENGTH);
             is_jumping.jump();
         }
     }
@@ -139,17 +148,15 @@ pub fn handle_player_input(
 pub fn handle_player_input_for_moblie(
     windows: Query<&Window>,
     touches: Res<Touches>,
-    mut lane: ResMut<CurrentLane>,
     mut delay: ResMut<InputDelay>,
-    mut vert_move: ResMut<VerticalMovement>,
     mut is_jumping: ResMut<IsPlayerJumping>,
-    player_query: Query<&Transform, With<Player>>,
+    mut player_query: Query<(&mut Lane, &Transform, &mut VerticalMovement), With<Player>>,
 ) {
     let Ok(window) = windows.single() else { return };
     let window_width = window.width();
     let window_height = window.height();
 
-    let Ok(transform) = player_query.single() else {
+    let Ok((mut lane, transform, mut vert_move)) = player_query.single_mut() else {
         return;
     };
     let is_grounded = transform.translation.y <= 0.0;
@@ -161,19 +168,19 @@ pub fn handle_player_input_for_moblie(
         match (p_vertical, p_horizontal) {
             (0.3..=0.7, 0.0..=0.3) => {
                 if delay.is_expired() {
-                    lane.index = lane.index.saturating_sub(1);
+                    lane.dec();
                     delay.reset();
                 }
             }
             (0.0..=1.0, 0.3..=0.7) => {
                 if is_grounded {
-                    vert_move.jump();
+                    vert_move.set(JUMP_STRENGTH);
                     is_jumping.jump();
                 }
             }
             (0.3..=0.7, 0.7..=1.0) => {
                 if delay.is_expired() {
-                    lane.index = lane.index.saturating_add(1).min(MAX_LANE_INDEX);
+                    lane.inc();
                     delay.reset();
                 }
             }
@@ -223,10 +230,12 @@ fn update_player_state(mut state: ResMut<CurrentState>, time: Res<Time>) {
 
 fn update_score(
     mut score: ResMut<CurrentScore>,
-    forward_move: Res<ForwardMovement>,
+    player_query: Query<&ForwardMovement, With<Player>>,
     time: Res<Time>,
 ) {
-    score.on_advanced(&forward_move, time.delta_secs());
+    if let Ok(forward_move) = player_query.single() {
+        score.on_advanced(forward_move, time.delta_secs());
+    }
 }
 
 fn update_train_fuel(
@@ -236,7 +245,7 @@ fn update_train_fuel(
     time: Res<Time>,
 ) {
     if !state.is_invincible() {
-        fuel.sub(time.delta_secs() * FUEL_USAGE);
+        fuel.dec(time.delta_secs() * FUEL_USAGE);
     }
 
     if fuel.is_empty() {
@@ -245,38 +254,43 @@ fn update_train_fuel(
 }
 
 fn update_player_position(
-    lane: Res<CurrentLane>,
-    mut vert_move: ResMut<VerticalMovement>,
     mut is_jumping: ResMut<IsPlayerJumping>,
-    mut player_query: Query<&mut Transform, With<Player>>,
+    mut player_query: Query<(&Lane, &mut Transform, &mut VerticalMovement), With<Player>>,
     time: Res<Time>,
 ) {
-    if let Ok(mut transform) = player_query.single_mut() {
-        let target_x = LANE_LOCATIONS[lane.index];
+    if let Ok((lane, mut transform, mut vert_move)) = player_query.single_mut() {
+        let target_x = LANE_POSITIONS[lane.get()];
         transform.translation.x +=
-            (target_x - transform.translation.x) * LANE_CHANGE_SPEED * time.delta_secs();
+            (target_x - transform.translation.x) * LANE_SWITCH_SPEED * time.delta_secs();
 
-        vert_move.on_advanced(time.delta_secs());
-        transform.translation.y += vert_move.velocity * time.delta_secs();
+        let mut velocity = vert_move.get();
+        velocity += GRAVITY * time.delta_secs();
+        vert_move.set(velocity);
 
+        transform.translation.y += vert_move.get() * time.delta_secs();
         if transform.translation.y <= 0.0 {
             transform.translation.y = 0.0;
-            vert_move.reset();
+            vert_move.set(0.0);
             is_jumping.reset();
         }
     }
 }
 
 fn update_ground_position(
-    forward_move: Res<ForwardMovement>,
+    player_query: Query<&ForwardMovement, With<Player>>,
     mut ground_entities: Query<(Entity, &mut Transform), With<Ground>>,
     mut retired: ResMut<RetiredGrounds>,
     time: Res<Time>,
 ) {
-    for (entity, mut transform) in ground_entities.iter_mut() {
-        transform.translation.z -= forward_move.velocity * time.delta_secs();
+    let player_velocity = player_query
+        .single()
+        .map(|forward_move| forward_move.get())
+        .unwrap_or(0.0);
 
-        if transform.translation.z <= DESPAWN_LOCATION {
+    for (entity, mut transform) in ground_entities.iter_mut() {
+        transform.translation.z -= player_velocity * time.delta_secs();
+
+        if transform.translation.z <= DESPAWN_POSITION {
             retired.push(entity);
         }
     }
@@ -284,15 +298,20 @@ fn update_ground_position(
 
 fn update_object_position(
     mut commands: Commands,
-    forward_move: Res<ForwardMovement>,
     mut object_spawner: ResMut<ObjectSpawner>,
     mut object_entities: Query<(Entity, &mut Transform, &Object)>,
+    player_query: Query<&ForwardMovement, With<Player>>,
     time: Res<Time>,
 ) {
-    for (entity, mut transform, &obj) in object_entities.iter_mut() {
-        transform.translation.z -= forward_move.velocity * time.delta_secs();
+    let player_velocity = player_query
+        .single()
+        .map(|forward_move| forward_move.get())
+        .unwrap_or(0.0);
 
-        if transform.translation.z <= DESPAWN_LOCATION {
+    for (entity, mut transform, &obj) in object_entities.iter_mut() {
+        transform.translation.z -= player_velocity * time.delta_secs();
+
+        if transform.translation.z <= DESPAWN_POSITION {
             object_spawner.drain(&mut commands, entity, obj);
         }
     }
@@ -371,11 +390,15 @@ fn play_train_sound(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     system_volume: Res<SystemVolume>,
-    forward_move: Res<ForwardMovement>,
+    player_query: Query<&ForwardMovement, With<Player>>,
     removed: RemovedComponents<TrainSoundStart>,
 ) {
-    if !removed.is_empty() {
-        let t = forward_move.percentage();
+    if !removed.is_empty()
+        && let Ok(forward_move) = player_query.single()
+    {
+        let velocity = forward_move.get();
+        let t = (velocity - MIN_PLAYER_SPEED) / (MAX_PLAYER_SPEED - MIN_PLAYER_SPEED);
+        let t = t.clamp(0.0, 1.0);
 
         let volume = system_volume.effect_percentage() * (1.0 - t);
         commands.spawn((
@@ -402,11 +425,15 @@ fn play_train_sound(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     system_volume: Res<SystemVolume>,
-    forward_move: Res<ForwardMovement>,
+    player_query: Query<&ForwardMovement, With<Player>>,
     removed: RemovedComponents<TrainSoundStart>,
 ) {
-    if !removed.is_empty() {
-        let t = forward_move.percentage();
+    if !removed.is_empty()
+        && let Ok(forward_move) = player_query.single()
+    {
+        let velocity = forward_move.get();
+        let t = (velocity - MIN_PLAYER_SPEED) / (MAX_PLAYER_SPEED - MIN_PLAYER_SPEED);
+        let t = t.clamp(0.0, 1.0);
 
         let volume = system_volume.effect_percentage() * (1.0 - t);
         commands.spawn((
@@ -477,7 +504,7 @@ fn update_train_sound(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     system_volume: Res<SystemVolume>,
-    forward_move: Res<ForwardMovement>,
+    player_query: Query<&ForwardMovement, With<Player>>,
     is_jumping: Res<IsPlayerJumping>,
     mut set: ParamSet<(
         Query<&mut WebPlaybackSettings, With<TrainSoundLoop1>>,
@@ -487,6 +514,13 @@ fn update_train_sound(
     if !is_jumping.changed() {
         return;
     }
+
+    let Ok(forward_move) = player_query.single() else {
+        return;
+    };
+    let velocity = forward_move.get();
+    let t = (velocity - MIN_PLAYER_SPEED) / (MAX_PLAYER_SPEED - MIN_PLAYER_SPEED);
+    let t = t.clamp(0.0, 1.0);
 
     if is_jumping.get() {
         if let Ok(mut settings) = set.p0().single_mut() {
@@ -498,13 +532,11 @@ fn update_train_sound(
         }
     } else {
         if let Ok(mut settings) = set.p0().single_mut() {
-            let t = forward_move.percentage();
             let volume = system_volume.effect_percentage() * (1.0 - t);
             *settings = settings.with_volume(Volume::Linear(volume));
         }
 
         if let Ok(mut settings) = set.p1().single_mut() {
-            let t = forward_move.percentage();
             let volume = system_volume.effect_percentage() * t;
             *settings = settings.with_volume(Volume::Linear(volume));
         }
@@ -523,22 +555,26 @@ fn update_train_sound(
 #[allow(clippy::type_complexity)]
 fn update_train_volume(
     system_volume: Res<SystemVolume>,
-    forward_move: Res<ForwardMovement>,
+    player_query: Query<&ForwardMovement, With<Player>>,
     mut set: ParamSet<(
         Query<&mut AudioSink, With<TrainSoundLoop1>>,
         Query<&mut AudioSink, With<TrainSoundLoop2>>,
     )>,
 ) {
-    if let Ok(mut sink) = set.p0().single_mut() {
-        let t = forward_move.percentage();
-        let volume = system_volume.effect_percentage() * (1.0 - t);
-        sink.set_volume(Volume::Linear(volume));
-    }
+    if let Ok(forward_move) = player_query.single() {
+        let velocity = forward_move.get();
+        let t = (velocity - MIN_PLAYER_SPEED) / (MAX_PLAYER_SPEED - MIN_PLAYER_SPEED);
+        let t = t.clamp(0.0, 1.0);
 
-    if let Ok(mut sink) = set.p1().single_mut() {
-        let t = forward_move.percentage();
-        let volume = system_volume.effect_percentage() * t;
-        sink.set_volume(Volume::Linear(volume));
+        if let Ok(mut sink) = set.p0().single_mut() {
+            let volume = system_volume.effect_percentage() * (1.0 - t);
+            sink.set_volume(Volume::Linear(volume));
+        }
+
+        if let Ok(mut sink) = set.p1().single_mut() {
+            let volume = system_volume.effect_percentage() * t;
+            sink.set_volume(Volume::Linear(volume));
+        }
     }
 }
 
@@ -546,7 +582,7 @@ fn update_train_volume(
 #[allow(clippy::type_complexity)]
 fn update_train_volume(
     system_volume: Res<SystemVolume>,
-    forward_move: Res<ForwardMovement>,
+    player_query: Query<&ForwardMovement, With<Player>>,
     is_jumping: Res<IsPlayerJumping>,
     mut set: ParamSet<(
         Query<&mut WebPlaybackSettings, With<TrainSoundLoop1>>,
@@ -557,16 +593,20 @@ fn update_train_volume(
         return;
     }
 
-    if let Ok(mut settings) = set.p0().single_mut() {
-        let t = forward_move.percentage();
-        let volume = system_volume.effect_percentage() * (1.0 - t);
-        *settings = settings.with_volume(Volume::Linear(volume));
-    }
+    if let Ok(forward_move) = player_query.single() {
+        let velocity = forward_move.get();
+        let t = (velocity - MIN_PLAYER_SPEED) / (MAX_PLAYER_SPEED - MIN_PLAYER_SPEED);
+        let t = t.clamp(0.0, 1.0);
 
-    if let Ok(mut settings) = set.p1().single_mut() {
-        let t = forward_move.percentage();
-        let volume = system_volume.effect_percentage() * t;
-        *settings = settings.with_volume(Volume::Linear(volume));
+        if let Ok(mut settings) = set.p0().single_mut() {
+            let volume = system_volume.effect_percentage() * (1.0 - t);
+            *settings = settings.with_volume(Volume::Linear(volume));
+        }
+
+        if let Ok(mut settings) = set.p1().single_mut() {
+            let volume = system_volume.effect_percentage() * t;
+            *settings = settings.with_volume(Volume::Linear(volume));
+        }
     }
 }
 
@@ -700,20 +740,29 @@ fn spawn_grounds(mut commands: Commands, mut retired: ResMut<RetiredGrounds>) {
             .entity(entity)
             .entry::<Transform>()
             .and_modify(|mut transform| {
-                transform.translation.z += SPAWN_LOCATION - DESPAWN_LOCATION;
+                transform.translation.z += SPAWN_POSITION - DESPAWN_POSITION;
             })
-            .or_insert(Transform::from_xyz(0.0, 0.0, SPAWN_LOCATION));
+            .or_insert(Transform::from_xyz(0.0, 0.0, SPAWN_POSITION));
     }
 }
 
 fn spawn_objects(
     mut commands: Commands,
     mut spawner: ResMut<ObjectSpawner>,
+    player_query: Query<&ForwardMovement, With<Player>>,
     asset_server: Res<AssetServer>,
-    current: Res<ForwardMovement>,
     time: Res<Time>,
 ) {
-    spawner.on_advanced(&mut commands, &asset_server, &current, time.delta_secs());
+    let Ok(forward_move) = player_query.single() else {
+        return;
+    };
+
+    spawner.on_advanced(
+        &mut commands,
+        &asset_server,
+        forward_move,
+        time.delta_secs(),
+    );
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -723,21 +772,21 @@ fn check_for_collisions(
     system_volume: Res<SystemVolume>,
     mut fuel: ResMut<TrainFuel>,
     mut state: ResMut<CurrentState>,
+    mut score: ResMut<CurrentScore>,
     mut attacked: ResMut<Attacked>,
-    mut forward_move: ResMut<ForwardMovement>,
-    mut player_query: Query<(&Collider, &Transform), With<Player>>,
+    mut player_query: Query<(&Collider, &Transform, &mut ForwardMovement), With<Player>>,
     object_query: Query<(Entity, &Object, &Collider, &Transform)>,
 ) {
     for (entity, object, o_collider, o_trans) in object_query.iter() {
-        if let Ok((p_collider, p_trans)) = player_query.single_mut()
+        if let Ok((p_collider, p_trans, mut forward_move)) = player_query.single_mut()
             && p_collider.intersects(p_trans, o_collider, o_trans)
         {
             info!("Collision detected!");
             match (*state, *object) {
                 (CurrentState::Idle, Object::Barricade) => {
                     play_damaged_sound(&mut commands, &asset_server, &system_volume);
-                    fuel.sub(BARRICADE_AMOUNT);
-                    forward_move.reset();
+                    fuel.dec(BARRICADE_DAMAGE);
+                    forward_move.set(MIN_PLAYER_SPEED);
                     attacked.add();
                     *state = CurrentState::Attacked {
                         remaining: ATTACKED_DURATION,
@@ -745,8 +794,8 @@ fn check_for_collisions(
                 }
                 (CurrentState::Idle, Object::Stone) => {
                     play_damaged_sound(&mut commands, &asset_server, &system_volume);
-                    fuel.sub(STONE_AMOUNT);
-                    forward_move.reset();
+                    fuel.dec(STONE_DAMAGE);
+                    forward_move.set(MIN_PLAYER_SPEED);
                     attacked.add();
                     *state = CurrentState::Attacked {
                         remaining: ATTACKED_DURATION,
@@ -754,48 +803,51 @@ fn check_for_collisions(
                 }
                 (CurrentState::Idle, Object::Fuel) => {
                     play_healing_sound(&mut commands, &asset_server, &system_volume);
-                    fuel.add(FUEL_AMOUNT);
+                    fuel.inc(FUEL_HEALING);
                     commands.entity(entity).despawn();
                 }
                 (CurrentState::Idle, Object::Bell) => {
                     play_door_bell_sound(&mut commands, &asset_server, &system_volume);
+                    score.inc(BELL_POINT);
                     commands.entity(entity).despawn();
                 }
                 (CurrentState::Idle, Object::Aoba) => {
                     play_invincible_sound(&mut commands, &asset_server, &system_volume);
-                    forward_move.velocity = INVINCIBLE_SPEED;
+                    forward_move.set(INVINCIBLE_SPEED);
                     commands.entity(entity).despawn();
                     *state = CurrentState::Invincible {
                         remaining: INVINCIBLE_DURATION,
                     };
                 }
                 (CurrentState::Attacked { .. }, Object::Fuel) => {
-                    fuel.add(FUEL_AMOUNT);
+                    fuel.inc(FUEL_HEALING);
                     commands.entity(entity).despawn();
                 }
                 (CurrentState::Attacked { .. }, Object::Bell) => {
                     play_door_bell_sound(&mut commands, &asset_server, &system_volume);
+                    score.inc(BELL_POINT);
                     commands.entity(entity).despawn();
                 }
                 (CurrentState::Attacked { .. }, Object::Aoba) => {
                     play_invincible_sound(&mut commands, &asset_server, &system_volume);
-                    forward_move.velocity = INVINCIBLE_SPEED;
+                    forward_move.set(INVINCIBLE_SPEED);
                     commands.entity(entity).despawn();
                     *state = CurrentState::Invincible {
                         remaining: INVINCIBLE_DURATION,
                     };
                 }
                 (CurrentState::Invincible { .. }, Object::Fuel) => {
-                    fuel.add(FUEL_AMOUNT);
+                    fuel.inc(FUEL_HEALING);
                     commands.entity(entity).despawn();
                 }
                 (CurrentState::Invincible { .. }, Object::Bell) => {
                     play_door_bell_sound(&mut commands, &asset_server, &system_volume);
+                    score.inc(BELL_POINT);
                     commands.entity(entity).despawn();
                 }
                 (CurrentState::Invincible { .. }, Object::Aoba) => {
                     play_invincible_sound(&mut commands, &asset_server, &system_volume);
-                    forward_move.velocity = INVINCIBLE_SPEED;
+                    forward_move.set(INVINCIBLE_SPEED);
                     commands.entity(entity).despawn();
                     *state = CurrentState::Invincible {
                         remaining: INVINCIBLE_DURATION,
@@ -1090,8 +1142,8 @@ fn update_fuel_gauge(
     fuel: Res<TrainFuel>,
 ) {
     if let Ok((mut node, mut color)) = query.single_mut() {
-        node.width = Val::Percent(fuel.remaining);
-        color.0 = match fuel.remaining {
+        node.width = Val::Percent(fuel.get());
+        color.0 = match fuel.get() {
             50.0..=100.0 => FUEL_GOOD_GAUGE_COLOR,
             25.0..=50.0 => FUEL_FAIR_GAUGE_COLOR,
             _ => FUEL_POOR_GAUGE_COLOR,
@@ -1100,6 +1152,7 @@ fn update_fuel_gauge(
 }
 
 #[allow(clippy::type_complexity)]
+#[allow(clippy::too_many_arguments)]
 fn update_player_effect(
     mut set: ParamSet<(
         Query<Entity, With<ToyTrain0>>,
@@ -1154,6 +1207,7 @@ fn update_player_effect(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn update_player_effect_recursive(
     entity: Entity,
     children_query: &Query<&Children>,
@@ -1245,12 +1299,17 @@ fn update_player_effect_recursive(
 }
 
 pub fn update_player_speed(
-    mut forward_move: ResMut<ForwardMovement>,
+    mut player_query: Query<(&mut ForwardMovement, &Acceleration), With<Player>>,
     state: Res<CurrentState>,
     time: Res<Time>,
 ) {
-    if !matches!(*state, CurrentState::Invincible { .. }) {
-        forward_move.accel(time.delta_secs());
+    if !matches!(*state, CurrentState::Invincible { .. })
+        && let Ok((mut forward_move, accel)) = player_query.single_mut()
+    {
+        let mut velocity = forward_move.get();
+        velocity += accel.get() * time.delta_secs();
+        velocity = velocity.min(MAX_PLAYER_SPEED);
+        forward_move.set(velocity);
     }
 }
 

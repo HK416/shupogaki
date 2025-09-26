@@ -118,21 +118,26 @@ fn update_scene_timer(
     time: Res<Time>,
 ) {
     timer.tick(time.delta_secs());
-    if timer.elapsed_time >= SCENE_DURATION {
+    if timer.elapsed_sec() >= SCENE_DURATION {
         next_state.set(GameState::CleanUpInGame);
     }
 }
 
 fn update_ground_position(
-    forward_move: Res<ForwardMovement>,
+    player_query: Query<&ForwardMovement, With<Player>>,
     mut ground_entities: Query<(Entity, &mut Transform), With<Ground>>,
     mut retired: ResMut<RetiredGrounds>,
     time: Res<Time>,
 ) {
-    for (entity, mut transform) in ground_entities.iter_mut() {
-        transform.translation.z -= forward_move.velocity * time.delta_secs();
+    let player_velocity = player_query
+        .single()
+        .map(|forward_move| forward_move.get())
+        .unwrap_or(0.0);
 
-        if transform.translation.z <= DESPAWN_LOCATION {
+    for (entity, mut transform) in ground_entities.iter_mut() {
+        transform.translation.z -= player_velocity * time.delta_secs();
+
+        if transform.translation.z <= DESPAWN_POSITION {
             retired.push(entity);
         }
     }
@@ -140,14 +145,19 @@ fn update_ground_position(
 
 fn update_object_position(
     mut commands: Commands,
-    current: Res<ForwardMovement>,
-    mut query: Query<(Entity, &mut Transform), With<Object>>,
+    mut object_entities: Query<(Entity, &mut Transform), With<Object>>,
+    player_query: Query<&ForwardMovement, With<Player>>,
     time: Res<Time>,
 ) {
-    for (entity, mut transform) in query.iter_mut() {
-        transform.translation.z -= current.velocity * time.delta_secs();
+    let player_velocity = player_query
+        .single()
+        .map(|forward_move| forward_move.get())
+        .unwrap_or(0.0);
 
-        if transform.translation.z <= DESPAWN_LOCATION {
+    for (entity, mut transform) in object_entities.iter_mut() {
+        transform.translation.z -= player_velocity * time.delta_secs();
+
+        if transform.translation.z <= DESPAWN_POSITION {
             commands.entity(entity).despawn();
         }
     }
@@ -186,12 +196,23 @@ fn spawn_grounds(mut commands: Commands, mut retired: ResMut<RetiredGrounds>) {
             .entity(entity)
             .entry::<Transform>()
             .and_modify(|mut transform| {
-                transform.translation.z += SPAWN_LOCATION - DESPAWN_LOCATION;
+                transform.translation.z += SPAWN_POSITION - DESPAWN_POSITION;
             })
-            .or_insert(Transform::from_xyz(0.0, 0.0, SPAWN_LOCATION));
+            .or_insert(Transform::from_xyz(0.0, 0.0, SPAWN_POSITION));
     }
 }
 
-pub fn update_player_speed(mut forward_move: ResMut<ForwardMovement>, time: Res<Time>) {
-    forward_move.decel(time.delta_secs());
+pub fn update_player_speed(
+    mut player_query: Query<&mut ForwardMovement, With<Player>>,
+    time: Res<Time>,
+) {
+    let Ok(mut forward_move) = player_query.single_mut() else {
+        return;
+    };
+
+    let mut velocity = forward_move.get();
+    velocity -= ACCELERATION * time.delta_secs();
+    velocity = velocity.max(0.0);
+
+    forward_move.set(velocity);
 }

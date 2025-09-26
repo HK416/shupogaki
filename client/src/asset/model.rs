@@ -6,7 +6,10 @@ use bevy::{
 };
 use serde::Deserialize;
 
-use crate::asset::{Float4x4, material::EyeMouthMaterial, mesh::MeshAsset};
+use crate::{
+    asset::{Float4x4, material::EyeMouthMaterial, mesh::MeshAsset},
+    scene::{QUERY, VERSION},
+};
 
 use super::*;
 
@@ -125,7 +128,7 @@ fn collect_assets_recursive(
 ) {
     // If the node has a mesh, load the corresponding `.mesh` asset.
     if let Some(mesh_uri) = &node.mesh {
-        let mesh_path = format!("meshes/{}.mesh", mesh_uri);
+        let mesh_path = format!("meshes/{}.mesh{}{}", mesh_uri, QUERY, VERSION);
         let handle: Handle<MeshAsset> = load_context.load(mesh_path);
         meshes.insert(mesh_uri.clone(), handle);
     }
@@ -134,12 +137,14 @@ fn collect_assets_recursive(
     for material_uri in &node.materials {
         let handle: MaterialHandle = match material_uri.contains("EyeMouth") {
             true => {
-                let material_path = format!("materials/{}.material", material_uri);
+                let material_path =
+                    format!("materials/{}.material{}{}", material_uri, QUERY, VERSION);
                 let handle: Handle<EyeMouthMaterial> = load_context.load(material_path);
                 MaterialHandle::FacialExpression(handle)
             }
             false => {
-                let material_path = format!("materials/{}.material", material_uri);
+                let material_path =
+                    format!("materials/{}.material{}{}", material_uri, QUERY, VERSION);
                 let handle: Handle<StandardMaterial> = load_context.load(material_path);
                 MaterialHandle::Standard(handle)
             }

@@ -111,14 +111,14 @@ fn update_scene_timer(
 ) {
     timer.tick(time.delta_secs());
     // If the timer has reached or exceeded the scene duration, transition back to InGame.
-    if timer.elapsed_time >= SCENE_DURATION {
+    if timer.elapsed_sec() >= SCENE_DURATION {
         next_state.set(GameState::InGame);
     }
 }
 
 fn update_resume_ui(mut query: Query<(&UI, &mut Visibility)>, timer: Res<SceneTimer>) {
     for (&ui, mut visibility) in query.iter_mut() {
-        match (ui, timer.elapsed_time) {
+        match (ui, timer.elapsed_sec()) {
             (UI::ResumeCount1, 0.0..1.0) => {
                 *visibility = Visibility::Hidden;
             }

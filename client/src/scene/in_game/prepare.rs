@@ -102,10 +102,7 @@ fn insert_resource(mut commands: Commands) {
     commands.insert_resource(PlayTime::default());
     commands.insert_resource(TrainFuel::default());
     commands.insert_resource(InputDelay::default());
-    commands.insert_resource(CurrentLane::default());
     commands.insert_resource(CurrentScore::default());
-    commands.insert_resource(ForwardMovement::default());
-    commands.insert_resource(VerticalMovement::default());
     commands.insert_resource(IsPlayerJumping::default());
     commands.insert_resource(CurrentState::default());
     commands.insert_resource(RetiredGrounds::default());
@@ -199,21 +196,26 @@ fn update_scene_timer(
     time: Res<Time>,
 ) {
     timer.tick(time.delta_secs());
-    if timer.elapsed_time >= SCENE_DURATION {
+    if timer.elapsed_sec() >= SCENE_DURATION {
         next_state.set(GameState::StartInGame);
     }
 }
 
 fn update_ground_position(
-    forward_move: Res<ForwardMovement>,
+    player_query: Query<&ForwardMovement, With<Player>>,
     mut ground_entities: Query<(Entity, &mut Transform), With<Ground>>,
     mut retired: ResMut<RetiredGrounds>,
     time: Res<Time>,
 ) {
-    for (entity, mut transform) in ground_entities.iter_mut() {
-        transform.translation.z -= forward_move.velocity * time.delta_secs();
+    let player_velocity = player_query
+        .single()
+        .map(|forward_move| forward_move.get())
+        .unwrap_or(0.0);
 
-        if transform.translation.z <= DESPAWN_LOCATION {
+    for (entity, mut transform) in ground_entities.iter_mut() {
+        transform.translation.z -= player_velocity * time.delta_secs();
+
+        if transform.translation.z <= DESPAWN_POSITION {
             retired.push(entity);
         }
     }
@@ -221,15 +223,20 @@ fn update_ground_position(
 
 fn update_object_position(
     mut commands: Commands,
-    forward_move: Res<ForwardMovement>,
     mut object_spawner: ResMut<ObjectSpawner>,
     mut object_entities: Query<(Entity, &mut Transform, &Object)>,
+    player_query: Query<&ForwardMovement, With<Player>>,
     time: Res<Time>,
 ) {
-    for (entity, mut transform, &obj) in object_entities.iter_mut() {
-        transform.translation.z -= forward_move.velocity * time.delta_secs();
+    let player_velocity = player_query
+        .single()
+        .map(|forward_move| forward_move.get())
+        .unwrap_or(0.0);
 
-        if transform.translation.z <= DESPAWN_LOCATION {
+    for (entity, mut transform, &obj) in object_entities.iter_mut() {
+        transform.translation.z -= player_velocity * time.delta_secs();
+
+        if transform.translation.z <= DESPAWN_POSITION {
             object_spawner.drain(&mut commands, entity, obj);
         }
     }
@@ -239,9 +246,7 @@ fn update_object_position(
 
 fn update_player_position(mut query: Query<&mut Transform, With<Player>>, timer: Res<SceneTimer>) {
     if let Ok(mut transform) = query.single_mut() {
-        // Calculate the interpolation factor `t` from 0.0 to 1.0 based on the scene timer.
-        let t = timer.elapsed_time / SCENE_DURATION;
-        // Linearly interpolate the player's z-position from the starting point to the final gameplay position.
+        let t = timer.elapsed_sec() / SCENE_DURATION;
         let z_pos = PLAYER_MIN_Z_POS * (1.0 - t) + PLAYER_MAX_Z_POS * t;
         transform.translation.z = z_pos;
     }
@@ -319,18 +324,27 @@ fn spawn_grounds(mut commands: Commands, mut retired: ResMut<RetiredGrounds>) {
             .entity(entity)
             .entry::<Transform>()
             .and_modify(|mut transform| {
-                transform.translation.z += SPAWN_LOCATION - DESPAWN_LOCATION;
+                transform.translation.z += SPAWN_POSITION - DESPAWN_POSITION;
             })
-            .or_insert(Transform::from_xyz(0.0, 0.0, SPAWN_LOCATION));
+            .or_insert(Transform::from_xyz(0.0, 0.0, SPAWN_POSITION));
     }
 }
 
 fn spawn_objects(
     mut commands: Commands,
     mut spawner: ResMut<ObjectSpawner>,
+    player_query: Query<&ForwardMovement, With<Player>>,
     asset_server: Res<AssetServer>,
-    current: Res<ForwardMovement>,
     time: Res<Time>,
 ) {
-    spawner.on_advanced(&mut commands, &asset_server, &current, time.delta_secs());
+    let Ok(forward_move) = player_query.single() else {
+        return;
+    };
+
+    spawner.on_advanced(
+        &mut commands,
+        &asset_server,
+        forward_move,
+        time.delta_secs(),
+    );
 }
