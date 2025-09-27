@@ -277,6 +277,25 @@ fn spawn_title_ui_entities(
                 UI::OptionButton,
                 Button,
             ));
+
+            parent.spawn((Node {
+                width: Val::Percent(100.0),
+                height: Val::Percent(10.0),
+                ..Default::default()
+            },));
+
+            parent.spawn((
+                Text::new("How to play"),
+                TextFont::from_font(font.clone()),
+                TextLayout::new_with_justify(JustifyText::Center),
+                TextShadow::default(),
+                TranslatableText("how_to_play".to_string()),
+                ResizableFont::vertical(1280.0, 102.0),
+                Node::default(),
+                Visibility::Hidden,
+                UI::TutorialButton,
+                Button,
+            ));
         })
         .id();
     loading_entities.handles.push(entity);
