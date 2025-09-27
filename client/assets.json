@@ -220,6 +220,16 @@
                 "Train_Icon.sprite",
                 "trainroof_atlas.texture"
             ]
+        },
+        "tutorial" : {
+            "files": [
+                "Tutorial_en_0.png",
+                "Tutorial_en_1.png",
+                "Tutorial_ja_0.png",
+                "Tutorial_ja_1.png",
+                "Tutorial_ko_0.png",
+                "Tutorial_ko_1.png"
+            ]
         }
     }
 }

@@ -160,6 +160,7 @@ pub enum UI {
     HighScore,
     StartButton,
     OptionButton,
+    TutorialButton,
     StartLabel,
     FinishLabel,
     PauseButton,

@@ -361,3 +361,15 @@ fn system_despawn_finished_sounds(
         }
     }
 }
+
+// --- JavaScript FFI ---
+
+#[wasm_bindgen]
+extern "C" {
+    #[wasm_bindgen(js_name = start_tutorial)]
+    fn start_tutorial(lang: &str);
+}
+
+pub fn start_game_tutorial(lang: &str) {
+    start_tutorial(lang);
+}

@@ -2,10 +2,13 @@
 use bevy::{audio::Volume, prelude::*};
 
 #[cfg(target_arch = "wasm32")]
-use crate::web::{WebAudioPlayer, WebPlaybackSettings};
+use crate::web::{WebAudioPlayer, WebPlaybackSettings, start_game_tutorial};
 
 use crate::{
-    asset::{animation::AnimationClipHandle, material::EyeMouthMaterial, sound::SystemVolume},
+    asset::{
+        animation::AnimationClipHandle, locale::CurrentLocale, material::EyeMouthMaterial,
+        sound::SystemVolume,
+    },
     shader::face_mouth::EyeMouth,
 };
 
@@ -52,7 +55,9 @@ fn show_entities(mut query: Query<&mut Visibility, (With<TitleStateRoot>, Withou
 fn show_interfaces(mut query: Query<(&UI, &mut Visibility)>) {
     for (&ui, mut visibility) in query.iter_mut() {
         match ui {
-            UI::HighScore | UI::StartButton | UI::OptionButton => *visibility = Visibility::Visible,
+            UI::HighScore | UI::StartButton | UI::OptionButton | UI::TutorialButton => {
+                *visibility = Visibility::Visible
+            }
             _ => { /* empty */ }
         }
     }
@@ -159,7 +164,9 @@ fn setup_mouth_expression(
 fn hide_interfaces(mut query: Query<(&UI, &mut Visibility)>) {
     for (&ui, mut visibility) in query.iter_mut() {
         match ui {
-            UI::HighScore | UI::StartButton | UI::OptionButton => *visibility = Visibility::Hidden,
+            UI::HighScore | UI::StartButton | UI::OptionButton | UI::TutorialButton => {
+                *visibility = Visibility::Hidden
+            }
             _ => { /* empty */ }
         }
     }
@@ -172,6 +179,7 @@ fn title_button_systems(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     system_volume: Res<SystemVolume>,
+    #[allow(unused_variables)] current_locale: Res<CurrentLocale>,
     mut next_state: ResMut<NextState<GameState>>,
     mut interaction_query: Query<
         (&UI, &Interaction, &mut TextColor),
@@ -202,6 +210,19 @@ fn title_button_systems(
                 next_state.set(GameState::Option);
             }
             (UI::OptionButton, Interaction::None) => {
+                *text_color = TextColor(Color::WHITE);
+            }
+            (UI::TutorialButton, Interaction::Hovered) => {
+                *text_color = TextColor(Color::WHITE.darker(0.3));
+                play_button_sound_when_hovered(&mut commands, &asset_server, &system_volume);
+            }
+            (UI::TutorialButton, Interaction::Pressed) => {
+                *text_color = TextColor(Color::WHITE.darker(0.5));
+                play_button_sound_when_pressed(&mut commands, &asset_server, &system_volume);
+                #[cfg(target_arch = "wasm32")]
+                start_game_tutorial(&current_locale.0.to_string());
+            }
+            (UI::TutorialButton, Interaction::None) => {
                 *text_color = TextColor(Color::WHITE);
             }
             _ => { /* empty */ }

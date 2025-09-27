@@ -20,7 +20,7 @@ impl fmt::Display for Locale {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Locale::En => write!(f, "en"),
-            Locale::Ja => write!(f, "jp"),
+            Locale::Ja => write!(f, "ja"),
             Locale::Ko => write!(f, "ko"),
         }
     }
